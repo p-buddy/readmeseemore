@@ -28,5 +28,5 @@ pnpm build   # Build production bundle
 
 ### Community
 
-- [Discord](https://discord.gg/ty2CstRYZ6)
+- [Discord](https://discord.kat.tax)
 - [Roadmap](./ROADMAP.md)
