@@ -1,0 +1,23 @@
+{
+  "name": "readmeseymour Dev",
+  "dockerFile": "Dockerfile",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "svelte.svelte-vscode",
+        "GitHub.copilot",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "postCreateCommand": [
+    "pnpm install"
+  ],
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
+  ],
+  "containerEnv": {
+    "NPM_TOKEN": "${localEnv:REPLRN_NPM_TOKEN}"
+  }
+}
