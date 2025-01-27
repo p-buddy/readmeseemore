@@ -12,20 +12,21 @@
     AutoTypings,
     LocalStorageCache,
   } from "monaco-editor-auto-typings/custom-editor";
-  import type { FileSystemAPI } from "@webcontainer/api";
   import type { CollabInstance } from "./collaboration";
   import { sveltify } from "@p-buddy/svelte-preprocess-react";
   import mode from "./mode.svelte";
+  import type { WithLimitFs } from "./utils/fs-helper";
 
   type Props = {
-    fs: FileSystemAPI;
+    fs: WithLimitFs<"readFile" | "writeFile">;
+    name: string;
     path: string;
-    sync: CollabInstance;
+    sync?: CollabInstance;
   };
 
-  let props: PanelPropsByView<Props>["dock"] = $props();
+  let { params, api }: PanelPropsByView<Props>["dock"] = $props();
 
-  const { fs, path, sync } = $derived(props.params);
+  const { fs, sync } = params;
 
   const react = sveltify({ Monaco });
   const sourceCache = new LocalStorageCache();
@@ -38,7 +39,7 @@
     AutoTypings.create(editor, { monaco, sourceCache, fileRootPath: "./" });
     let contents = "";
     try {
-      contents = await fs.readFile(path, "utf-8");
+      contents = await fs.readFile(params.path, "utf-8");
     } catch (e) {}
     editor.setValue(contents);
     if (sync) {
@@ -46,13 +47,15 @@
       sync.syncEditor(editor);
     }
   };
+
+  $effect(() => api?.setTitle(params.name));
 </script>
 
 <react.Monaco
-  {path}
+  path={params.path}
   theme={mode.isDark ? "vs-dark" : "vs-light"}
   options={{ readOnly: true, padding: { top: 10 } }}
-  onChange={(value) => fs.writeFile(path, value || "", "utf-8")}
+  onChange={(value) => fs.writeFile(params.path, value || "", "utf-8")}
   onMount={(_editor, _monaco) => {
     editor = _editor;
     monaco = _monaco;

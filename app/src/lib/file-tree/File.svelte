@@ -1,37 +1,36 @@
 <script lang="ts">
-  export let name;
-  $: type = name.slice(name.lastIndexOf(".") + 1);
-  $: console.log(type, "Code");
+  import type { TFile } from "./Tree.svelte";
+  import type { Props } from "$lib/utils/ui-framework";
+  import EditableName from "./EditableName.svelte";
+  import SingleClickButton, { type OnClick } from "./SingleClickButton.svelte";
 
-  import TsImg from "./svgs/ts.svg";
-  import SvelteImg from "./svgs/svelte.svg";
-  import JsImg from "./svgs/js.svg";
-  import Img from "./svgs/image.svg";
-  // All SVG Files are downloaded from
-  /*
-  Twitter : https://simpleicons.org/?q=twitter
-  Svelte : https://svgl.app/?search=svelte
-  TS : https://svgl.app/?search=typescript
-  Image,folder open, close icons from ; https://lucide.dev/icons/ 
-  */
-
-  let allFiles: any = {
-    svelte: SvelteImg,
-    ts: TsImg,
-    js: JsImg,
-    png: Img,
-  };
+  let {
+    name = $bindable(),
+    rename,
+    onclick,
+  }: { onclick: OnClick } & TFile & Props<typeof EditableName> = $props();
 </script>
 
-<span class=" w-fit">
-  <img src={allFiles[type]} class=" h-[16px] w-[15px] mt-1" alt={type} />
-  {name}
-</span>
-
-<style>
-  span {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-  }
-</style>
+<SingleClickButton {onclick}>
+  <span class="w-fit flex items-center gap-0.5">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="mt-px"
+    >
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </svg>
+    <EditableName bind:name {rename} />
+  </span>
+</SingleClickButton>

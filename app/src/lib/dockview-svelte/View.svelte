@@ -18,12 +18,24 @@
     pane: IPaneviewReactProps;
     split: ISplitviewReactProps;
   };
+  type PanelPropKeys = keyof (
+    | IGridviewPanelProps
+    | IDockviewPanelProps
+    | IPaneviewPanelProps
+    | ISplitviewPanelProps
+  );
 
-  export type PanelPropsByView<T extends { [index: string]: any } = any> = {
-    grid: IGridviewPanelProps<T>;
-    dock: IDockviewPanelProps<T>;
-    pane: IPaneviewPanelProps<T>;
-    split: ISplitviewPanelProps<T>;
+  type RequiredAndPartial<T, Required extends keyof T> = Pick<T, Required> &
+    Partial<Omit<T, Required>>;
+
+  export type PanelPropsByView<
+    T extends { [index: string]: any } = any,
+    Required extends PanelPropKeys = "params",
+  > = {
+    grid: RequiredAndPartial<IGridviewPanelProps<T>, Required>;
+    dock: RequiredAndPartial<IDockviewPanelProps<T>, Required>;
+    pane: RequiredAndPartial<IPaneviewPanelProps<T>, Required>;
+    split: RequiredAndPartial<ISplitviewPanelProps<T>, Required>;
   };
 
   type ViewComponents<T extends keyof ViewPropsByView> =

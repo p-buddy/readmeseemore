@@ -1,48 +1,47 @@
 <script lang="ts">
-  import type { Folder } from ".";
+  import type { WithOnFileClick, TFolder } from "./Tree.svelte";
+  import type { Props } from "$lib/utils/ui-framework";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
   import { slide } from "svelte/transition";
   import OpenFolder from "./svgs/OpenFolder.svelte";
   import ClosedFolder from "./svgs/ClosedFolder.svelte";
+  import EditableName from "./EditableName.svelte";
+  import SingleClickButton from "./SingleClickButton.svelte";
 
-  let { expanded = false, name, files }: Folder = $props();
-
-  function toggle() {
-    expanded = !expanded;
-  }
+  let {
+    expanded = false,
+    name = $bindable(),
+    rename,
+    children,
+    onFileClick,
+  }: TFolder & WithOnFileClick & Props<typeof EditableName> = $props();
 </script>
 
-<button onclick={toggle} class="font-medium">
+<SingleClickButton onclick={() => (expanded = !expanded)}>
   {#if expanded}
     <OpenFolder />{:else}
     <ClosedFolder />{/if}
-  {name}
-</button>
+  <EditableName bind:name {rename} />
+</SingleClickButton>
 
 {#if expanded}
   <ul transition:slide={{ duration: 300 }}>
-    {#each files as file}
+    {#each children as child}
+      {@const rename = child.rename.bind(child)}
       <li>
-        {#if file.type === "folder"}
-          <Self {...file} />{:else}
-          <File {...file} />{/if}
+        {#if child.type === "folder"}
+          <Self {...child} {rename} bind:name={child.name} {onFileClick} />
+        {:else}
+          {@const onclick = () => onFileClick(child)}
+          <File {...child} {rename} bind:name={child.name} {onclick} />
+        {/if}
       </li>
     {/each}
   </ul>
 {/if}
 
 <style>
-  button {
-    background-size: 1em 1em;
-    border: none;
-    font-size: 14px;
-    display: flex;
-    gap: 3px;
-    align-items: center;
-    outline: none;
-    background: transparent no-repeat;
-  }
   ul {
     padding: 0.2em 0 0 0.5em;
     margin: 0 0 0 0.5em;

@@ -1,9 +1,7 @@
 <script lang="ts">
   import type { IWatermarkPanelProps } from "dockview";
 
-  const props: IWatermarkPanelProps = $props();
-
-  export const hi = () => {};
+  let props: IWatermarkPanelProps = $props();
 </script>
 
 <div class="watermark">

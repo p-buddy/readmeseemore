@@ -1,13 +1,13 @@
 const query = matchMedia('(prefers-color-scheme: dark)');
 
-const get = () => query.matches;
+const isDark = () => query.matches;
 
-let isDark = $state(get());
+let darkState = $state(isDark());
 
-query.addEventListener('change', () => isDark = get());
+query.addEventListener('change', () => darkState = isDark());
 
 export default {
   get isDark() {
-    return isDark;
+    return darkState;
   },
 };
