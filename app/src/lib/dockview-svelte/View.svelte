@@ -8,6 +8,10 @@
     IDockviewPanelProps,
     IPaneviewPanelProps,
     ISplitviewPanelProps,
+    IGridviewPanel,
+    IDockviewPanel,
+    IPaneviewPanel,
+    ISplitviewPanel,
   } from "dockview";
   import type React from "react";
   import type { Snippet, Component as SvelteComponent } from "svelte";
@@ -18,12 +22,22 @@
     pane: IPaneviewReactProps;
     split: ISplitviewReactProps;
   };
+
+  export type ViewKey = keyof ViewPropsByView;
+
   type PanelPropKeys = keyof (
     | IGridviewPanelProps
     | IDockviewPanelProps
     | IPaneviewPanelProps
     | ISplitviewPanelProps
   );
+
+  type AddedPanelByView = {
+    grid: IGridviewPanel;
+    dock: IDockviewPanel;
+    pane: IPaneviewPanel;
+    split: ISplitviewPanel;
+  };
 
   type RequiredAndPartial<T, Required extends keyof T> = Pick<T, Required> &
     Partial<Omit<T, Required>>;
@@ -41,7 +55,7 @@
   type ViewComponents<T extends keyof ViewPropsByView> =
     ViewPropsByView[T]["components"];
 
-  type ComponentProps<T extends keyof ViewPropsByView> = {
+  export type ComponentProps<T extends keyof ViewPropsByView> = {
     [K in keyof ViewComponents<T>]: ViewComponents<T>[K] extends React.FunctionComponent<
       infer P
     >
@@ -68,16 +82,28 @@
     SnippetRender,
     mountKey,
   ) as ReturnType<typeof reactify>;
+
+  export type ReactComponentsConstraint<ViewType extends ViewKey> =
+    ViewComponents<ViewType>;
+
+  export type SvelteComponentsConstraint<ViewType extends ViewKey> = Record<
+    string,
+    SvelteComponent<ComponentProps<ViewType> & Record<string, any>>
+  >;
+
+  export type SnippetsConstraint<ViewType extends ViewKey> = Record<
+    string,
+    Snippet<[ComponentProps<ViewType>]>
+  >;
 </script>
 
 <script
   lang="ts"
   generics="
-    ViewType extends keyof ViewPropsByView, 
-    const ReactComponents extends ViewComponents<ViewType>,
-    const SvelteComponents extends Record<string, SvelteComponent<AllowedSvelteComponentProps>>,
-    const Snippets extends Record<string, Snippet<[ComponentProps<ViewType>]>>,
-    AllowedSvelteComponentProps extends ComponentProps<ViewType> & Record<string, any>,
+    ViewType extends ViewKey, 
+    const ReactComponents extends ReactComponentsConstraint<ViewType>,
+    const SvelteComponents extends SvelteComponentsConstraint<ViewType>,
+    const Snippets extends SnippetsConstraint<ViewType>,
   "
 >
   import { reactify } from "@p-buddy/svelte-preprocess-react";
@@ -86,6 +112,7 @@
 
   type RawViewProps = ViewPropsByView[ViewType];
   type PanelProps = PanelPropsByView[ViewType];
+  type Panel = AddedPanelByView[ViewType];
   type OnReady = RawViewProps["onReady"];
 
   type SpecificSvelteProps<K extends keyof SvelteComponents> =
@@ -101,15 +128,15 @@
   type ExtendedContainerAPI = {
     api: {
       addSveltePanel: <K extends keyof SvelteComponents & string>(
-        name: K,
+        name: string extends K ? never : K,
         ...params: SpecificSvelteProps<K> extends Record<string, any>
           ?
               | [SpecificSvelteProps<K>]
               | [SpecificSvelteProps<K>, AddPanelOptions<ViewType>]
           : [null | undefined | {}, AddPanelOptions<ViewType>] | []
-      ) => Promise<SvelteExports<K>>;
+      ) => Promise<SvelteExports<K> & AddedPanelByView[ViewType]>;
       addSnippetPanel: <K extends keyof Snippets>(
-        name: K,
+        name: string extends K ? never : K,
         ...params: Snippets[K] extends Snippet<
           infer Params extends [PanelProps]
         >
@@ -117,7 +144,7 @@
               | [Params[number]["params"]]
               | [Params[number]["params"], AddPanelOptions<ViewType>]
           : [null | undefined | {}, AddPanelOptions<ViewType>] | []
-      ) => Promise<void>;
+      ) => Promise<AddedPanelByView[ViewType]>;
     };
   };
 
@@ -146,34 +173,37 @@
   {...props}
   onReady={(event: Parameters<OnReady>[0]) => {
     const extended = event as Parameters<OnReady>[0] & ExtendedContainerAPI;
-    extended.api.addSveltePanel = (name, ...params) => {
+    extended.api.addSveltePanel = async (name, ...params) => {
       const { length } = params;
       const _props = length >= 1 ? params[0] : null;
       const config = length === 2 ? params[1] : null;
-
-      return new Promise((resolve) => {
-        event.api.addPanel({
-          ...(config ?? {}),
-          component: name,
-          id: length === 2 ? (config?.id ?? name) : name,
-          title:
-            type === "pane"
-              ? ((config as AddPanelOptions<"pane">)?.title ?? name)
-              : (undefined as any),
-          params: {
-            ...(_props ?? {}),
-            onSvelteMount: resolve,
-          } satisfies OnMount,
-        });
-      });
+      let panel: Panel;
+      const exports: SvelteExports<typeof name> = await new Promise(
+        (resolve) =>
+          (panel = event.api.addPanel({
+            ...(config ?? {}),
+            component: name,
+            id: length === 2 ? (config?.id ?? name) : name,
+            title:
+              type === "pane"
+                ? ((config as AddPanelOptions<"pane">)?.title ?? name)
+                : (undefined as any),
+            params: {
+              ...(_props ?? {}),
+              onSvelteMount: resolve,
+            } satisfies OnMount,
+          }) as Panel),
+      );
+      if (!panel!) throw new Error("Panel not found");
+      return Object.assign(exports, panel);
     };
-    extended.api.addSnippetPanel = async (name, ...params) => {
+    extended.api.addSnippetPanel = (name, ...params) => {
       if (params.length === 0) (params as any[]).push({});
       params[0] = {
         ...(params[0] ?? {}),
         snippet: snippets?.[name],
       };
-      await extended.api.addSveltePanel(name as any, ...(params as any));
+      return extended.api.addSveltePanel(name as never, ...(params as any));
     };
     return onReady?.(extended);
   }}

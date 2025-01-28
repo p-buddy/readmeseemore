@@ -1,4 +1,4 @@
-import type { FileSystemAPI } from "@webcontainer/api";
+import type { FileNode, FileSystemAPI } from "@webcontainer/api";
 
 type FsWith<T extends keyof FileSystemAPI> = Pick<FileSystemAPI, T>;
 
@@ -46,3 +46,13 @@ export type WithLimitFsReturn<
         limitted: ApplyRemap<Pick<FsReturn<FsKey, ExtractionConfig>, ReturnKey>, Remap>
       };
   };
+
+export const file = <Name extends string>(
+  name: Name, content: string | string[]
+) => ({
+  [name]: {
+    file: {
+      contents: Array.isArray(content) ? content.join("\n") : content
+    }
+  } satisfies FileNode
+} as { [name in Name]: FileNode })
