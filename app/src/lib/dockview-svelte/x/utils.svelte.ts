@@ -38,6 +38,7 @@ export type PanelPropKeys = keyof (
   | ISplitviewPanelProps
 );
 
+
 export type AddedPanelByView = {
   grid: IGridviewPanel;
   dock: IDockviewPanel;
@@ -47,16 +48,12 @@ export type AddedPanelByView = {
 
 type AnyComponent = Component<any, any, any>;
 
-type ViewComponents<T extends keyof ViewPropsByView> =
-  ViewPropsByView[T]["components"];
-
-export type ComponentProps<T extends keyof ViewPropsByView> = {
-  [K in keyof ViewComponents<T>]: ViewComponents<T>[K] extends React.FunctionComponent<
-    infer P
-  >
-  ? P
-  : never;
-}[keyof ViewComponents<T>];
+export type ComponentProps<T extends ViewKey> = {
+  grid: IGridviewPanelProps;
+  dock: IDockviewPanelProps;
+  pane: IPaneviewPanelProps;
+  split: ISplitviewPanelProps;
+}[T];
 
 export type ComponentsConstraint<ViewType extends ViewKey> = Record<
   string,
@@ -81,11 +78,11 @@ export type PanelPropsByView<
   split: RequiredAndPartial<ISplitviewPanelProps<T>, Required>;
 };
 
-type ExtractPanelOptions<T extends keyof ViewPropsByView> = Parameters<
+type ExtractPanelOptions<T extends ViewKey> = Parameters<
   Parameters<ViewPropsByView[T]["onReady"]>[0]["api"]["addPanel"]
 >[0];
 
-type AddPanelOptions<T extends keyof ViewPropsByView> = Omit<
+type AddPanelOptions<T extends ViewKey> = Omit<
   ExtractPanelOptions<T>,
   "id" | "component" | "params"
 > & { id?: string };
@@ -102,7 +99,7 @@ export type ComponentExports<K extends keyof Components, Components extends Reco
   : never;
 
 export type ExtendedContainerAPI<ViewType extends ViewKey, Components extends Record<string, Component<any>>, Snippets extends Record<string, Snippet<any[]>>> = {
-  addSveltePanel: <K extends keyof Components & string>(
+  addComponentPanel: <K extends keyof Components & string>(
     name: string extends K ? never : K,
     ...params: PropParams<ViewType, K, Components> extends Record<string, any>
       ?
@@ -122,16 +119,18 @@ export type ExtendedContainerAPI<ViewType extends ViewKey, Components extends Re
   ) => Promise<AddedPanelByView[ViewType]>;
 };
 
-export type ViewAPI<
-  ViewType extends ViewKey,
-  Components extends Record<string, Component<any>>,
-  Snippets extends Record<string, Snippet<any[]>>
-> = {
+export type RawViewAPIs = {
   grid: GridviewApi;
   dock: DockviewApi;
   pane: PaneviewApi;
   split: SplitviewApi;
-}[ViewType] & ExtendedContainerAPI<ViewType, Components, Snippets>;
+}
+
+export type ViewAPI<
+  ViewType extends ViewKey,
+  Components extends Record<string, Component<any>>,
+  Snippets extends Record<string, Snippet<any[]>>
+> = RawViewAPIs[ViewType] & ExtendedContainerAPI<ViewType, Components, Snippets>;
 
 type RawViewProps<ViewType extends ViewKey> = ViewPropsByView[ViewType];
 type OnReady<ViewType extends ViewKey> = RawViewProps<ViewType>["onReady"];
@@ -235,4 +234,50 @@ export const fillComponentMap = <
     for (const key in snippets)
       map.set(key, SnippetRender);
   return map;
+}
+
+export const createExtendedAPI = <
+  ViewType extends ViewKey, Components extends ComponentsConstraint<ViewType>, Snippets extends SnippetsConstraint<ViewType>
+>(
+  type: ViewType,
+  api: RawViewAPIs[ViewType],
+  snippets: Snippets | undefined,
+  mount: MountMechanism,
+  viewIndex: number,
+) => {
+  type Target = ExtendedContainerAPI<ViewType, Components, Snippets>;
+  const addComponentPanel: Target["addComponentPanel"] = async (component, ...args) => {
+    const { length } = args;
+    const params = length >= 1 ? args[0] : {};
+    const config = length === 2 ? args[1] : null;
+    const id = length === 2 ? (config?.id ?? component) : component;
+
+    type Exports = ComponentExports<typeof component, Components>;
+    const exports = mount.await<Exports>(viewIndex, id, component);
+
+    const title = type === "pane"
+      ? ((config as AddPanelOptions<"pane">)?.title ?? name)
+      : (undefined as any);
+
+    const panel = api.addPanel({
+      ...(config ?? {}),
+      id,
+      component,
+      title,
+      params: params ?? {},
+    }) as AddedPanelByView[ViewType];
+
+    return Object.assign(await exports, panel);
+  };
+
+  const addSnippetPanel: Target["addSnippetPanel"] = (name, ...params) => {
+    if (params.length === 0) (params as any[]).push({});
+    params[0] = {
+      ...(params[0] ?? {}),
+      snippet: snippets?.[name],
+    };
+    return addComponentPanel(name as never, ...(params as any));
+  };
+
+  return { addComponentPanel: addComponentPanel, addSnippetPanel, } satisfies Target;
 }

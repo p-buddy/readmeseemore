@@ -16,15 +16,12 @@
     type ComponentsConstraint,
     type SnippetsConstraint,
     type ModifiedProps,
-    type AddedPanelByView,
-    type ComponentExports,
     type ViewAPI,
-    type ExtendedContainerAPI,
     type PanelPropsByView,
     MountMechanism,
     fillComponentMap,
+    createExtendedAPI,
   } from "./utils.svelte";
-  import SnippetRender from "./SnippetRender.svelte";
 
   let gridCount = 0;
 
@@ -79,9 +76,8 @@
 <script
   lang="ts"
   generics="
-    const Components extends ComponentsConstraint<ViewType>,
-    const Snippets extends SnippetsConstraint<ViewType>,
-    const ViewType extends `grid` = `grid`,
+    const Components extends ComponentsConstraint<`grid`>,
+    const Snippets extends SnippetsConstraint<`grid`>,
   "
 >
   let {
@@ -89,16 +85,19 @@
     snippets,
     onReady,
     ...props
-  }: ModifiedProps<ViewType, Components, Snippets> = $props();
+  }: ModifiedProps<"grid", Components, Snippets> = $props();
 
   const index = gridCount++;
 
-  let gridView: ViewAPI<ViewType, Components, Snippets>;
+  let gridView: ViewAPI<"grid", Components, Snippets>;
 
-  const map = fillComponentMap(components, snippets);
+  const map = fillComponentMap<"grid", Components, Snippets>(
+    components,
+    snippets,
+  );
 
   $effect(() => {
-    fillComponentMap(components, snippets, map);
+    fillComponentMap<"grid", Components, Snippets>(components, snippets, map);
   });
 
   for (const key of PROPERTY_KEYS_GRIDVIEW)
@@ -118,43 +117,19 @@
   let element: HTMLElement;
 
   onMount(() => {
+    const api = createGridview(element, {
+      ...extractCoreOptions(props, PROPERTY_KEYS_GRIDVIEW),
+      ...frameworkOptions,
+    });
     gridView = Object.assign(
-      createGridview(element, {
-        ...extractCoreOptions(props, PROPERTY_KEYS_GRIDVIEW),
-        ...frameworkOptions,
-      }),
-      {
-        addSveltePanel: async (component, ...args) => {
-          const { length } = args;
-          const params = length >= 1 ? args[0] : {};
-          const config = length === 2 ? args[1] : null;
-          const id = length === 2 ? (config?.id ?? component) : component;
-
-          type Exports = ComponentExports<typeof component, Components>;
-          const exports = SvelteGridPanelView.Mount.await<Exports>(
-            index,
-            id,
-            component,
-          );
-
-          const panel = gridView.addPanel({
-            ...(config ?? {}),
-            id,
-            component,
-            params: params ?? {},
-          }) as AddedPanelByView[ViewType];
-
-          return Object.assign(await exports, panel);
-        },
-        addSnippetPanel: (name, ...params) => {
-          if (params.length === 0) (params as any[]).push({});
-          params[0] = {
-            ...(params[0] ?? {}),
-            snippet: snippets?.[name],
-          };
-          return gridView.addSveltePanel(name as never, ...(params as any));
-        },
-      } satisfies ExtendedContainerAPI<ViewType, Components, Snippets>,
+      api,
+      createExtendedAPI<"grid", Components, Snippets>(
+        "grid",
+        api,
+        snippets,
+        SvelteGridPanelView.Mount,
+        index,
+      ),
     );
 
     const { clientWidth, clientHeight } = element;
