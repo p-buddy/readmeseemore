@@ -65,6 +65,8 @@ export type SnippetsConstraint<ViewType extends ViewKey> = Record<
   Snippet<[ComponentProps<ViewType>]>
 >;
 
+export type HeadersConstraint = { components: ComponentsConstraint<"pane">, snippets: SnippetsConstraint<"pane"> };
+
 type RequiredAndPartial<T, Required extends keyof T> = Pick<T, Required> &
   Partial<Omit<T, Required>>;
 
@@ -82,12 +84,18 @@ type ExtractPanelOptions<T extends ViewKey> = Parameters<
   Parameters<ViewPropsByView[T]["onReady"]>[0]["api"]["addPanel"]
 >[0];
 
-type AddPanelOptions<T extends ViewKey> = Omit<
-  ExtractPanelOptions<T>,
-  "id" | "component" | "params"
-> & { id?: string };
+type AdditionalOptions<ViewType extends ViewKey> = ViewType extends "pane" ? {
+  headers: HeadersConstraint;
+} : never;
 
-type PropParams<ViewType extends ViewKey, K extends keyof Components, Components extends Record<string, Component<any>>> =
+type AddPanelOptions<T extends ViewKey, Additional extends AdditionalOptions<T> = never> = Omit<
+  ExtractPanelOptions<T>,
+  "id" | "component" | "params" | (T extends "pane" ? "headerComponent" : never)
+> & { id?: string }
+  & (T extends "pane" ? Additional extends never ? {} : { headerComponent: keyof (Additional["headers"]["components"] | Additional["headers"]["snippets"]) } : {});
+
+
+type PropParams<ViewType extends ViewKey, K extends keyof Components, Components extends ComponentsConstraint<ViewType>> =
   Components[K] extends Component<infer Props extends PanelPropsByView[ViewType]>
   ? Props["params"]
   : never;
@@ -98,14 +106,19 @@ export type ComponentExports<K extends keyof Components, Components extends Reco
   ? Exports
   : never;
 
-export type ExtendedContainerAPI<ViewType extends ViewKey, Components extends Record<string, Component<any>>, Snippets extends Record<string, Snippet<any[]>>> = {
+export type ExtendedContainerAPI<
+  ViewType extends ViewKey,
+  Components extends ComponentsConstraint<ViewType>,
+  Snippets extends SnippetsConstraint<ViewType>,
+  Additional extends AdditionalOptions<ViewType> = never
+> = {
   addComponentPanel: <K extends keyof Components & string>(
     name: string extends K ? never : K,
     ...params: PropParams<ViewType, K, Components> extends Record<string, any>
       ?
       | [PropParams<ViewType, K, Components>]
-      | [PropParams<ViewType, K, Components>, AddPanelOptions<ViewType>]
-      : [null | undefined | {}, AddPanelOptions<ViewType>] | []
+      | [PropParams<ViewType, K, Components>, AddPanelOptions<ViewType, Additional>]
+      : [null | undefined | {}, AddPanelOptions<ViewType, Additional>] | []
   ) => Promise<ComponentExports<K, Components> & AddedPanelByView[ViewType]>;
   addSnippetPanel: <K extends keyof Snippets>(
     name: string extends K ? never : K,
@@ -114,8 +127,8 @@ export type ExtendedContainerAPI<ViewType extends ViewKey, Components extends Re
     >
       ?
       | [Params[number]["params"]]
-      | [Params[number]["params"], AddPanelOptions<ViewType>]
-      : [null | undefined | {}, AddPanelOptions<ViewType>] | []
+      | [Params[number]["params"], AddPanelOptions<ViewType, Additional>]
+      : [null | undefined | {}, AddPanelOptions<ViewType, Additional>] | []
   ) => Promise<AddedPanelByView[ViewType]>;
 };
 
@@ -128,14 +141,14 @@ export type RawViewAPIs = {
 
 export type ViewAPI<
   ViewType extends ViewKey,
-  Components extends Record<string, Component<any>>,
-  Snippets extends Record<string, Snippet<any[]>>
+  Components extends ComponentsConstraint<ViewType>,
+  Snippets extends SnippetsConstraint<ViewType>
 > = RawViewAPIs[ViewType] & ExtendedContainerAPI<ViewType, Components, Snippets>;
 
 type RawViewProps<ViewType extends ViewKey> = ViewPropsByView[ViewType];
 type OnReady<ViewType extends ViewKey> = RawViewProps<ViewType>["onReady"];
 
-type CustomizedViewProps<ViewType extends ViewKey, Components extends Record<string, Component<any>>, Snippets extends Record<string, Snippet<any[]>>> = {
+type CustomizedViewProps<ViewType extends ViewKey, Components extends ComponentsConstraint<ViewType>, Snippets extends SnippetsConstraint<ViewType>> = {
   components?: Components;
   snippets?: Snippets;
   onReady: (
@@ -143,11 +156,15 @@ type CustomizedViewProps<ViewType extends ViewKey, Components extends Record<str
   ) => ReturnType<OnReady<ViewType>>;
 };
 
-export type ModifiedProps<ViewType extends ViewKey, Components extends Record<string, Component<any>>, Snippets extends Record<string, Snippet<any[]>>> = Omit<
+export type ModifiedProps<ViewType extends ViewKey, Components extends ComponentsConstraint<ViewType>, Snippets extends SnippetsConstraint<ViewType>> = Omit<
   RawViewProps<ViewType>,
-  keyof CustomizedViewProps<ViewType, Components, Snippets> | "components"
+  keyof CustomizedViewProps<ViewType, Components, Snippets> | "components" | "headerComponents"
 > &
   CustomizedViewProps<ViewType, Components, Snippets>;
+
+export type AdditionalPaneProps<Headers extends { components: ComponentsConstraint<"pane">, snippets: SnippetsConstraint<"pane"> }> = {
+  headers?: Partial<Headers>;
+}
 
 export class PropsUpdater<T extends Record<string, any>> implements Pick<IFrameworkPart, "update"> {
   props = $state<T>()!;
@@ -256,7 +273,7 @@ export const createExtendedAPI = <
     const exports = mount.await<Exports>(viewIndex, id, component);
 
     const title = type === "pane"
-      ? ((config as AddPanelOptions<"pane">)?.title ?? name)
+      ? ((config as any as AddPanelOptions<"pane", { headers: HeadersConstraint }>)?.title ?? name)
       : (undefined as any);
 
     const panel = api.addPanel({
@@ -279,5 +296,5 @@ export const createExtendedAPI = <
     return addComponentPanel(name as never, ...(params as any));
   };
 
-  return { addComponentPanel: addComponentPanel, addSnippetPanel, } satisfies Target;
+  return { addComponentPanel, addSnippetPanel, } satisfies Target;
 }
