@@ -106,9 +106,9 @@
     const Snippets extends SnippetsConstraint<ViewType>,
   "
 >
-  import { reactify } from "@p-buddy/svelte-preprocess-react";
-  import Wrapper from "./Wrapper.svelte";
+  import { reactify, sveltify } from "@p-buddy/svelte-preprocess-react";
   import SnippetRender from "./SnippetRender.svelte";
+  import wrapper from "./wrapper";
 
   type RawViewProps = ViewPropsByView[ViewType];
   type PanelProps = PanelPropsByView[ViewType];
@@ -166,12 +166,10 @@
 
   const { type, onReady, svelte, react, snippets, ...props }: ModifiedProps =
     $props();
-</script>
 
-<Wrapper
-  {type}
-  {...props}
-  onReady={(event: Parameters<OnReady>[0]) => {
+  const wrapped = sveltify({ component: wrapper });
+
+  const _onReady = (event: Parameters<OnReady>[0]) => {
     const extended = event as Parameters<OnReady>[0] & ExtendedContainerAPI;
     extended.api.addSveltePanel = async (name, ...params) => {
       const { length } = params;
@@ -192,6 +190,7 @@
               ...(_props ?? {}),
               onSvelteMount: resolve,
             } satisfies OnMount,
+            //renderer: "always",
           }) as Panel),
       );
       if (!panel!) throw new Error("Panel not found");
@@ -206,24 +205,27 @@
       return extended.api.addSveltePanel(name as never, ...(params as any));
     };
     return onReady?.(extended);
-  }}
-  components={Object.fromEntries(
-    new Map<string, React.FunctionComponent>([
-      ...(react ? Object.entries(react) : []),
-      ...(svelte
-        ? Object.entries(svelte).map(
-            ([key, svelte]) =>
-              [
-                key,
-                reactify(svelte, mountKey) as ReturnType<typeof reactify>,
-              ] as const,
-          )
-        : []),
-      ...(snippets
-        ? Object.keys(snippets).map(
-            (key) => [key, reactfiedSnippetRender] as const,
-          )
-        : []),
-    ]),
-  )}
-/>
+  };
+
+  const components = Object.fromEntries([
+    ...(react ? Object.entries(react) : []),
+    ...(svelte
+      ? Object.entries(svelte).map(
+          ([key, svelte]) =>
+            [
+              key,
+              reactify(svelte, mountKey) as ReturnType<typeof reactify>,
+            ] as const,
+        )
+      : []),
+    ...(snippets
+      ? Object.keys(snippets).map(
+          (key) => [key, reactfiedSnippetRender] as const,
+        )
+      : []),
+  ]);
+
+  console.log(type);
+</script>
+
+<wrapped.component {type} {components} onReady={_onReady} />

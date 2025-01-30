@@ -137,6 +137,24 @@
   populate(fs, root, onPathUpdate);
 
   export const getRoot = () => root;
+
+  export const insertFile = (path: string) => {
+    const parts = path.split("/");
+    const name = parts.pop()!;
+    let searchFolder: TFolder = root;
+    let partIndex = 0;
+    while (partIndex < parts.length)
+      for (const child of root.children)
+        if (child.type === "folder" && child.name === parts[partIndex]) {
+          searchFolder = child;
+          partIndex++;
+          break;
+        }
+
+    searchFolder.children.push(
+      new Base("file", name, () => searchFolder.path, onPathUpdate),
+    );
+  };
 </script>
 
 <div class="min-h-64 min-w-80 p-6 rounded-xl border bg-black shadow-md z-50">

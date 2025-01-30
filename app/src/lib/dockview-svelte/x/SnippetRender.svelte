@@ -6,7 +6,7 @@
   "
 >
   import type { Snippet } from "svelte";
-  import type { PanelPropsByView } from "./View.svelte";
+  import type { PanelPropsByView } from "./utils.svelte";
 
   let {
     params: paramsWithSnippet,

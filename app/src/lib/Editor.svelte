@@ -14,7 +14,7 @@
   } from "monaco-editor-auto-typings/custom-editor";
   import type { CollabInstance } from "./collaboration";
   import { sveltify } from "@p-buddy/svelte-preprocess-react";
-  import mode from "./mode.svelte";
+  import { isDark } from "./mode";
   import type { WithLimitFs } from "./utils/fs-helper";
 
   type Props = {
@@ -53,7 +53,7 @@
 
 <react.Monaco
   path={params.path}
-  theme={mode.isDark ? "vs-dark" : "vs-light"}
+  theme={isDark.current ? "vs-dark" : "vs-light"}
   options={{ readOnly: true, padding: { top: 10 } }}
   onChange={(value) => fs.writeFile(params.path, value || "", "utf-8")}
   onMount={(_editor, _monaco) => {

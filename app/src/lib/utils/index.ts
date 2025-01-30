@@ -1,4 +1,6 @@
-export const singleClickWrapper = <Args extends any[], Return>(fn: (...args: Args) => Return, delay = 200) => {
+export const singleClickWrapper = <Args extends any[], Return>(
+  fn: (...args: Args) => Return, delay = 200
+) => {
   let clickCount = 0;
   let timeout: NodeJS.Timeout | null = null;
   const reset = () => clickCount = 0;
@@ -26,4 +28,16 @@ export const mouseEventToCaretIndex = <
   const approxCharWidth = spanWidth / length;
   const caretIndex = Math.round(offsetX / approxCharWidth);
   return caretIndex > length ? length : caretIndex;
+}
+
+export const deferred = <T>() => {
+  let resolve: (value: T | PromiseLike<T>) => void;
+  let reject: (reason?: any) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve: resolve!, reject: reject! };
 }
