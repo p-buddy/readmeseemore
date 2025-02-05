@@ -1,20 +1,21 @@
 <script
   lang="ts"
   generics="
-    T extends [PanelPropsByView<Params>[keyof PanelPropsByView]],
+    T extends [SelectivelyRequiredPanelComponentPropsByView<Params>[keyof SelectivelyRequiredPanelComponentPropsByView]],
     Params extends { [index: string]: any; }
   "
 >
   import type { Snippet } from "svelte";
-  import type { PanelPropsByView } from "./View.svelte";
+  import type { SelectivelyRequiredPanelComponentPropsByView } from "./utils.svelte";
 
   let {
     params: paramsWithSnippet,
     api,
     containerApi,
-  }: PanelPropsByView<{
+    ...rest
+  }: SelectivelyRequiredPanelComponentPropsByView<{
     snippet: Snippet<T>;
-  }>[keyof PanelPropsByView] = $props();
+  }>[keyof SelectivelyRequiredPanelComponentPropsByView] = $props();
 
   type Arg = T[0];
   type Args = [Arg];
@@ -22,7 +23,7 @@
 
   let { snippet, ...params } = paramsWithSnippet;
 
-  let arg = $derived({ params, api, containerApi }) as Arg;
+  let arg = $derived({ params, api, containerApi, ...rest }) as Arg;
 </script>
 
 <div>

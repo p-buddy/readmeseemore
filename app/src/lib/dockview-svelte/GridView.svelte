@@ -17,42 +17,50 @@
     type SnippetsConstraint,
     type ModifiedProps,
     type ViewAPI,
-    type PanelPropsByView,
+    type SelectivelyRequiredPanelComponentPropsByView,
     MountMechanism,
-    fillComponentMap,
     createExtendedAPI,
+    getComponentToMount,
+    type PropsPostProcessor,
   } from "./utils.svelte";
 
   let gridCount = 0;
 
   class SvelteGridPanelView<
-    T extends Component<any, any, any>,
+    T extends Component<Props, any, any>,
+    Props extends Record<string, any>,
   > extends GridviewPanel {
     static Mount = new MountMechanism();
     private readonly svelteComponent: T;
     private readonly mountID: ReturnType<MountMechanism["id"]>;
+    private readonly propsPostProcessor?: PropsPostProcessor<Props>;
 
     constructor(
       id: string,
       name: string,
       svelteComponent: T,
       gridIndex: number,
+      propsPostProcessor?: PropsPostProcessor<Props>,
     ) {
       super(id, name);
       this.svelteComponent = svelteComponent;
       this.mountID = SvelteGridPanelView.Mount.id(gridIndex, id, name);
-      this.element.id = "grid" + gridIndex;
+      this.element.id = `grid${gridIndex}-${id}`;
+      this.propsPostProcessor = propsPostProcessor;
     }
 
     getComponent(): IFrameworkPart {
       const { _params } = this;
-      const updater = new PropsUpdater({
-        params: _params?.params ?? {},
-        api: this.api,
-        containerApi: new GridviewApi(
-          (_params as GridviewInitParameters).accessor as GridviewComponent,
-        ),
-      });
+      const updater = new PropsUpdater(
+        {
+          params: _params?.params ?? {},
+          api: this.api,
+          containerApi: new GridviewApi(
+            (_params as GridviewInitParameters).accessor as GridviewComponent,
+          ),
+        } as any as Props,
+        this.propsPostProcessor,
+      );
 
       const component = mount(this.svelteComponent, {
         target: this.element,
@@ -70,7 +78,7 @@
   }
 
   export type GridPanelProps<T extends Record<string, any>> =
-    PanelPropsByView<T>["grid"];
+    SelectivelyRequiredPanelComponentPropsByView<T>["grid"];
 </script>
 
 <script
@@ -91,25 +99,23 @@
 
   let gridView: ViewAPI<"grid", Components, Snippets>;
 
-  const map = fillComponentMap<"grid", Components, Snippets>(
-    components,
-    snippets,
-  );
-
-  $effect(() => {
-    fillComponentMap<"grid", Components, Snippets>(components, snippets, map);
-  });
-
   for (const key of PROPERTY_KEYS_GRIDVIEW)
     $effect(() => gridView!?.updateOptions({ [key]: props[key] }));
 
   const frameworkOptions: GridviewFrameworkOptions = {
     createComponent: (options) => {
+      const { component, propsPostProcessor, name } = getComponentToMount(
+        "grid",
+        components,
+        snippets,
+        options,
+      );
       return new SvelteGridPanelView(
         options.id,
-        options.name,
-        map.get(options.name)!,
+        name,
+        component,
         index,
+        propsPostProcessor,
       );
     },
   };
@@ -126,7 +132,6 @@
       createExtendedAPI<"grid", Components, Snippets>(
         "grid",
         api,
-        snippets,
         SvelteGridPanelView.Mount,
         index,
       ),

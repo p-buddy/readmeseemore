@@ -12,23 +12,25 @@
     MountMechanism,
     PropsUpdater,
     type ComponentsConstraint,
-    type PanelPropsByView,
+    type SelectivelyRequiredPanelComponentPropsByView,
     type SnippetsConstraint,
     type ModifiedProps,
     type ViewAPI,
-    fillComponentMap,
     type AdditionalPaneProps,
     extractCoreOptions,
     createExtendedAPI,
+    getComponentToMount,
+    type PanelComponentProps,
+    type PropsPostProcessor,
   } from "./utils.svelte";
 
   let paneCount = 0;
 
+  type PanelProps = PanelComponentProps<"pane">;
+
   class PanePanelSection<
-    T extends Component<Props, Exports, any>,
-    Props extends Record<string, any>,
+    T extends Component<PanelProps, Exports, any>,
     Exports extends Record<string, any>,
-    AdditionalParams extends Record<string, any>,
   > implements IPanePart
   {
     static Mount = new MountMechanism();
@@ -36,10 +38,10 @@
     private readonly svelteComponent: T;
     private readonly mountID: ReturnType<MountMechanism["id"]>;
     private readonly _element: HTMLElement;
-    private readonly additionalParams?: AdditionalParams;
+    private readonly propsPostProcessor?: PropsPostProcessor<PanelProps>;
 
-    private propsUpdater?: PropsUpdater<Props>;
-    private instance?: ReturnType<typeof mount<Props, Exports>>;
+    private propsUpdater?: PropsUpdater<PanelProps>;
+    private instance?: ReturnType<typeof mount<PanelProps, Exports>>;
 
     get element() {
       return this._element;
@@ -50,7 +52,7 @@
       name: string,
       component: T,
       paneIndex: number,
-      additionalParams?: AdditionalParams,
+      propsPostProcessor?: PropsPostProcessor<PanelProps>,
     ) {
       this.id = id;
       this.svelteComponent = component;
@@ -58,7 +60,7 @@
       this._element = document.createElement("div");
       this._element.style.height = "100%";
       this._element.style.width = "100%";
-      this.additionalParams = additionalParams;
+      this.propsPostProcessor = propsPostProcessor;
     }
 
     public init({
@@ -67,14 +69,15 @@
       title,
       containerApi,
     }: PanePanelComponentInitParameter): void {
-      this.propsUpdater = new PropsUpdater<Props>({
-        params: this.additionalParams
-          ? { ...params, ...this.additionalParams }
-          : params,
-        api,
-        title,
-        containerApi,
-      } as any);
+      this.propsUpdater = new PropsUpdater<PanelProps>(
+        {
+          params,
+          api,
+          title,
+          containerApi,
+        },
+        this.propsPostProcessor,
+      );
 
       this.instance = mount(this.svelteComponent, {
         target: this.element,
@@ -91,14 +94,9 @@
       };
     }
 
-    public update({ params }: PanelUpdateEvent) {
+    public update({ params }: { params: any }) {
       if (!this.propsUpdater) return;
-      this.propsUpdater.update({
-        ...this.propsUpdater.props,
-        params: this.additionalParams
-          ? { ...params, ...this.additionalParams }
-          : params,
-      });
+      this.propsUpdater.updateSingle("params", params);
     }
 
     public dispose() {
@@ -107,7 +105,7 @@
   }
 
   export type PanePanelProps<T extends Record<string, any>> =
-    PanelPropsByView<T>["pane"];
+    SelectivelyRequiredPanelComponentPropsByView<T>["pane"];
 </script>
 
 <script
@@ -115,77 +113,59 @@
   generics="
     const Components extends ComponentsConstraint<`pane`>,
     const Snippets extends SnippetsConstraint<`pane`>,
-    const Headers extends {
-      components: ComponentsConstraint<`pane`>;
-      snippets: SnippetsConstraint<`pane`>;
-    },
+    const HeaderComponents extends ComponentsConstraint<`pane`>,
+    const HeaderSnippets extends SnippetsConstraint<`pane`>,
   "
 >
-  let {
-    components,
-    snippets,
-    headers,
-    onReady,
-    ...props
-  }: ModifiedProps<"pane", Components, Snippets> &
-    AdditionalPaneProps<Headers> = $props();
+  type Headers = {
+    components: HeaderComponents;
+    snippets: HeaderSnippets;
+  };
+
+  type Props = AdditionalPaneProps<Headers> &
+    ModifiedProps<"pane", Components, Snippets, { headers: Headers }>;
+
+  let { components, snippets, headers, onReady, onDidDrop, ...props }: Props =
+    $props();
 
   const index = paneCount++;
 
   let paneView: ViewAPI<"pane", Components, Snippets>;
-
-  const mainMap = fillComponentMap<"pane", Components, Snippets>(
-    components,
-    snippets,
-  );
-
-  $effect(() => {
-    fillComponentMap<"pane", Components, Snippets>(
-      components,
-      snippets,
-      mainMap,
-    );
-  });
-
-  const headersMap = fillComponentMap<
-    "pane",
-    Headers["components"],
-    Headers["snippets"]
-  >(headers?.components, headers?.snippets);
-
-  $effect(() => {
-    fillComponentMap<"pane", Headers["components"], Headers["snippets"]>(
-      headers?.components,
-      headers?.snippets,
-      headersMap,
-    );
-  });
 
   for (const key of PROPERTY_KEYS_PANEVIEW)
     $effect(() => paneView!?.updateOptions({ [key]: props[key] }));
 
   const frameworkOptions: PaneviewFrameworkOptions = {
     createComponent: (options) => {
+      const { component, propsPostProcessor, name } = getComponentToMount(
+        "pane",
+        components,
+        snippets,
+        options,
+      );
+
       return new PanePanelSection(
         options.id,
-        options.name,
-        mainMap.get(options.name)!,
+        name,
+        component,
         index,
+        propsPostProcessor,
       );
     },
     createHeaderComponent: (options) => {
+      const { component, propsPostProcessor, name } = getComponentToMount(
+        "pane",
+        headers?.components,
+        headers?.snippets,
+        options,
+      );
+
       return new PanePanelSection(
         options.id,
-        options.name,
-        headersMap.get(options.name)!,
+        name,
+        component!,
         index,
-        headers?.snippets
-          ? options.name in headers.snippets
-            ? {
-                snippet: headers.snippets[options.name],
-              }
-            : undefined
-          : undefined,
+        propsPostProcessor,
       );
     },
   };
@@ -203,7 +183,6 @@
       createExtendedAPI<"pane", Components, Snippets>(
         "pane",
         api,
-        snippets,
         PanePanelSection.Mount,
         index,
       ),
@@ -213,6 +192,10 @@
     paneView.layout(clientWidth, clientHeight);
 
     onReady?.({ api: paneView });
+  });
+
+  $effect(() => {
+    if (onDidDrop) paneView?.onDidDrop(onDidDrop);
   });
 </script>
 
