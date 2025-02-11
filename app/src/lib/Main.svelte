@@ -1,23 +1,22 @@
 <script lang="ts">
-  import {
-    View,
-    type PanelPropsByView,
-    type ViewAPI,
-    type WithViewOnReady,
-  } from "./dockview-svelte";
   import { isDark } from "./mode";
   import Tree from "./file-tree/Tree.svelte";
   import Editor from "./Editor.svelte";
-  import { typedReactify, type Props } from "./utils/ui-framework";
+  import { type Props } from "./utils/ui-framework";
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
   import { type FileSystemTree } from "@webcontainer/api";
   import MountedDiv from "./utils/MountedDiv.svelte";
   import { OperatingSystem } from "$lib";
   import { deferred } from "./utils";
-  import SnippetRender from "./dockview-svelte/SnippetRender.svelte";
-  import H from "./H.svelte";
-  import { withGrid } from "./example";
-  type GridProps<T extends Record<string, any>> = PanelPropsByView<T>["grid"];
+  import { Orientation } from "dockview-core";
+  import {
+    type WithViewOnReady,
+    type PanelProps,
+    type ViewAPI,
+    DockView,
+    PaneView,
+    GridView,
+  } from "./dockview-svelte";
 
   let { filesystem }: { filesystem?: FileSystemTree } = $props();
 
@@ -32,9 +31,7 @@
   });
 </script>
 
-{#snippet preview({
-  params: { url },
-}: PanelPropsByView<{ url: string }>["dock"])}
+{#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}
   {/* @ts-ignore */ null}
   <iframe
     src={url}
@@ -47,43 +44,33 @@
 
 {#snippet dock({
   params,
-}: GridProps<
-  WithViewOnReady<"dock", { Editor: typeof Editor; preview: typeof preview }>
+}: PanelProps<
+  "grid",
+  WithViewOnReady<"dock", { preview: typeof preview; Editor: typeof Editor }>
 >)}
-  <View type="dock" {...params} snippets={{ preview }} svelte={{ Editor }} />
+  <DockView
+    {...params}
+    snippets={{ preview }}
+    components={{ Editor }}
+    watermark={{ component: VsCodeWatermark }}
+  />
 {/snippet}
-
-<View
-  type="dock"
-  svelte={{ H }}
-  react={{ withGrid }}
-  onReady={({ api }) => {
-    /*     api.addPanel({
-      component: "withGrid",
-      id: "withGrid",
-    }); */
-    api.addSveltePanel("H", {
-      onReady: () => {
-        console.log("H ready");
-      },
-    });
-  }}
-/>
 
 {#snippet pane({
   params,
-}: GridProps<WithViewOnReady<"pane", { Tree: typeof Tree }>>)}
-  <View type="pane" svelte={{ Tree }} {...params} />
+}: PanelProps<"grid", WithViewOnReady<"pane", { Tree: typeof Tree }>>)}
+  <PaneView components={{ Tree }} {...params} />
 {/snippet}
 
-{#snippet terminal(props: GridProps<Props<typeof MountedDiv>>)}
+{#snippet terminal(props: PanelProps<"grid", Props<typeof MountedDiv>>)}
   <MountedDiv {...props.params} />
 {/snippet}
-<!-- 
-<View
-  type="grid"
+
+<GridView
+  orientation={Orientation.HORIZONTAL}
   className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
   snippets={{ pane, dock, terminal }}
+  components={{}}
   proportionalLayout={false}
   onReady={async ({ api }) => {
     os = await OperatingSystem.Create(filesystem);
@@ -96,40 +83,24 @@
     const defferedDockAPI = deferred<ViewAPI<"dock", DockComponents>>();
     const defferedPaneAPI = deferred<ViewAPI<"pane", PaneComponents>>();
 
-    await api.addSnippetPanel("dock", {
-      onReady: ({ api }) => {
-        console.log("dock ready");
-        defferedDockAPI.resolve(api);
-      },
-    });
-
-    console.log("start");
-
-    await defferedDockAPI.promise;
-
-    const [dockAPI, _dock, paneAPI, pane, terminal] = await Promise.all([
+    const [dockAPI, _dock] = await Promise.all([
       defferedDockAPI.promise,
       api.addSnippetPanel("dock", {
-        onReady: ({ api }) => {
-          console.log("dock ready");
-          defferedDockAPI.resolve(api);
-        },
+        onReady: ({ api }) => defferedDockAPI.resolve(api),
       }),
+    ]);
+
+    const [paneAPI, pane, terminal] = await Promise.all([
       defferedPaneAPI.promise,
       api.addSnippetPanel(
         "pane",
-        {
-          onReady: ({ api }) => {
-            console.log("pane ready");
-            defferedPaneAPI.resolve(api);
-          },
-        },
+        { onReady: ({ api }) => defferedPaneAPI.resolve(api) },
         {
           maximumWidth: 800,
           size: 200,
           position: {
             direction: "left",
-            referencePanel: "dock",
+            referencePanel: _dock.reference,
           },
         },
       ),
@@ -146,13 +117,11 @@
           size: 200,
           position: {
             direction: "below",
-            referencePanel: "dock",
+            referencePanel: _dock.reference,
           },
         },
       ),
     ]);
-
-    console.log("waiting!");
 
     terminal.api.onDidDimensionsChange(() => os?.fitXterm());
     os.container.on("server-ready", async (port, url) => {});
@@ -162,7 +131,7 @@
     let guidCount = 0;
     const guidByPath = new Map<string, number>();
 
-    const tree = await paneAPI!.addSveltePanel(
+    const tree = await paneAPI!.addComponentPanel(
       "Tree",
       {
         fs: os.container.fs,
@@ -174,7 +143,7 @@
 
           (
             dockAPI!.getPanel(id) ??
-            (await dockAPI!.addSveltePanel(
+            (await dockAPI!.addComponentPanel(
               "Editor",
               {
                 fs: os!.container.fs,
@@ -203,4 +172,3 @@
     tree.headerVisible = false;
   }}
 />
- -->

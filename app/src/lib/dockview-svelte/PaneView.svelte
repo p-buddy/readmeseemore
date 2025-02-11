@@ -84,8 +84,7 @@
         props: this.propsUpdater!.props,
       });
 
-      PanePanelSection.Mount.get(this.mountID)?.resolve(this.instance);
-      PanePanelSection.Mount.drop(this.mountID);
+      PanePanelSection.Mount.tryResolveAndDrop(this.mountID, this.instance);
     }
 
     public toJSON() {
@@ -94,7 +93,7 @@
       };
     }
 
-    public update({ params }: { params: any }) {
+    public update({ params }: PanelUpdateEvent) {
       if (!this.propsUpdater) return;
       this.propsUpdater.updateSingle("params", params);
     }

@@ -1,48 +1,47 @@
-import type { Component } from "svelte";
-import View, { type PanelPropsByView, type ViewKey, type ViewPropsByView, type SvelteComponentsConstraint, type ReactComponentsConstraint, type SnippetsConstraint, type ComponentProps } from "./View.svelte";
+import DockView from "./DockView.svelte";
+import PaneView from "./PaneView.svelte";
+import SplitView from "./SplitView.svelte";
+import GridView from "./GridView.svelte";
+import type { IDockviewPanelProps, } from "dockview-core";
+import type { IPaneviewPanelProps, ISplitviewPanelProps } from "dockview";
+import type { IGridviewPanelProps } from "dockview";
+import type { ViewKey, ComponentsConstraint, SnippetsConstraint, ModifiedProps, AdditionalAddPanelOptions, PanePanelHeaderConstraint, ExtractComponentsFromRenderables, ExtractSnippetsFromRenderables } from "./utils.svelte";
 
-export { View, type PanelPropsByView, type ViewPropsByView };
+export { DockView, PaneView, SplitView, GridView };
 
-type PanelComponentsCombined<Key extends ViewKey> =
-  {
-    [K in keyof ReactComponentsConstraint<Key> | keyof SvelteComponentsConstraint<Key> | keyof SnippetsConstraint<Key>]:
-    | ReactComponentsConstraint<Key>[keyof ReactComponentsConstraint<Key>]
-    | SvelteComponentsConstraint<Key>[keyof SvelteComponentsConstraint<Key>]
-    | SnippetsConstraint<Key>[keyof SnippetsConstraint<Key>]
-  };
+export type PanelProps<T extends ViewKey, Options extends Record<string, any>> = {
+  grid: IGridviewPanelProps<Options>;
+  dock: IDockviewPanelProps<Options>;
+  pane: IPaneviewPanelProps<Options>;
+  split: ISplitviewPanelProps<Options>;
+}[T];
 
-type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] }
+export type ViewProps<
+  ViewType extends ViewKey,
+  Renderables extends Record<string, ComponentsConstraint<ViewType>[string] | SnippetsConstraint<ViewType>[string]>,
+  Additional extends AdditionalAddPanelOptions<ViewType> = never
+> = ModifiedProps<
+  ViewType,
+  keyof ExtractComponentsFromRenderables<ViewType, Renderables> extends never
+  /**/ ? ComponentsConstraint<ViewType> & Record<never, never>
+  /**/ : ExtractComponentsFromRenderables<ViewType, Renderables>,
+  keyof ExtractSnippetsFromRenderables<ViewType, Renderables> extends never
+  /**/ ? SnippetsConstraint<ViewType> & Record<never, never>
+  /**/ : ExtractSnippetsFromRenderables<ViewType, Renderables>,
+  Additional
+>
 
-type PanelComponents<
-  Key extends ViewKey,
-  Components extends PanelComponentsCombined<Key>,
-  Constraint extends SvelteComponentsConstraint<Key> | SnippetsConstraint<Key> | ReactComponentsConstraint<Key>
+export type WithViewOnReady<
+  ViewType extends ViewKey,
+  Renderables extends Record<string, ComponentsConstraint<ViewType>[string] | SnippetsConstraint<ViewType>[string]>,
+  Additional extends AdditionalAddPanelOptions<ViewType> = ViewType extends "pane" ? { headers: PanePanelHeaderConstraint } : never
+> = Pick<ViewProps<ViewType, Renderables, Additional>, "onReady">;
+
+export type ViewAPI<
+  ViewType extends ViewKey,
+  Renderables extends Record<string, ComponentsConstraint<ViewType>[string] | SnippetsConstraint<ViewType>[string]>,
+  Additional extends AdditionalAddPanelOptions<ViewType> = ViewType extends "pane" ? { headers: PanePanelHeaderConstraint } : never
 > =
-  keyof OmitNever<{
-    [K in keyof Components]: Components[K] extends Constraint[keyof Constraint] ? Components[K] : never
-  }> extends never ? Constraint : OmitNever<{
-    [K in keyof Components]: Components[K] extends Constraint[keyof Constraint] ? Components[K] : never
-  }>;
-
-export type ViewComponent<Key extends ViewKey, Components extends PanelComponentsCombined<Key>> =
-  typeof View<
-    Key,
-    Extract<Components, ReactComponentsConstraint<Key>>,
-    PanelComponents<Key, Components, SvelteComponentsConstraint<Key>>,
-    PanelComponents<Key, Components, SnippetsConstraint<Key>>
-  >;
-
-export type ViewProps<Key extends ViewKey, Components extends PanelComponentsCombined<Key>> =
-  ViewComponent<Key, Components> extends Component<infer P> ? P : never;
-
-export type FromViewProps<Key extends ViewKey, Components extends PanelComponentsCombined<Key>, PickKey extends keyof ViewProps<Key, Components>> =
-  Pick<ViewProps<Key, Components>, PickKey>;
-
-export type OnViewReady<Key extends ViewKey, Components extends PanelComponentsCombined<Key>> =
-  FromViewProps<Key, Components, "onReady">["onReady"];
-
-export type WithViewOnReady<Key extends ViewKey, Components extends PanelComponentsCombined<Key>> =
-  FromViewProps<Key, Components, "onReady">;
-
-export type ViewAPI<Key extends ViewKey, Components extends PanelComponentsCombined<Key>> =
-  Parameters<OnViewReady<Key, Components>>[0]["api"];
+  "api" extends keyof Parameters<Required<ViewProps<ViewType, Renderables, Additional>>["onReady"]>[0]
+  /**/ ? Parameters<Required<ViewProps<ViewType, Renderables, Additional>>["onReady"]>[0]["api"]
+  /**/ : never;

@@ -50,6 +50,7 @@
     }
 
     getComponent(): IFrameworkPart {
+      console.log("getComponent", this.mountID);
       const { _params } = this;
       const updater = new PropsUpdater(
         {
@@ -67,8 +68,7 @@
         props: updater.props,
       });
 
-      SvelteGridPanelView.Mount.get(this.mountID)?.resolve(component);
-      SvelteGridPanelView.Mount.drop(this.mountID);
+      SvelteGridPanelView.Mount.tryResolveAndDrop(this.mountID, component);
 
       return {
         update: updater.update.bind(updater),

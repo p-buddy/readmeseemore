@@ -1,7 +1,7 @@
 import { expectTypeOf } from "vitest";
 import Legacy from "./test-harness/Legacy.svelte";
 import Runes from "./test-harness/Runes.svelte";
-import { type ComponentExports, type ComponentProps } from "./utils.svelte";
+import { type ComponentExports, type ComponentProps, type ModifiedProps } from "./utils.svelte";
 
 export const utilityTypes = () => {
   type LegacyProps = ComponentProps<typeof Legacy>;
@@ -28,4 +28,6 @@ export const utilityTypes = () => {
   expectTypeOf<LegacyExports>().toEqualTypeOf<ExpectedExports>();
 
   expectTypeOf<RunesExports>().toEqualTypeOf<ExpectedExports>();
+
+  type X = ModifiedProps<"dock", {}, {}, {}>;
 };

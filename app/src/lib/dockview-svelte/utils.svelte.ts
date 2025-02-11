@@ -16,8 +16,9 @@ import type {
   IDockviewPanelHeaderProps,
   IWatermarkPanelProps,
   IDockviewHeaderActionsProps,
+  PanelUpdateEvent,
 } from "dockview-core";
-import type { Component, Snippet } from "svelte";
+import { mount, unmount, type Component, type Snippet } from "svelte";
 import type {
   IPaneviewReactProps,
   IDockviewReactProps,
@@ -66,6 +67,9 @@ export type ComponentProps<TComponent extends AnyComponent> =
   ? Omit<Props, keyof ComponentExports<TComponent> | v4ComponentPropsInternalKeys>
   : never;
 
+export type Mounted<Props extends Record<string, any> = any, Exports extends Record<string, any> = any> =
+  ReturnType<typeof mount<Props, Exports>>;
+
 type RecordLike = { [index: string]: any };
 
 type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] }
@@ -79,24 +83,26 @@ export type RecursivePartial<T> = {
   /**/ : T[P];
 };
 
+type Subtract<N extends number, M extends number> =
+  N extends M ? 0 : N;
+
+type DefaultPathDepth = 1;
+
 /**
  * Takes an object type T and produces a union of all possible
  * key-path tuples leading down to nested properties, up to a maximum depth.
  * 
  * @template T - The object type to create paths for
- * @template D - The maximum depth to recurse (default: 2)
+ * @template Depth - The maximum depth to recurse (default: 2)
  */
-type Path<T, D extends number = 1> =
-  [D] extends [never]
+type Path<T, Depth extends number = DefaultPathDepth> =
+  [Depth] extends [never]
   /**/ ? never
-  /**/ : D extends 0
+  /**/ : Depth extends 0
     /**/ ? never
     /**/ : T extends object
-      /**/ ? { [K in keyof T]: [K] | [K, ...Path<T[K], Subtract<D, 1>>] }[keyof T]
+      /**/ ? { [K in keyof T]: [K] | [K, ...Path<T[K], Subtract<Depth, 1>>] }[keyof T]
       /**/ : [];
-
-type Subtract<N extends number, M extends number> =
-  N extends M ? 0 : N;
 
 /**
  * Given a type T and a path tuple P, returns the type
@@ -106,12 +112,12 @@ type Subtract<N extends number, M extends number> =
  *   PathValue<T, ["a"]>        = { b: string }
  *   PathValue<T, ["a","b"]>    = string
  */
-type PathValue<T, P extends any[]> =
+type ValueAtPath<T, P extends any[]> =
   P extends [infer K, ...infer Rest]
   /**/ ? K extends keyof T
     /**/ ? Rest extends []
       /**/ ? T[K]
-      /**/ : PathValue<T[K], Rest>
+      /**/ : ValueAtPath<T[K], Rest>
     /**/ : never
   /**/ : T;
 
@@ -142,10 +148,10 @@ export type OriginalPanelPropKeys<T extends ViewKey = ViewKey> = keyof PanelComp
 
 /** The type of the panel returned by `api.addPanel` for the different views */
 export type AddedPanelByView<T extends ViewKey = ViewKey> = {
-  grid: IGridviewPanel;
-  dock: IDockviewPanel;
-  pane: IPaneviewPanel;
-  split: ISplitviewPanel;
+  grid: IGridviewPanel & { reference: string };
+  dock: IDockviewPanel & { reference: string };
+  pane: IPaneviewPanel & { reference: string };
+  split: ISplitviewPanel & { reference: string };
 }[T];
 
 /** A collection of svelte components (v5 / "runes mode" and/or v4 / "legacy mode") that can be used as panel componets (their props are restricted according to the view type) */
@@ -182,8 +188,8 @@ export type DockviewTabConstraint = {
 }
 
 type SnippetOrComponentTuple<TProps extends Record<string, any>> =
-  | ["component", CustomComponentConstraint<TProps>[string]]
-  | ["snippet", CustomSnippetsConstraint<TProps>[string]]
+  | { component: CustomComponentConstraint<TProps>[string] }
+  | { snippet: CustomSnippetsConstraint<TProps>[string] }
 
 export type DockviewSpecificComponentConstraint = {
   watermark: SnippetOrComponentTuple<IWatermarkPanelProps>,
@@ -219,7 +225,7 @@ type RawAddPanelOptions<T extends ViewKey> = Parameters<
   Parameters<ReactViewPropsByView[T]["onReady"]>[0]["api"]["addPanel"]
 >[0];
 
-type AdditionalAddPanelOptions<ViewType extends ViewKey> =
+export type AdditionalAddPanelOptions<ViewType extends ViewKey> =
   ViewType extends "pane"
   /**/ ? { headers: PanePanelHeaderConstraint }
   /**/ : ViewType extends "dock"
@@ -237,7 +243,7 @@ type CustomizedAddPanelOptions<T extends ViewKey, Additional extends AdditionalA
   & (
     T extends "pane"
     /**/ ? Additional extends AdditionalAddPanelOptions<"pane">
-      /**/ ? { headerComponent: keyof (Additional["headers"]["components"] | Additional["headers"]["snippets"]) }
+      /**/ ? { headerComponent?: keyof (Additional["headers"]["components"] | Additional["headers"]["snippets"]) }
       /**/ : {}
     /**/ : {}
   );
@@ -276,7 +282,7 @@ type SpreadAddSnippetPanelOptions<
     /**/ | [];
 
 
-export type ExtendedContainerAPI<
+export type ExtendedGridAPI<
   ViewType extends ViewKey,
   Components extends ComponentsConstraint<ViewType>,
   Snippets extends SnippetsConstraint<ViewType>,
@@ -304,7 +310,7 @@ export type ViewAPI<
   Components extends ComponentsConstraint<ViewType>,
   Snippets extends SnippetsConstraint<ViewType>,
   Additional extends AdditionalAddPanelOptions<ViewType> = never
-> = RawViewAPIs[ViewType] & ExtendedContainerAPI<ViewType, Components, Snippets, Additional>;
+> = RawViewAPIs[ViewType] & ExtendedGridAPI<ViewType, Components, Snippets, Additional>;
 
 type RawViewProps<ViewType extends ViewKey> = ReactViewPropsByView[ViewType];
 type OnReady<ViewType extends ViewKey> = RawViewProps<ViewType>["onReady"];
@@ -331,7 +337,7 @@ type CustomizedViewProps<
   components?: Components;
   snippets?: Snippets;
   onReady?: (
-    event: Parameters<OnReady<ViewType>>[0] & { api: ExtendedContainerAPI<ViewType, Components, Snippets, Additional> },
+    event: Parameters<OnReady<ViewType>>[0] & { api: ExtendedGridAPI<ViewType, Components, Snippets, Additional> },
   ) => ReturnType<OnReady<ViewType>>;
 };
 
@@ -345,8 +351,8 @@ export type ModifiedProps<
 > = Omit<
   RawViewProps<ViewType>,
   | (keyof CustomizedViewProps<ViewType, Components, Snippets, Additional>)
-  | ViewType extends "pane" ? "headerComponents" : never
-  | ViewType extends "dock" ? OverridenDockviewReactPropNames : never
+  | (ViewType extends "pane" ? "headerComponents" : never)
+  | (ViewType extends "dock" ? OverridenDockviewReactPropNames : never)
 > &
   CustomizedViewProps<ViewType, Components, Snippets, Additional>;
 
@@ -378,7 +384,7 @@ export class PropsUpdater<T extends Record<string, any>> implements Pick<IFramew
    * 
    * The last argument must match the type at that path in T.
    */
-  updateSingle<P extends Path<T>>(...keysAndValue: [...P, PathValue<T, P>]): void {
+  updateSingle<P extends Path<T>>(...keysAndValue: [...P, ValueAtPath<T, P>]): void {
     const value = keysAndValue.pop()!;
     const keys = keysAndValue as any as P;
     const { length } = keys;
@@ -435,6 +441,7 @@ export class MountMechanism {
     reset = false,
   ): Promise<Exports> {
     const mountID = this.id(uuid, id, component);
+    console.log("await", mountID);
     if (this.defferedMountMap.has(mountID) && !reset)
       return this.defferedMountMap.get(mountID)!.promise as Promise<Exports>;
     const _deffered = deferred<Record<string, any>>();
@@ -445,12 +452,19 @@ export class MountMechanism {
   get<Exports extends Record<string, any>>(
     id: ReturnType<typeof this.id>
   ) {
+    console.log("get", id);
     const stored = this.defferedMountMap.get(id);
     return stored as ReturnType<typeof deferred<Exports>> | undefined;
   }
 
   drop(id: ReturnType<typeof this.id>) {
+    console.log("drop", id);
     this.defferedMountMap.delete(id);
+  }
+
+  tryResolveAndDrop<Exports extends Record<string, any>>(id: ReturnType<typeof this.id>, instance: Exports) {
+    this.get(id)?.resolve(instance);
+    this.drop(id);
   }
 }
 
@@ -469,7 +483,7 @@ export const createExtendedAPI = <
   mount: MountMechanism,
   viewIndex: number,
 ) => {
-  type Target = ExtendedContainerAPI<ViewType, Components, Snippets>;
+  type Target = ExtendedGridAPI<ViewType, Components, Snippets>;
   type CommonArgs =
     | SpreadAddComponentPanelOptions<ViewType, keyof Components, Components, never>
     | SpreadAddSnippetPanelOptions<ViewType, keyof Snippets, Snippets, never>;
@@ -487,14 +501,16 @@ export const createExtendedAPI = <
       ? ((config as any as PaneConfig)?.title ?? name)
       : (undefined as any);
 
-    const promise = mount.await<TExports>(viewIndex, id, withPrefix);
+    const promise = mount.await<TExports>(viewIndex, id, name);
     const panel = api.addPanel({
       ...(config ?? {}),
       id,
       title,
       component: withPrefix,
       params: params ?? {},
-    }) as AddedPanelByView<ViewType>
+    }) as AddedPanelByView<ViewType>;
+
+    Object.assign(panel, { reference: id });
 
     return [promise, panel] as const;
   }
@@ -561,3 +577,77 @@ export const getComponentToMount = <ViewType extends ViewKey, Components extends
 
   return { component, propsPostProcessor, name: sanitized };
 }
+
+export class PanelRendererBase<Props extends RecordLike, InitOptions extends RecordLike> {
+  protected readonly svelteComponent: Component<Props>;
+  protected readonly _element: HTMLElement;
+
+  protected instance?: Mounted<Props>;
+  protected propsUpdater?: PropsUpdater<Props>;
+  protected readonly initOptionsToProps: (options: InitOptions) => Props;
+  protected readonly propsPostProcessor?: PropsPostProcessor<Props>;
+  protected readonly propsHasParams: boolean;
+
+  get element(): HTMLElement {
+    return this._element;
+  }
+
+  constructor(
+    initOptionsToProps: (options: InitOptions) => Props,
+    propsHasParams: boolean,
+    svelteComponent: Component<Props>,
+    propsPostProcessor?: PropsPostProcessor<Props>,
+  ) {
+    this.svelteComponent = svelteComponent;
+    this._element = document.createElement("div");
+    this._element.className = "dv-react-part";
+    this._element.style.height = "100%";
+    this._element.style.width = "100%";
+    this.initOptionsToProps = initOptionsToProps;
+    this.propsPostProcessor = propsPostProcessor;
+    this.propsHasParams = propsHasParams;
+  }
+
+  public init(options: InitOptions): void {
+    this.propsUpdater = new PropsUpdater(
+      this.initOptionsToProps(options),
+      this.propsPostProcessor,
+    );
+
+    this.instance = mount(this.svelteComponent, {
+      target: this.element,
+      props: this.propsUpdater.props,
+    });
+  }
+
+  dispose(): void {
+    if (this.instance) unmount(this.instance);
+  }
+
+  update({ params }: PanelUpdateEvent): void {
+    for (const key in params)
+      this.propsUpdater?.updateSingle(
+        ...((this.propsHasParams
+          ? ["params", key, params[key]]
+          : [key, params[key]]) as any),
+      );
+  }
+}
+
+export type Renderables<ViewType extends ViewKey> =
+  Record<string,
+    | ComponentsConstraint<ViewType>[string]
+    | SnippetsConstraint<ViewType>[string]
+  >;
+
+export type ExtractComponentsFromRenderables<ViewType extends ViewKey, TRenderables extends Renderables<ViewType>> =
+  OmitNever<
+    { [k in keyof TRenderables]: TRenderables[k] extends Snippet<any>
+      ? never : TRenderables[k] extends ComponentsConstraint<ViewType>[string] ? TRenderables[k] : never }
+  >
+
+export type ExtractSnippetsFromRenderables<ViewType extends ViewKey, TRenderables extends Renderables<ViewType>> =
+  OmitNever<
+    { [k in keyof TRenderables]: TRenderables[k] extends Snippet<any>
+      ? TRenderables[k] : never }
+  >;

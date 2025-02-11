@@ -118,12 +118,11 @@
 <script lang="ts">
   import FolderComponent from "./Folder.svelte";
   import FileComponent from "./File.svelte";
-
-  import type { PanelPropsByView } from "$lib/dockview-svelte";
+  import type { PanelProps } from "$lib/dockview-svelte/";
 
   type Props = WithFs & WithOnFileClick & WithOnPathUpdate;
 
-  let { params }: PanelPropsByView<Props>["pane"] = $props();
+  let { params }: PanelProps<"pane", Props> = $props();
 
   const { fs, onFileClick, onPathUpdate } = params;
 
