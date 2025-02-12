@@ -88,6 +88,8 @@
     const Snippets extends SnippetsConstraint<`grid`>,
   "
 >
+  import ViewContainer from "./ViewContainer.svelte";
+
   let {
     components,
     snippets,
@@ -120,10 +122,10 @@
     },
   };
 
-  let element: HTMLElement;
+  let element = $state<HTMLElement>();
 
-  onMount(() => {
-    const api = createGridview(element, {
+  $effect(() => {
+    const api = createGridview(element!, {
       ...extractCoreOptions(props, PROPERTY_KEYS_GRIDVIEW),
       ...frameworkOptions,
     });
@@ -137,11 +139,11 @@
       ),
     );
 
-    const { clientWidth, clientHeight } = element;
+    const { clientWidth, clientHeight } = element!;
     gridView.layout(clientWidth, clientHeight);
 
     onReady?.({ api: gridView });
   });
 </script>
 
-<div style:height={"100%"} style:width={"100%"} bind:this={element}></div>
+<ViewContainer id={`grid${index}`} bind:element />

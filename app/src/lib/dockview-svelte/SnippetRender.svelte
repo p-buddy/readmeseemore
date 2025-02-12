@@ -26,6 +26,4 @@
   let arg = $derived({ params, api, containerApi, ...rest }) as Arg;
 </script>
 
-<div>
-  {@render (snippet as Fn)(arg)}
-</div>
+{@render (snippet as Fn)(arg)}

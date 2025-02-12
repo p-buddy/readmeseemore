@@ -77,7 +77,6 @@
     }
 
     public init(parameters: GroupPanelPartInitParameters) {
-      console.log("init", this.mountID);
       super.init(parameters);
       SvelteContentRenderer.Mount.tryResolveAndDrop(
         this.mountID,
@@ -260,6 +259,8 @@
   const PrefixHeaderActions extends DockviewSpecificComponentConstraint[`prefixHeaderActions`],
 "
 >
+  import ViewContainer from "./ViewContainer.svelte";
+
   type DockSpecific = {
     tabs: {
       components: TabComponent;
@@ -351,10 +352,11 @@
         }
       : undefined,
   };
-  let element: HTMLElement;
+
+  let element = $state<HTMLElement>();
 
   onMount(() => {
-    const api = createDockview(element, {
+    const api = createDockview(element!, {
       ...extractCoreOptions(props, PROPERTY_KEYS_DOCKVIEW),
       ...frameworkOptions,
     });
@@ -369,7 +371,7 @@
       ),
     );
 
-    const { clientWidth, clientHeight } = element;
+    const { clientWidth, clientHeight } = element!;
     dockView.layout(clientWidth, clientHeight);
 
     onReady?.({ api: dockView });
@@ -384,4 +386,4 @@
   });
 </script>
 
-<div style:height={"100%"} style:width={"100%"} bind:this={element}></div>
+<ViewContainer id={`dock${index}`} bind:element />

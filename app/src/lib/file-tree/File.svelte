@@ -11,7 +11,12 @@
   }: { onclick: OnClick } & TFile & Props<typeof EditableName> = $props();
 </script>
 
-<SingleClickButton {onclick}>
+<SingleClickButton
+  onclick={(e) => {
+    e.stopPropagation();
+    onclick(e);
+  }}
+>
   <span class="w-fit flex items-center gap-0.5">
     <svg
       xmlns="http://www.w3.org/2000/svg"

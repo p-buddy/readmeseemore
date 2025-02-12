@@ -6,8 +6,9 @@ import type { IDockviewPanelProps, } from "dockview-core";
 import type { IPaneviewPanelProps, ISplitviewPanelProps } from "dockview";
 import type { IGridviewPanelProps } from "dockview";
 import type { ViewKey, ComponentsConstraint, SnippetsConstraint, ModifiedProps, AdditionalAddPanelOptions, PanePanelHeaderConstraint, ExtractComponentsFromRenderables, ExtractSnippetsFromRenderables } from "./utils.svelte";
+import { Orientation } from "dockview-core";
 
-export { DockView, PaneView, SplitView, GridView };
+export { DockView, PaneView, SplitView, GridView, Orientation };
 
 export type PanelProps<T extends ViewKey, Options extends Record<string, any>> = {
   grid: IGridviewPanelProps<Options>;

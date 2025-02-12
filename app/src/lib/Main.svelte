@@ -8,7 +8,6 @@
   import MountedDiv from "./utils/MountedDiv.svelte";
   import { OperatingSystem } from "$lib";
   import { deferred } from "./utils";
-  import { Orientation } from "dockview-core";
   import {
     type WithViewOnReady,
     type PanelProps,
@@ -16,6 +15,7 @@
     DockView,
     PaneView,
     GridView,
+    Orientation,
   } from "./dockview-svelte";
 
   let { filesystem }: { filesystem?: FileSystemTree } = $props();
@@ -70,7 +70,6 @@
   orientation={Orientation.HORIZONTAL}
   className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
   snippets={{ pane, dock, terminal }}
-  components={{}}
   proportionalLayout={false}
   onReady={async ({ api }) => {
     os = await OperatingSystem.Create(filesystem);
@@ -123,7 +122,7 @@
       ),
     ]);
 
-    terminal.api.onDidDimensionsChange(() => os?.fitXterm());
+    terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
     os.container.on("server-ready", async (port, url) => {});
 
     os.container.fs.writeFile("index.ts", "console.log('Hello, world!');");
@@ -141,18 +140,21 @@
 
           const id = `${guidByPath.get(file.path)}`;
 
-          (
+          const panel =
             dockAPI!.getPanel(id) ??
-            (await dockAPI!.addComponentPanel(
-              "Editor",
-              {
-                fs: os!.container.fs,
-                name: file.name,
-                path: file.path,
-              },
-              { id },
-            ))
-          ).api.setActive();
+            (
+              await dockAPI!.addComponentPanel(
+                "Editor",
+                {
+                  fs: os!.container.fs,
+                  name: file.name,
+                  path: file.path,
+                },
+                { id },
+              )
+            ).panel;
+
+          panel.api.setActive();
         },
         onPathUpdate: ({ current, previous }) => {
           const guid = guidByPath.get(previous);
@@ -169,6 +171,7 @@
         isExpanded: true,
       },
     );
-    tree.headerVisible = false;
+
+    tree.panel.headerVisible = false;
   }}
 />

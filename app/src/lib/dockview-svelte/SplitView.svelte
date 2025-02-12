@@ -83,6 +83,8 @@
     const Snippets extends SnippetsConstraint<`split`>,
   "
 >
+  import ViewContainer from "./ViewContainer.svelte";
+
   let {
     components,
     snippets,
@@ -115,10 +117,10 @@
     },
   };
 
-  let element: HTMLElement;
+  let element = $state<HTMLElement>();
 
   onMount(() => {
-    const api = createSplitview(element, {
+    const api = createSplitview(element!, {
       ...extractCoreOptions(props, PROPERTY_KEYS_SPLITVIEW),
       ...frameworkOptions,
     });
@@ -132,11 +134,11 @@
       ),
     );
 
-    const { clientWidth, clientHeight } = element;
+    const { clientWidth, clientHeight } = element!;
     splitView.layout(clientWidth, clientHeight);
 
     onReady?.({ api: splitView });
   });
 </script>
 
-<div style:height={"100%"} style:width={"100%"} bind:this={element}></div>
+<ViewContainer id={`split${index}`} bind:element />

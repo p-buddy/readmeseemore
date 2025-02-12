@@ -148,10 +148,10 @@ export type OriginalPanelPropKeys<T extends ViewKey = ViewKey> = keyof PanelComp
 
 /** The type of the panel returned by `api.addPanel` for the different views */
 export type AddedPanelByView<T extends ViewKey = ViewKey> = {
-  grid: IGridviewPanel & { reference: string };
-  dock: IDockviewPanel & { reference: string };
-  pane: IPaneviewPanel & { reference: string };
-  split: ISplitviewPanel & { reference: string };
+  grid: IGridviewPanel;
+  dock: IDockviewPanel;
+  pane: IPaneviewPanel;
+  split: ISplitviewPanel;
 }[T];
 
 /** A collection of svelte components (v5 / "runes mode" and/or v4 / "legacy mode") that can be used as panel componets (their props are restricted according to the view type) */
@@ -291,11 +291,11 @@ export type ExtendedGridAPI<
   addComponentPanel: <K extends keyof Components & string>(
     name: string extends K ? never : K,
     ...params: SpreadAddComponentPanelOptions<ViewType, K, Components, Additional>
-  ) => Promise<ComponentExports<Components[K]> & AddedPanelByView<ViewType>>;
+  ) => Promise<{ exports: ComponentExports<Components[K]>, panel: AddedPanelByView<ViewType>, reference: string }>;
   addSnippetPanel: <K extends keyof Snippets & string>(
     name: string extends K ? never : K,
     ...params: SpreadAddSnippetPanelOptions<ViewType, K, Snippets, Additional>
-  ) => Promise<AddedPanelByView<ViewType>>;
+  ) => Promise<{ panel: AddedPanelByView<ViewType>, reference: string }>;
 };
 
 export type RawViewAPIs = {
@@ -510,21 +510,20 @@ export const createExtendedAPI = <
       params: params ?? {},
     }) as AddedPanelByView<ViewType>;
 
-    Object.assign(panel, { reference: id });
-
-    return [promise, panel] as const;
+    return [promise, panel, id] as const;
   }
 
   const addComponentPanel: Target["addComponentPanel"] = async (component, ...args) => {
     type Exports = ComponentExports<Components[typeof component]>;
-    const [exports, panel] = common<Exports>(prefix.component, component, ...args);
-    return Object.assign(await exports, panel);
+    const [exportsPromise, panel, reference] = common<Exports>(prefix.component, component, ...args);
+    const exports = await exportsPromise;
+    return { exports, panel, reference, }
   };
 
   const addSnippetPanel: Target["addSnippetPanel"] = async (name, ...args) => {
-    const [mounting, panel] = common(prefix.snippet, name, ...args);
+    const [mounting, panel, reference] = common(prefix.snippet, name, ...args);
     await mounting;
-    return panel;
+    return { panel, reference };
   }
 
   return {

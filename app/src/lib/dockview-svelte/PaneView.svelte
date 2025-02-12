@@ -58,6 +58,7 @@
       this.svelteComponent = component;
       this.mountID = PanePanelSection.Mount.id(paneIndex, id, name);
       this._element = document.createElement("div");
+      this._element.id = `pane${paneIndex}-${id}`;
       this._element.style.height = "100%";
       this._element.style.width = "100%";
       this.propsPostProcessor = propsPostProcessor;
@@ -116,6 +117,8 @@
     const HeaderSnippets extends SnippetsConstraint<`pane`>,
   "
 >
+  import ViewContainer from "./ViewContainer.svelte";
+
   type Headers = {
     components: HeaderComponents;
     snippets: HeaderSnippets;
@@ -169,10 +172,10 @@
     },
   };
 
-  let element: HTMLElement;
+  let element = $state<HTMLElement>();
 
   onMount(() => {
-    const api = createPaneview(element, {
+    const api = createPaneview(element!, {
       ...extractCoreOptions(props, PROPERTY_KEYS_PANEVIEW),
       ...frameworkOptions,
     });
@@ -187,7 +190,7 @@
       ),
     );
 
-    const { clientWidth, clientHeight } = element;
+    const { clientWidth, clientHeight } = element!;
     paneView.layout(clientWidth, clientHeight);
 
     onReady?.({ api: paneView });
@@ -198,4 +201,4 @@
   });
 </script>
 
-<div style:height={"100%"} style:width={"100%"} bind:this={element}></div>
+<ViewContainer id={`pane${index}`} bind:element />

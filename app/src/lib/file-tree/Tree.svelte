@@ -119,6 +119,7 @@
   import FolderComponent from "./Folder.svelte";
   import FileComponent from "./File.svelte";
   import type { PanelProps } from "$lib/dockview-svelte/";
+  import { onMount } from "svelte";
 
   type Props = WithFs & WithOnFileClick & WithOnPathUpdate;
 
@@ -154,9 +155,21 @@
       new Base("file", name, () => searchFolder.path, onPathUpdate),
     );
   };
+
+  let element: HTMLElement;
+
+  onMount(() => {
+    let parent = element.parentElement;
+    while (parent && !parent?.classList.contains("dv-pane-body"))
+      parent = parent.parentElement;
+    parent?.classList.add("override-no-focus-outline");
+  });
 </script>
 
-<div class="min-h-64 min-w-80 p-6 rounded-xl border bg-black shadow-md z-50">
+<div
+  class="w-full h-full p-2 shadow-md z-50 focus:before:outline-none"
+  bind:this={element}
+>
   {#each root.children as child}
     {@const rename = child.rename.bind(child)}
     {#if child.type === "folder"}
@@ -172,4 +185,12 @@
     {/if}
   {/each}
 </div>
-$
+
+<style>
+  :global(
+      .override-no-focus-outline .override-no-focus-outline:focus:before,
+      .override-no-focus-outline:focus-within:before
+    ) {
+    outline: none !important;
+  }
+</style>
