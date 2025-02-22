@@ -110,6 +110,7 @@
             os?.xterm.open(root);
             os?.fitXterm();
           },
+          style: "height: 100%;",
         },
         {
           minimumHeight: 100,
@@ -125,44 +126,74 @@
     terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
     os.container.on("server-ready", async (port, url) => {});
 
-    os.container.fs.writeFile("index.ts", "console.log('Hello, world!');");
+    const fileIDHelper = {
+      count: 0,
+      idByPath: new Map<string, number>(),
+      pathById: new Array<string>(),
+      get(path: string) {
+        const id = this.idByPath.get(path) ?? this.count++;
+        this.set(path, id);
+        return id;
+      },
+      set(path: string, id: number) {
+        this.idByPath.set(path, id);
+        this.pathById[id] = path;
+      },
+    };
 
-    let guidCount = 0;
-    const guidByPath = new Map<string, number>();
+    const { fs } = os.container;
+    fs.writeFile("/index.ts", "const x = 1;");
+
+    const pending = {
+      rm: new Set<string>(),
+    };
 
     const tree = await paneAPI!.addComponentPanel(
       "Tree",
       {
         fs: os.container.fs,
         onFileClick: async (file) => {
-          if (!guidByPath.has(file.path))
-            guidByPath.set(file.path, guidCount++);
-
-          const id = `${guidByPath.get(file.path)}`;
-
-          const panel =
+          const id = `${fileIDHelper.get(file.path)}`;
+          (
             dockAPI!.getPanel(id) ??
             (
               await dockAPI!.addComponentPanel(
                 "Editor",
                 {
                   fs: os!.container.fs,
-                  name: file.name,
-                  path: file.path,
+                  file,
                 },
-                { id },
+                { id, title: file.name },
               )
-            ).panel;
-
-          panel.api.setActive();
+            ).panel
+          ).api.setActive();
         },
-        onPathUpdate: ({ current, previous }) => {
-          const guid = guidByPath.get(previous);
-          if (guid) {
-            guidByPath.delete(previous);
-            guidByPath.set(current, guid);
-            const panel = dockAPI.getPanel(`${guid}`);
-            panel?.setTitle(current.split("/").pop()!);
+        onPathUpdate: async ({ current, previous, type }) => {
+          console.log("onPathUpdate", current, previous, type);
+          switch (type) {
+            case "folder":
+              fs.mkdir(current);
+              (await fs.readdir(previous)).length === 0
+                ? fs.rm(previous, { recursive: true })
+                : pending.rm.add(previous);
+              break;
+            case "file":
+              fs.writeFile(current, await fs.readFile(previous));
+              await fs.rm(previous);
+
+              const parent = previous.split("/").slice(0, -1).join("/");
+              if (
+                pending.rm.has(parent) &&
+                (await fs.readdir(parent)).length === 0
+              ) {
+                fs.rm(parent, { recursive: true });
+                pending.rm.delete(parent);
+              }
+
+              if (!fileIDHelper.idByPath.has(previous)) return;
+              fileIDHelper.set(current, fileIDHelper.idByPath.get(previous)!);
+              fileIDHelper.idByPath.delete(previous);
+              break;
           }
         },
       },
@@ -173,5 +204,26 @@
     );
 
     tree.panel.headerVisible = false;
+
+    dockAPI.onDidActivePanelChange((e) => {
+      const id = e?.id;
+      id === undefined
+        ? tree.exports.setFocused()
+        : tree.exports.setFocused(fileIDHelper.pathById[parseInt(id)]);
+    });
+
+    os.onFsChange((change) => {
+      switch (change.action) {
+        case "add":
+        case "addDir":
+          if (!tree.exports.find(change.path))
+            tree.exports.add(change.path, change.type);
+          break;
+        case "unlink":
+        case "unlinkDir":
+          console.log(change);
+          break;
+      }
+    });
   }}
 />

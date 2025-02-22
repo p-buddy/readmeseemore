@@ -50,7 +50,6 @@
     }
 
     getComponent(): IFrameworkPart {
-      console.log("getComponent", this.mountID);
       const { _params } = this;
       const updater = new PropsUpdater(
         {

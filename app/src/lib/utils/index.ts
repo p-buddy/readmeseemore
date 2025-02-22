@@ -41,3 +41,9 @@ export const deferred = <T>() => {
 
   return { promise, resolve: resolve!, reject: reject! };
 }
+
+export const retry = <T>(fn: () => Promise<T>, delay = 100) =>
+  new Promise<T>((resolve, reject) => {
+    fn().then(resolve).catch(() => setTimeout(() => retry(fn, delay), delay));
+  });
+

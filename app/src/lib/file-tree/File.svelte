@@ -6,6 +6,7 @@
 
   let {
     name = $bindable(),
+    focused,
     rename,
     onclick,
   }: { onclick: OnClick } & TFile & Props<typeof EditableName> = $props();
@@ -17,7 +18,7 @@
     onclick(e);
   }}
 >
-  <span class="w-fit flex items-center gap-0.5">
+  <span class="w-fit flex items-center gap-0.5" class:focused>
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="18"
@@ -39,3 +40,9 @@
     <EditableName bind:name {rename} />
   </span>
 </SingleClickButton>
+
+<style>
+  .focused {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+</style>

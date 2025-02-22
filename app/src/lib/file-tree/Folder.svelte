@@ -16,6 +16,10 @@
     children,
     onFileClick,
   }: TFolder & WithOnFileClick & Props<typeof EditableName> = $props();
+
+  $effect(() => {
+    children.sort((a, b) => a.name.localeCompare(b.name));
+  });
 </script>
 
 <SingleClickButton onclick={() => (expanded = !expanded)}>

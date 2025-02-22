@@ -9,6 +9,7 @@
     name: string;
     type: T;
     get path(): string;
+    focused?: boolean;
     rename: (update: string, force?: ForceRename) => boolean;
   };
 
@@ -21,7 +22,11 @@
 
   export type WithOnFileClick = { onFileClick: (file: TFile) => void };
 
-  type OnPathUpdate = (update: { current: string; previous: string }) => void;
+  type OnPathUpdate = (update: {
+    current: string;
+    previous: string;
+    type: FsItemType;
+  }) => void;
   export type WithOnPathUpdate = { onPathUpdate: OnPathUpdate };
 
   type Dirname = () => string;
@@ -32,6 +37,7 @@
   class Base<T extends FsItemType> implements TBase<T> {
     readonly type: T;
     name = $state("");
+    focused = $state<boolean>();
     private readonly getPath: () => string;
     private readonly onPathUpdate: OnPathUpdate;
 
@@ -59,7 +65,11 @@
         previousPath = join(force?.dirnameOverride, this.name);
 
       if (renamed || force?.dirnameOverride)
-        this.onPathUpdate?.({ current: this.path, previous: previousPath });
+        this.onPathUpdate?.({
+          current: this.path,
+          previous: previousPath,
+          type: this.type,
+        });
 
       return renamed;
     }
@@ -113,6 +123,14 @@
   };
 
   type WithFs = { fs: Parameters<typeof populate>[0] };
+
+  const splitPath = (path: string) => {
+    while (path.startsWith("/")) path = path.slice(1);
+    while (path.endsWith("/")) path = path.slice(0, -1);
+    const parts = path.split("/");
+    const name = parts.pop()!;
+    return { dirname: parts.join("/"), name, parts };
+  };
 </script>
 
 <script lang="ts">
@@ -134,26 +152,51 @@
       throw new Error("root should not be updated");
     },
   );
+
   populate(fs, root, onPathUpdate);
 
   export const getRoot = () => root;
 
-  export const insertFile = (path: string) => {
-    const parts = path.split("/");
-    const name = parts.pop()!;
+  export const find = (path: string): TTreeItem | undefined => {
+    if (path === "/" || path === root.name) return root;
+    const { name, parts } = splitPath(path);
+
     let searchFolder: TFolder = root;
     let partIndex = 0;
+
     while (partIndex < parts.length)
-      for (const child of root.children)
+      for (const child of searchFolder.children)
         if (child.type === "folder" && child.name === parts[partIndex]) {
           searchFolder = child;
           partIndex++;
           break;
         }
 
-    searchFolder.children.push(
-      new Base("file", name, () => searchFolder.path, onPathUpdate),
+    return searchFolder.children.find((child) => child.name === name);
+  };
+
+  export const add = (path: string, type: "file" | "folder") => {
+    const { name, dirname } = splitPath(path);
+    console.log("add", name, dirname);
+    const parent = find(dirname);
+    if (!parent || parent.type !== "folder")
+      throw new Error("Parent not found");
+    const dirPath = () => removeTrailingSlash(parent.path);
+    parent.children.push(
+      type === "file"
+        ? new Base("file", name, dirPath, onPathUpdate)
+        : new Folder(name, dirPath, onPathUpdate),
     );
+  };
+
+  let currentFocused: TTreeItem | undefined;
+  export const setFocused = (path?: string) => {
+    if (currentFocused) currentFocused.focused = false;
+    if (!path) return;
+    const item = find(path);
+    if (!item) return;
+    item.focused = true;
+    currentFocused = item;
   };
 
   let element: HTMLElement;
@@ -163,6 +206,10 @@
     while (parent && !parent?.classList.contains("dv-pane-body"))
       parent = parent.parentElement;
     parent?.classList.add("override-no-focus-outline");
+  });
+
+  $effect(() => {
+    root.children.sort((a, b) => a.name.localeCompare(b.name));
   });
 </script>
 

@@ -441,7 +441,6 @@ export class MountMechanism {
     reset = false,
   ): Promise<Exports> {
     const mountID = this.id(uuid, id, component);
-    console.log("await", mountID);
     if (this.defferedMountMap.has(mountID) && !reset)
       return this.defferedMountMap.get(mountID)!.promise as Promise<Exports>;
     const _deffered = deferred<Record<string, any>>();
@@ -452,13 +451,11 @@ export class MountMechanism {
   get<Exports extends Record<string, any>>(
     id: ReturnType<typeof this.id>
   ) {
-    console.log("get", id);
     const stored = this.defferedMountMap.get(id);
     return stored as ReturnType<typeof deferred<Exports>> | undefined;
   }
 
   drop(id: ReturnType<typeof this.id>) {
-    console.log("drop", id);
     this.defferedMountMap.delete(id);
   }
 
@@ -497,9 +494,7 @@ export const createExtendedAPI = <
     const config = length === 2 ? args[1] : null;
     const id = length === 2 ? (config?.id ?? withPrefix) : withPrefix;
 
-    const title = type === "pane"
-      ? ((config as any as PaneConfig)?.title ?? name)
-      : (undefined as any);
+    const title = (config as any as PaneConfig)?.title ?? name;
 
     const promise = mount.await<TExports>(viewIndex, id, name);
     const panel = api.addPanel({
