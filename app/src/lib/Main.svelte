@@ -142,10 +142,18 @@
     };
 
     const { fs } = os.container;
-    fs.writeFile("/index.ts", "const x = 1;");
+    fs.writeFile("index.ts", "const x = 1;");
 
     const pending = {
       rm: new Set<string>(),
+    };
+
+    const isEmpty = async (path: string) =>
+      (await fs.readdir(path)).length === 0;
+
+    const rm = async (path: string) => {
+      fs.rm(path, { recursive: true });
+      pending.rm.delete(path);
     };
 
     const tree = await paneAPI!.addComponentPanel(
@@ -168,27 +176,20 @@
             ).panel
           ).api.setActive();
         },
+        onDelete: async ({ path }) => rm(path),
         onPathUpdate: async ({ current, previous, type }) => {
-          console.log("onPathUpdate", current, previous, type);
           switch (type) {
             case "folder":
               fs.mkdir(current);
-              (await fs.readdir(previous)).length === 0
-                ? fs.rm(previous, { recursive: true })
-                : pending.rm.add(previous);
+              if (await isEmpty(previous)) rm(previous);
+              else pending.rm.add(previous);
               break;
             case "file":
               fs.writeFile(current, await fs.readFile(previous));
               await fs.rm(previous);
 
               const parent = previous.split("/").slice(0, -1).join("/");
-              if (
-                pending.rm.has(parent) &&
-                (await fs.readdir(parent)).length === 0
-              ) {
-                fs.rm(parent, { recursive: true });
-                pending.rm.delete(parent);
-              }
+              if (pending.rm.has(parent) && (await isEmpty(parent))) rm(parent);
 
               if (!fileIDHelper.idByPath.has(previous)) return;
               fileIDHelper.set(current, fileIDHelper.idByPath.get(previous)!);
@@ -205,23 +206,32 @@
 
     tree.panel.headerVisible = false;
 
-    dockAPI.onDidActivePanelChange((e) => {
-      const id = e?.id;
-      id === undefined
-        ? tree.exports.setFocused()
-        : tree.exports.setFocused(fileIDHelper.pathById[parseInt(id)]);
-    });
+    dockAPI.onDidActivePanelChange((e) =>
+      tree.exports.focus(
+        e?.id ? fileIDHelper.pathById[parseInt(e.id)] : undefined,
+      ),
+    );
 
-    os.onFsChange((change) => {
-      switch (change.action) {
+    os.watch((change) => {
+      let { path, action, type } = change;
+
+      if (!path.startsWith("/")) path = `/${path}`;
+
+      switch (action) {
         case "add":
         case "addDir":
-          if (!tree.exports.find(change.path))
-            tree.exports.add(change.path, change.type);
+          if (!tree.exports.find(path)) tree.exports.add(path, type);
           break;
         case "unlink":
+          tree.exports.remove(path);
+          const id = fileIDHelper.idByPath.get(path);
+          if (id === undefined) return;
+          fileIDHelper.idByPath.delete(path);
+          const panel = dockAPI.getPanel(`${id}`);
+          if (panel) dockAPI.removePanel(panel);
+          break;
         case "unlinkDir":
-          console.log(change);
+          tree.exports.remove(path);
           break;
       }
     });

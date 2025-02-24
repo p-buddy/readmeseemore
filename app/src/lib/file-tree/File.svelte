@@ -2,34 +2,48 @@
   import type { TFile } from "./Tree.svelte";
   import type { Props } from "$lib/utils/ui-framework";
   import EditableName from "./EditableName.svelte";
-  import SingleClickButton, { type OnClick } from "./SingleClickButton.svelte";
+  import type { MouseEventHandler } from "svelte/elements";
+  import FsContextMenu from "./FsContextMenu.svelte";
+
+  type OnClick = MouseEventHandler<HTMLButtonElement>;
 
   let {
     name = $bindable(),
     focused,
     rename,
     onclick,
+    delete: _delete,
   }: { onclick: OnClick } & TFile & Props<typeof EditableName> = $props();
+
+  let nameUI = $state<EditableName>();
+  let topLevel = $state<HTMLElement>();
 </script>
 
-<SingleClickButton
-  onclick={(e) => {
-    e.stopPropagation();
-    onclick(e);
-  }}
+<FsContextMenu
+  {nameUI}
+  open={onclick}
+  delete={_delete}
+  target={topLevel}
+  {name}
+/>
+
+<button
+  {onclick}
+  class="relative flex w-full rounded-sm"
+  class:focused
+  bind:this={topLevel}
 >
-  <span class="w-fit flex items-center gap-0.5" class:focused>
+  <span class="w-fit flex items-ce nter gap-0.5">
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width="18"
-      height="18"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       stroke-width="1.4"
       stroke-linecap="round"
       stroke-linejoin="round"
-      class="mt-px"
+      class="h-full"
     >
       <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
       <path d="M14 2v4a2 2 0 0 0 2 2h4" />
@@ -37,9 +51,9 @@
       <path d="M16 13H8" />
       <path d="M16 17H8" />
     </svg>
-    <EditableName bind:name {rename} />
+    <EditableName bind:name {rename} bind:this={nameUI} />
   </span>
-</SingleClickButton>
+</button>
 
 <style>
   .focused {

@@ -11,6 +11,7 @@
     get path(): string;
     focused?: boolean;
     rename: (update: string, force?: ForceRename) => boolean;
+    delete: () => void;
   };
 
   export type TFile = TBase<"file">;
@@ -29,6 +30,9 @@
   }) => void;
   export type WithOnPathUpdate = { onPathUpdate: OnPathUpdate };
 
+  type OnDelete = (item: TTreeItem) => void;
+  export type WithOnDelete = { onDelete: OnDelete };
+
   type Dirname = () => string;
 
   const removeTrailingSlash = (path: string) => path.replace(/\/$/, "");
@@ -38,6 +42,8 @@
     readonly type: T;
     name = $state("");
     focused = $state<boolean>();
+    readonly delete: () => void;
+
     private readonly getPath: () => string;
     private readonly onPathUpdate: OnPathUpdate;
 
@@ -50,11 +56,13 @@
       name: string,
       dirname: Dirname,
       onPathUpdate: OnPathUpdate,
+      _delete: TBase["delete"],
     ) {
       this.type = type;
       this.name = name;
       this.getPath = () => join(dirname(), this.name);
       this.onPathUpdate = onPathUpdate;
+      this.delete = _delete;
     }
 
     rename(update: string, force?: ForceRename) {
@@ -79,8 +87,13 @@
     children = $state<TTreeItem[]>([]);
     expanded = $state(false);
 
-    constructor(name: string, dirname: Dirname, onPathUpdate: OnPathUpdate) {
-      super("folder", name, dirname, onPathUpdate);
+    constructor(
+      name: string,
+      dirname: Dirname,
+      onPathUpdate: OnPathUpdate,
+      _delete: TBase["delete"],
+    ) {
+      super("folder", name, dirname, onPathUpdate, _delete);
     }
 
     rename(update: string, force?: ForceRename) {
@@ -109,16 +122,20 @@
     fs: LimitedFs,
     parent: TFolder,
     onPathUpdate: OnPathUpdate,
+    onDelete: OnDelete,
   ) => {
-    const path = () => removeTrailingSlash(parent.path);
+    const { path: _path, children } = parent;
+    const path = () => removeTrailingSlash(_path);
     for (const entry of await fs.readdir(path(), { withFileTypes: true })) {
       const isDirectory = entry.isDirectory();
       let item: TTreeItem;
+      const _delete = () =>
+        onDelete(children.splice(children.indexOf(item), 1)[0]);
       if (isDirectory) {
-        item = new Folder(entry.name, path, onPathUpdate);
-        await populate(fs, item, onPathUpdate);
-      } else item = new Base("file", entry.name, path, onPathUpdate);
-      parent?.children.push(item);
+        item = new Folder(entry.name, path, onPathUpdate, _delete);
+        await populate(fs, item, onPathUpdate, onDelete);
+      } else item = new Base("file", entry.name, path, onPathUpdate, _delete);
+      children.push(item);
     }
   };
 
@@ -139,11 +156,11 @@
   import type { PanelProps } from "$lib/dockview-svelte/";
   import { onMount } from "svelte";
 
-  type Props = WithFs & WithOnFileClick & WithOnPathUpdate;
+  type Props = WithFs & WithOnFileClick & WithOnPathUpdate & WithOnDelete;
 
   let { params }: PanelProps<"pane", Props> = $props();
 
-  const { fs, onFileClick, onPathUpdate } = params;
+  const { fs, onFileClick, onPathUpdate, onDelete } = params;
 
   const root = new Folder(
     "",
@@ -151,9 +168,12 @@
     () => {
       throw new Error("root should not be updated");
     },
+    () => {
+      throw new Error("root should not be deleted");
+    },
   );
 
-  populate(fs, root, onPathUpdate);
+  populate(fs, root, onPathUpdate, onDelete);
 
   export const getRoot = () => root;
 
@@ -177,20 +197,37 @@
 
   export const add = (path: string, type: "file" | "folder") => {
     const { name, dirname } = splitPath(path);
-    console.log("add", name, dirname);
     const parent = find(dirname);
     if (!parent || parent.type !== "folder")
       throw new Error("Parent not found");
-    const dirPath = () => removeTrailingSlash(parent.path);
-    parent.children.push(
+    const { path: _path, children } = parent;
+    const dirPath = () => removeTrailingSlash(_path);
+    let item: TTreeItem;
+    const _delete = () =>
+      params.onDelete(children.splice(children.indexOf(item), 1)[0]);
+    item =
       type === "file"
-        ? new Base("file", name, dirPath, onPathUpdate)
-        : new Folder(name, dirPath, onPathUpdate),
-    );
+        ? new Base("file", name, dirPath, onPathUpdate, _delete)
+        : new Folder(name, dirPath, onPathUpdate, _delete);
+    parent.children.push(item);
+    return item;
+  };
+
+  export const remove = (path: string, parent?: TFolder) => {
+    const { name, dirname } = splitPath(path);
+    parent ??= find(dirname) as TFolder;
+    if (!parent || parent.type !== "folder") return false;
+    const { children } = parent;
+    const index = children.findIndex((child) => child.name === name);
+    if (index === -1) return false;
+    const deleted = children.splice(index, 1)[0];
+    if (deleted.type === "file") return true;
+    for (const child of deleted.children) remove(child.path, deleted);
+    return true;
   };
 
   let currentFocused: TTreeItem | undefined;
-  export const setFocused = (path?: string) => {
+  export const focus = (path?: string) => {
     if (currentFocused) currentFocused.focused = false;
     if (!path) return;
     const item = find(path);

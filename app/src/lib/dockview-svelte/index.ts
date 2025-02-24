@@ -5,10 +5,12 @@ import GridView from "./GridView.svelte";
 import type { IDockviewPanelProps, } from "dockview-core";
 import type { IPaneviewPanelProps, ISplitviewPanelProps } from "dockview";
 import type { IGridviewPanelProps } from "dockview";
-import type { ViewKey, ComponentsConstraint, SnippetsConstraint, ModifiedProps, AdditionalAddPanelOptions, PanePanelHeaderConstraint, ExtractComponentsFromRenderables, ExtractSnippetsFromRenderables } from "./utils.svelte";
+import type { ViewKey, ComponentsConstraint, SnippetsConstraint, ModifiedProps, AdditionalAddPanelOptions, PanePanelHeaderConstraint, ExtractComponentsFromRenderables, ExtractSnippetsFromRenderables, AddedPanelByView } from "./utils.svelte";
 import { Orientation } from "dockview-core";
 
-export { DockView, PaneView, SplitView, GridView, Orientation };
+export { DockView, PaneView, SplitView, GridView, Orientation, };
+
+export type { AddedPanelByView };
 
 export type PanelProps<T extends ViewKey, Options extends Record<string, any>> = {
   grid: IGridviewPanelProps<Options>;

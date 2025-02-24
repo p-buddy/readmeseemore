@@ -8,7 +8,7 @@
   let input = $state<HTMLInputElement>();
   let caretIndex = $state(-1);
 
-  const edit = <
+  export const edit = <
     Condition extends true | false,
     Detail extends Condition extends true ? typeof caretIndex : typeof name,
   >(

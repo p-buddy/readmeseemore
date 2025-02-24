@@ -1,5 +1,7 @@
+import type { MouseEventHandler } from "svelte/elements";
+
 export const singleClickWrapper = <Args extends any[], Return>(
-  fn: (...args: Args) => Return, delay = 200
+  fn: (...args: Args) => Return, delay = 150
 ) => {
   let clickCount = 0;
   let timeout: NodeJS.Timeout | null = null;
@@ -47,3 +49,4 @@ export const retry = <T>(fn: () => Promise<T>, delay = 100) =>
     fn().then(resolve).catch(() => setTimeout(() => retry(fn, delay), delay));
   });
 
+export type OnClick<T extends HTMLElement = HTMLButtonElement> = MouseEventHandler<T>;
