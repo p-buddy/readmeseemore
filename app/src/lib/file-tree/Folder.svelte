@@ -7,7 +7,6 @@
   import OpenFolder from "./svgs/OpenFolder.svelte";
   import ClosedFolder from "./svgs/ClosedFolder.svelte";
   import EditableName from "./EditableName.svelte";
-  import SingleClickButton from "./SingleClickButton.svelte";
   import FsContextMenu from "./FsContextMenu.svelte";
 
   let {
@@ -16,7 +15,7 @@
     rename,
     focused,
     children,
-    delete: _delete,
+    remove: _delete,
     onFileClick,
   }: TFolder & WithOnFileClick & Props<typeof EditableName> = $props();
 
@@ -28,7 +27,7 @@
   });
 </script>
 
-<FsContextMenu {nameUI} delete={_delete} target={topLevel} {name} />
+<FsContextMenu {nameUI} remove={_delete} target={topLevel} {name} />
 
 <button
   onclick={() => (expanded = !expanded)}
@@ -36,10 +35,12 @@
   class="relative flex w-full"
   bind:this={topLevel}
 >
-  {#if expanded}
-    <OpenFolder />{:else}
-    <ClosedFolder />{/if}
-  <EditableName bind:name {rename} bind:this={nameUI} />
+  <span class="w-fit flex items-center gap-0.5">
+    {#if expanded}
+      <OpenFolder />{:else}
+      <ClosedFolder />{/if}
+    <EditableName bind:name {rename} bind:this={nameUI} />
+  </span>
 </button>
 
 {#if expanded}

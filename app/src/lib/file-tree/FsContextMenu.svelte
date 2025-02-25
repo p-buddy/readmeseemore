@@ -10,9 +10,9 @@
     nameUI?: EditableName;
     open?: OnClick;
     target?: HTMLElement;
-  } & Pick<TTreeItem, "name" | "delete">;
+  } & Pick<TTreeItem, "name" | "remove">;
 
-  let { nameUI, open, delete: _delete, name, target }: Props = $props();
+  let { nameUI, open, remove, name, target }: Props = $props();
   let contextMenu: ContextMenu;
 
   const onMenuClick =
@@ -20,11 +20,12 @@
     (event) => {
       event.preventDefault();
       event.stopPropagation();
+      nameUI?.highlight(false);
       fn(event);
       unmount(contextMenu);
     };
 
-  const items: ComponentProps<typeof ContextMenu>["items"] = [
+  const items: ComponentProps<typeof ContextMenu>["items"] = $derived([
     ...(open
       ? [
           {
@@ -39,15 +40,16 @@
     },
     {
       content: deleter,
-      onclick: onMenuClick(_delete),
+      onclick: onMenuClick(remove),
     },
-  ];
+  ]);
 
   $effect(() => {
     if (!target) return;
     target.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      nameUI?.highlight(true);
       contextMenu = mount(ContextMenu, {
         target: target,
         props: { items },
@@ -57,6 +59,7 @@
 
   const hide = () => {
     if (contextMenu) unmount(contextMenu);
+    nameUI?.highlight(false);
   };
 </script>
 

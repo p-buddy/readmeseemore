@@ -7,6 +7,7 @@
   let editing = $state(false);
   let input = $state<HTMLInputElement>();
   let caretIndex = $state(-1);
+  let highlighted = $state(false);
 
   export const edit = <
     Condition extends true | false,
@@ -18,6 +19,11 @@
     editing = condition;
     if (condition) caretIndex = detail as number;
     else rename(detail as string);
+  };
+
+  export const highlight = (setting?: boolean) => {
+    setting ??= !highlight;
+    highlighted = setting;
   };
 
   $effect(() => {
@@ -33,6 +39,7 @@
     <input
       bind:this={input}
       type="text"
+      class="bg-transparent w-full outline outline-1 outline-transparent"
       onblur={({ currentTarget: { value } }) => edit(false, value)}
       onkeydown={({ key, currentTarget }) =>
         key !== "Enter" || currentTarget.blur()}
@@ -40,6 +47,8 @@
   {:else}
     <span
       role="button"
+      class="outline outline-1 outline-transparent"
+      class:highlighted
       tabindex="0"
       ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
     >
@@ -49,17 +58,8 @@
 </div>
 
 <style>
-  input {
-    border: none;
-    background: transparent;
-    font: inherit;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    outline: none;
-  }
-
-  input:focus {
-    outline: 1px solid #007fd4;
+  input:focus,
+  .highlighted {
+    outline-color: #007fd4;
   }
 </style>

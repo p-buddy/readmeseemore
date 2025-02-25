@@ -1,3 +1,20 @@
+<script lang="ts" module>
+  class FilePanelIDHelper {
+    count = 0;
+    idByPath = new Map<string, number>();
+    pathById = new Array<string>();
+    get(path: string) {
+      const id = this.idByPath.get(path) ?? this.count++;
+      this.set(path, id);
+      return id;
+    }
+    set(path: string, id: number) {
+      this.idByPath.set(path, id);
+      this.pathById[id] = path;
+    }
+  }
+</script>
+
 <script lang="ts">
   import { isDark } from "./mode";
   import Tree from "./file-tree/Tree.svelte";
@@ -24,10 +41,11 @@
 
   $effect(() => {
     if (!os) return;
-    os.xterm.options.theme = isDark.current
+    const { xterm } = os;
+    xterm.options.theme = isDark.current
       ? { background: "#181818" }
       : { background: "#f3f3f3", foreground: "#000", cursor: "#666" };
-    os.xterm.refresh(0, os.xterm.rows - 1);
+    xterm.refresh(0, xterm.rows - 1);
   });
 </script>
 
@@ -74,6 +92,9 @@
   onReady={async ({ api }) => {
     os = await OperatingSystem.Create(filesystem);
 
+    const { container, xterm } = os;
+    const { fs } = container;
+
     if (!os) throw new Error("Operating system not initialized");
 
     type DockComponents = { Editor: typeof Editor; preview: typeof preview };
@@ -107,7 +128,7 @@
         "terminal",
         {
           onMount(root) {
-            os?.xterm.open(root);
+            xterm.open(root);
             os?.fitXterm();
           },
           style: "height: 100%;",
@@ -124,25 +145,9 @@
     ]);
 
     terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
-    os.container.on("server-ready", async (port, url) => {});
+    container.on("server-ready", async (port, url) => {});
 
-    const fileIDHelper = {
-      count: 0,
-      idByPath: new Map<string, number>(),
-      pathById: new Array<string>(),
-      get(path: string) {
-        const id = this.idByPath.get(path) ?? this.count++;
-        this.set(path, id);
-        return id;
-      },
-      set(path: string, id: number) {
-        this.idByPath.set(path, id);
-        this.pathById[id] = path;
-      },
-    };
-
-    const { fs } = os.container;
-    fs.writeFile("index.ts", "const x = 1;");
+    const fileIDHelper = new FilePanelIDHelper();
 
     const pending = {
       rm: new Set<string>(),
@@ -159,7 +164,7 @@
     const tree = await paneAPI!.addComponentPanel(
       "Tree",
       {
-        fs: os.container.fs,
+        fs,
         onFileClick: async (file) => {
           const id = `${fileIDHelper.get(file.path)}`;
           (
@@ -167,16 +172,13 @@
             (
               await dockAPI!.addComponentPanel(
                 "Editor",
-                {
-                  fs: os!.container.fs,
-                  file,
-                },
+                { fs, file },
                 { id, title: file.name },
               )
             ).panel
           ).api.setActive();
         },
-        onDelete: async ({ path }) => rm(path),
+        onRemove: async ({ path }) => rm(path),
         onPathUpdate: async ({ current, previous, type }) => {
           switch (type) {
             case "folder":
@@ -213,9 +215,9 @@
     );
 
     os.watch((change) => {
-      let { path, action, type } = change;
+      if (!change.path.startsWith("/")) change.path = `/${change.path}`;
 
-      if (!path.startsWith("/")) path = `/${path}`;
+      const { path, action, type } = change;
 
       switch (action) {
         case "add":
