@@ -1,0 +1,46 @@
+{
+  "name": "@readme-see-more/tests-as-documentation",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./Reporter": "./src/Reporter.ts",
+    "./.test-harness": "./src/.test-harness/index.ts",
+    "./.test-harness/auxiliary": "./src/.test-harness/auxiliary/index.ts"
+  },
+  "type": "module",
+  "publishConfig": {
+    "main": "dist/index.js",
+    "typings": "dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs",
+        "types": "./dist/index.d.ts"
+      },
+      "./Reporter": {
+        "import": "./dist/Reporter.js",
+        "require": "./dist/Reporter.cjs",
+        "types": "./dist/Reporter.d.ts"
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "type-fest": "^4.32.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8",
+    "vitest": "^1.0.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.0.2",
+    "resolve.exports": "^2.0.3",
+    "ts-morph": "^25.0.0",
+    "unist-util-visit": "^5.0.0"
+  }
+}

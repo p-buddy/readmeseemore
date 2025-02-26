@@ -1,8 +1,6 @@
 {
-  "name": "@replrn/parser-utility",
+  "name": "@readme-see-more/parser-utility",
   "version": "0.0.0",
-  "inherits": "<root>/.templates/ts-library/package.json",
-  "template": "ts-library",
   "main": "src/index.ts",
   "type": "module",
   "publishConfig": {
@@ -18,9 +16,9 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@webcontainer/api": "^1.1.5",
     "typescript": "^5.2.2",
     "vite": "^5.0.8",
-    "vite-plugin-dts": "^4.5.0",
     "vitest": "^1.0.0"
   },
   "dependencies": {

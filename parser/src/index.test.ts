@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parse } from ".";
+import { FileNode, FileSystemTree } from "@webcontainer/api";
 
 describe("", () => {
     test("", () => {
@@ -8,13 +9,17 @@ describe("", () => {
 
 hehehe
 
-\`\`\`typescript
+\`\`\`typescript file://test.ts
 console.log("Hello, world!");
 \`\`\`
 `;
-        const blocks = parse(content);
-        expect(blocks).toHaveLength(1);
-        expect(blocks[0].lang).toBe("typescript");
-        expect(blocks[0].value).toBe("console.log(\"Hello, world!\");");
+        const parsed = parse(content);
+        expect(parsed.filesystem).toStrictEqual({
+            "test.ts": {
+                file: {
+                    contents: "console.log(\"Hello, world!\");"
+                }
+            }
+        } satisfies FileSystemTree);
     });
 })
