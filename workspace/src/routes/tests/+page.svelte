@@ -1,33 +1,47 @@
 <script lang="ts">
   import OperatingSystem from "$lib/OperatingSystem.js";
   import Tree from "$lib/file-tree/Tree.svelte";
-  import { type FileSystemTree } from "@webcontainer/api";
-  import { run, current } from "./vest.js";
-
+  import Vest from "./Vest.svelte";
+  import type { FileSystemTree } from "@webcontainer/api";
   let {} = $props();
 
   type TestElements = {
     tree: Tree;
     os: OperatingSystem;
-    container: HTMLDivElement;
     filesystem?: FileSystemTree;
   };
 </script>
 
-{#await run<TestElements>(async ({ given, set, v }) => {
-  const filesystem = { "no-slash": { file: { contents: "" } }, dir: { directory: { "no-slash": { file: { contents: "" } } } } };
-  set({ filesystem });
-  const { os, tree, container } = await given("os", "tree", "container");
-  await os.watch((change) => {
-    console.log(change);
-  });
-  await os.container.fs.writeFile("no-slash", "hi", { encoding: "utf-8" });
-  v.expect(() => {}).toThrowError();
-})}
-  {@const test = current<TestElements>()}
-  <div class="h-screen w-screen" bind:this={test.container}>
-    {#await OperatingSystem.Create({ filesystem: test.filesystem }) then os}
-      {test.set({ os })}
+<Vest
+  body={async ({ given, set }) => {
+    const filesystem = {
+      "no-slash": { file: { contents: "" } },
+      dir: { directory: { "no-slash": { file: { contents: "" } } } },
+    };
+
+    set({ filesystem });
+
+    const { os, tree } = await given("os", "tree");
+    const addedFiles: string[] = [];
+    const removedFiles: string[] = [];
+    await os.watch((change) => {
+      switch (change.action) {
+        case "add":
+        case "addDir":
+          addedFiles.push(change.path);
+          break;
+        case "unlink":
+        case "unlinkDir":
+          removedFiles.push(change.path);
+          break;
+      }
+    });
+    await os.container.fs.writeFile("./another", "hi");
+    await os.container.fs.writeFile("./dir/another", "hi");
+  }}
+>
+  {#snippet vest(pocket: TestElements)}
+    {#await OperatingSystem.Create({ filesystem: pocket.filesystem }) then os}
       <Tree
         params={{
           fs: os.container.fs,
@@ -35,12 +49,9 @@
           onPathUpdate: () => {},
           onRemove: () => {},
         }}
-        bind:this={test.tree}
+        bind:this={pocket.tree}
       />
+      {void (pocket.os = os)}
     {/await}
-  </div>
-{:catch x}
-  <div>
-    <h1>Test Case</h1>
-  </div>
-{/await}
+  {/snippet}
+</Vest>

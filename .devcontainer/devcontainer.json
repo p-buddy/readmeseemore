@@ -12,10 +12,19 @@
       ]
     }
   },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
   "postStartCommand": [
-    "bash -c 'git config --global user.name \"${GIT_USER_NAME}\"'",
-    "bash -c 'git config --global user.email \"${GIT_USER_EMAIL}\"'",
-    "bash -c 'pnpm install'"
+    "bash",
+    "-c",
+    "git config --global user.name \"${GIT_USER_NAME}\"",
+    "bash",
+    "-c",
+    "git config --global user.email \"${GIT_USER_EMAIL}\"",
+    "bash",
+    "-c",
+    "pnpm install"
   ],
   "mounts": [
     "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"

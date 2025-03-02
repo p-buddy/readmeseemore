@@ -1,9 +1,6 @@
 <script lang="ts">
   import { page } from "$app/state";
   import Main from "$lib/Main.svelte";
-  import { fromMarkdown } from "mdast-util-from-markdown";
-  import { visit, type BuildVisitor } from "unist-util-visit";
-
   const { url } = $derived(page);
 
   type Params = {
@@ -17,7 +14,7 @@
   const startup = $derived(url.searchParams.get("startup"));
 </script>
 
-{#if target}
+{#if true}
   <div class="h-full w-full flex flex-col">
     <div class="w-full h-full m-0 overscroll-none flex-grow">
       <Main
