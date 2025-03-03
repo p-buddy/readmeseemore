@@ -4,12 +4,6 @@
   import Vest from "./Vest.svelte";
   import type { FileSystemTree } from "@webcontainer/api";
   let {} = $props();
-
-  type TestElements = {
-    tree: Tree;
-    os: OperatingSystem;
-    filesystem?: FileSystemTree;
-  };
 </script>
 
 <Vest
@@ -40,7 +34,11 @@
     await os.container.fs.writeFile("./dir/another", "hi");
   }}
 >
-  {#snippet vest(pocket: TestElements)}
+  {#snippet vest(pocket: {
+    tree: Tree;
+    os: OperatingSystem;
+    filesystem?: FileSystemTree;
+  })}
     {#await OperatingSystem.Create({ filesystem: pocket.filesystem }) then os}
       <Tree
         params={{

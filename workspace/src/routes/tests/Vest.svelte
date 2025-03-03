@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  // should retrieve dynamically in the case of playwright
   import * as tester from "@storybook/test";
 
   const deferred = <T,>() => {
@@ -13,20 +14,11 @@
     return { promise, resolve: resolve!, reject: reject! };
   };
 
-  type Deffered<T = any> = ReturnType<typeof deferred<T>>;
-
   type TestElements = Record<string, any>;
 
-  type SetElements<T extends TestElements> = (value: Partial<T>) => void;
-
-  type WithSetElements<T extends TestElements> = { set: SetElements<T> };
-
-  type Given<T extends TestElements> = (
-    ...keys: (keyof T)[]
-  ) => Promise<Pick<T, (typeof keys)[number]>>;
-
-  type TestHarness<T extends TestElements> = WithSetElements<T> & {
-    given: Given<T>;
+  type TestHarness<T extends TestElements> = {
+    given: (...keys: (keyof T)[]) => Promise<Pick<T, (typeof keys)[number]>>;
+    set: (value: Partial<T>) => void;
     root: HTMLElement;
   } & typeof tester;
 
@@ -45,7 +37,42 @@
     return _deferred;
   };
 
+  let initialMount = false;
   let container: HTMLDivElement | undefined;
+  const reparent = (element: HTMLElement) => {
+    container!.appendChild(element);
+  };
+
+  type Task = Record<"start" | "complete", Promise<any>> & {
+    mode: "serial" | "parallel";
+  };
+
+  let tail: Task | undefined;
+
+  const enqueue = (mode: Task["mode"], fn: () => Promise<any>) => {
+    let task: Task;
+
+    if (!tail) {
+      const start = Promise.resolve();
+      task = { mode, start, complete: start.then(fn) };
+    } else if (mode === "serial") {
+      const start = tail.complete;
+      task = { mode, start, complete: start.then(fn) };
+    } else if (tail.mode === "serial") {
+      const start = tail.complete;
+      task = { mode, start, complete: start.then(fn) };
+    } else {
+      const { start, complete } = tail;
+      task = { mode, start, complete: Promise.all([complete, start.then(fn)]) };
+    }
+
+    task.complete.finally(() => {
+      if (tail === task) tail = undefined;
+    });
+
+    tail = task;
+    return task.start;
+  };
 </script>
 
 <script lang="ts" generics="T extends TestElements">
@@ -53,11 +80,17 @@
   type Props = {
     vest: Snippet<[pocket: T]>;
     body: TestCallback<T>;
+    name?: string;
+    id?: string;
+    mode?: Task["mode"];
   };
 
-  let { body, vest }: Props = $props();
+  let { body, vest, mode = "serial" }: Props = $props();
 
-  const deferredMap = new Map<string | symbol, Deffered>();
+  const deferredMap = new Map<
+    string | symbol,
+    ReturnType<typeof deferred<T>>
+  >();
 
   const pocket: T = new Proxy({} as T, {
     set: (target, prop, value) => {
@@ -68,12 +101,12 @@
     get: (target, prop) => target[prop as keyof T],
   });
 
-  const set: SetElements<T> = (obj: Partial<T>) =>
+  const set: TestHarness<T>["set"] = (obj: Partial<T>) =>
     Object.entries(obj).forEach(([key, value]) => {
       pocket[key as keyof T] = value;
     });
 
-  const given: Given<T> = async (...keys) => {
+  const given: TestHarness<T>["given"] = async (...keys) => {
     const resolved = await Promise.all(
       keys.map((k) => retrieve(deferredMap, k as string).promise),
     );
@@ -87,23 +120,33 @@
   };
 
   let root = $state.raw<HTMLDivElement>();
+  let start = $state.raw<Promise<any>>();
 
   onMount(async () => {
-    container!.appendChild(root!);
-    await body({
+    if (!root) throw new Error("Root element not found");
+    reparent(root);
+    const harness: TestHarness<T> = {
       ...tester,
-      root: root!,
+      root,
       set,
       given,
+    };
+    start = enqueue(mode, async () => {
+      await body(harness);
+      deferredMap.clear();
     });
-    deferredMap.clear();
   });
 </script>
 
-{#if !container}
+{#if !initialMount}
   <div class="h-screen w-screen flex" bind:this={container}></div>
+  {void (initialMount = true)}
 {/if}
 
 <div class="flex-grow" bind:this={root}>
-  {#if root}{@render vest(pocket)}{/if}
+  {#if root && start}
+    {#await start then}
+      {@render vest(pocket)}
+    {/await}
+  {/if}
 </div>
