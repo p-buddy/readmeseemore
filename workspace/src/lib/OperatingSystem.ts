@@ -2,7 +2,7 @@ import type { WebContainer, FileSystemTree, WebContainerProcess } from "@webcont
 import { file } from "./utils/fs-helper.js";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { boot, teardown, workdirName } from "./utils/webcontainer.js";
+import { boot, teardown } from "./utils/webcontainer.js";
 
 const cliFlags = {
   npx: {
@@ -129,7 +129,6 @@ export default class OperatingSystem {
 
   private static async Factory(options?: Omit<CreateOptions, "terminalTheme">) {
     const status = options?.status;
-
 
     status?.("Booting container");
     const container = await boot();

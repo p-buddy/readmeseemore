@@ -261,24 +261,31 @@
   });
 </script>
 
-<div
-  class="w-full h-full p-2 shadow-md z-50 focus:before:outline-none"
-  bind:this={container}
->
-  {#each root.children as child}
-    {@const rename = child.rename.bind(child)}
-    {#if child.type === "folder"}
-      <FolderComponent
-        {...child}
-        {rename}
-        {onFileClick}
-        bind:name={child.name}
-      />
-    {:else}
-      {@const onclick = () => onFileClick(child)}
-      <FileComponent {...child} {rename} {onclick} bind:name={child.name} />
-    {/if}
-  {/each}
+<div class="w-full h-full flex flex-col z-50" bind:this={container}>
+  <div class="flex-grow p-2 shadow-md focus:before:outline-none">
+    {#each root.children as child}
+      {@const rename = child.rename.bind(child)}
+      {#if child.type === "folder"}
+        <FolderComponent
+          {...child}
+          {rename}
+          {onFileClick}
+          bind:name={child.name}
+        />
+      {:else}
+        {@const onclick = () => onFileClick(child)}
+        <FileComponent {...child} {rename} {onclick} bind:name={child.name} />
+      {/if}
+    {/each}
+  </div>
+  <div class="w-full p-2">
+    <button
+      type="button"
+      class="w-full focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-1 me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
+    >
+      Add File
+    </button>
+  </div>
 </div>
 
 <style>

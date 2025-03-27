@@ -129,7 +129,6 @@
 <script lang="ts">
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import Monaco, { type EditorProps } from "@monaco-editor/react";
-  import type { CollabInstance } from "./collaboration/index.js";
   import { sveltify } from "svelte-preprocess-react";
   import { isDark } from "./mode.js";
   import type { TFile } from "./file-tree/Tree.svelte";
@@ -139,12 +138,11 @@
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
-    sync?: CollabInstance;
   } & { file: Pick<TFile, "name" | "path"> };
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 
-  const { fs, sync } = params;
+  const { fs } = params;
 
   const react = sveltify({ Monaco } as any) as any as {
     Monaco: Component<EditorProps>;
@@ -215,8 +213,6 @@
       sourceResolver,
       fileRootPath: "file:///",
     }).then((t) => (typings = t));
-
-    sync?.syncEditor(editor);
 
     createAllCodeModels(_monaco as typeof monaco, fs);
   }}

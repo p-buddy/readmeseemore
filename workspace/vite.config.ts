@@ -3,9 +3,10 @@ import tailwindcss from "@tailwindcss/vite";
 import { svelteTesting } from "@testing-library/svelte/vite";
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
-    plugins: [sveltekit(), tailwindcss()],
+    plugins: [nodePolyfills(), sveltekit(), tailwindcss()],
     server: {
         host: "0.0.0.0",
         headers: {

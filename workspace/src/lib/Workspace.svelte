@@ -103,7 +103,7 @@
     ]);
 
     status?.("Adding pane");
-    const [paneAPI, pane, terminal] = await Promise.all([
+    const [paneAPI, _, terminal] = await Promise.all([
       deferredAPI.pane.promise,
       api.addSnippetPanel(
         "pane",
@@ -124,7 +124,7 @@
             xterm.open(root);
             os?.fitXterm();
           },
-          style: "height: 100%;",
+          style: "height: 100%; padding: 10px;",
         },
         {
           minimumHeight: 100,
@@ -146,12 +146,18 @@
       rm: new Set<string>(),
     };
 
-    const isEmpty = async (path: string) =>
-      (await fs.readdir(path)).length === 0;
-
     const rm = async (path: string) => {
       fs.rm(path, { recursive: true });
       pending.rm.delete(path);
+    };
+
+    const dir = {
+      empty: async (path: string) => (await fs.readdir(path)).length === 0,
+      tryRemoveEmpty: async (path: string) => {
+        if (!(await dir.empty(path))) return false;
+        rm(path);
+        return true;
+      },
     };
 
     const tree = await paneAPI!.addComponentPanel(
@@ -176,15 +182,15 @@
           switch (type) {
             case "folder":
               fs.mkdir(current);
-              if (await isEmpty(previous)) rm(previous);
-              else pending.rm.add(previous);
+              if (!(await dir.tryRemoveEmpty(previous)))
+                pending.rm.add(previous);
               break;
             case "file":
               fs.writeFile(current, await fs.readFile(previous));
               await fs.rm(previous);
 
               const parent = previous.split("/").slice(0, -1).join("/");
-              if (pending.rm.has(parent) && (await isEmpty(parent))) rm(parent);
+              if (pending.rm.has(parent)) dir.tryRemoveEmpty(parent);
 
               if (!filePanelTracker.has("path", previous)) return;
               filePanelTracker.set(current, filePanelTracker.id(previous)!);
