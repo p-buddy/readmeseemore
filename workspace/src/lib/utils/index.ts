@@ -32,7 +32,7 @@ export const mouseEventToCaretIndex = <
   return caretIndex > length ? length : caretIndex;
 }
 
-export const deferred = <T>() => {
+export const defer = <T>() => {
   let resolve: (value: T | PromiseLike<T>) => void;
   let reject: (reason?: any) => void;
 
@@ -52,3 +52,5 @@ export const retry = <T>(fn: () => Promise<T>, delay = 100) =>
 export type OnClick<T extends HTMLElement = HTMLButtonElement> = MouseEventHandler<T>;
 
 export const dirname = (path: string) => path.split("/").slice(0, -1).join("/");
+
+export type OnlyRequire<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;

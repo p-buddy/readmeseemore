@@ -37,12 +37,8 @@
   type Dirname = () => string;
   type WithDirname = { dirname: Dirname };
 
-  const join = (parent: string, child: string) => `${parent}/${child}`;
-  const sanitize = (path: string) => {
-    while (path.startsWith("/")) path = path.slice(1);
-    while (path.endsWith("/")) path = path.slice(0, -1);
-    return path;
-  };
+  const join = (parent: string, child: string) =>
+    parent ? `${parent}/${child}` : child;
 
   type BaseConfig<T extends FsItemType = FsItemType> = WithOnPathUpdate &
     WithDirname &
@@ -141,11 +137,12 @@
     callbacks: WithOnPathUpdate & WithOnRemove,
   ) => {
     const { onPathUpdate, onRemove } = callbacks;
-    const dirname = () => sanitize(parent.path);
-    for (const entry of await fs.readdir(dirname(), { withFileTypes: true })) {
+    for (const entry of await fs.readdir(parent.path, {
+      withFileTypes: true,
+    })) {
       const item = make(entry.isDirectory() ? "folder" : "file", {
         name: entry.name,
-        dirname,
+        dirname: () => parent.path,
         onPathUpdate,
         remove: () => parent.drop(item, onRemove),
       });
@@ -157,7 +154,7 @@
   type WithFs = { fs: Parameters<typeof populate>[0] };
 
   const splitPath = (path: string) => {
-    const parts = sanitize(path).split("/");
+    const parts = path.split("/");
     const name = parts.pop()!;
     return { dirname: parts.join("/"), name, parts };
   };
@@ -168,10 +165,11 @@
   import FileComponent from "./File.svelte";
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import { onMount } from "svelte";
+  import type { OnlyRequire } from "$lib/utils/index.js";
 
   type Props = WithFs & WithOnFileClick & WithOnPathUpdate & WithOnRemove;
 
-  let { params }: PanelProps<"pane", Props, "params"> = $props();
+  let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
   const { fs, onFileClick, onPathUpdate, onRemove } = params;
 
@@ -186,12 +184,12 @@
     },
   });
 
-  populate(fs, root, params);
+  const populated = populate(fs, root, params);
 
-  export const getRoot = () => root;
+  export const getRoot = () => populated.then(() => root);
 
   export const find = (path: string): TTreeItem | undefined => {
-    if (path === "/" || path === root.name) return root;
+    if (path === root.name) return root;
     const { name, parts } = splitPath(path);
 
     let searchFolder: TFolder = root;
@@ -216,7 +214,7 @@
     const item = make(type, {
       name,
       onPathUpdate,
-      dirname: () => sanitize(parent.path),
+      dirname: () => parent.path,
       remove: () => parent.drop(item, onRemove),
     });
     parent.children.push(item);
@@ -246,6 +244,10 @@
   };
 
   let container: HTMLElement;
+
+  export const getContainer = () => container;
+
+  export const ready = () => populated.then(() => true);
 
   onMount(() => {
     let parent = container.parentElement;

@@ -2,12 +2,12 @@
   import { isDark } from "./mode.js";
   import Tree from "./file-tree/Tree.svelte";
   import Editor from "./Editor.svelte";
-  import { type Props } from "./utils/ui-framework.js";
+  import { type Props as PropsOf } from "./utils/ui-framework.js";
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
   import { type FileSystemTree } from "@webcontainer/api";
   import MountedDiv from "./utils/MountedDiv.svelte";
   import OperatingSystem from "$lib/OperatingSystem.js";
-  import { deferred } from "./utils/index.js";
+  import { defer } from "./utils/index.js";
   import {
     type WithViewOnReady,
     type PanelProps,
@@ -19,7 +19,12 @@
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "./utils/FilePanelTracker.js";
 
-  let { filesystem }: { filesystem?: FileSystemTree } = $props();
+  type Props = {
+    filesystem?: FileSystemTree;
+    status?: (msg: string) => void;
+  };
+
+  let { filesystem, status }: Props = $props();
 
   let os = $state<OperatingSystem>();
 
@@ -64,7 +69,7 @@
   <PaneView components={{ Tree }} {...params} />
 {/snippet}
 
-{#snippet terminal(props: PanelProps<"grid", Props<typeof MountedDiv>>)}
+{#snippet terminal(props: PanelProps<"grid", PropsOf<typeof MountedDiv>>)}
   <MountedDiv {...props.params} />
 {/snippet}
 
@@ -74,7 +79,7 @@
   snippets={{ pane, dock, terminal }}
   proportionalLayout={false}
   onReady={async ({ api }) => {
-    os = await OperatingSystem.Create(filesystem);
+    os = await OperatingSystem.Create({ filesystem, status });
 
     const { container, xterm } = os;
     const { fs } = container;
@@ -84,21 +89,25 @@
     type DockComponents = { Editor: typeof Editor; preview: typeof preview };
     type PaneComponents = { Tree: typeof Tree };
 
-    const defferedDockAPI = deferred<ViewAPI<"dock", DockComponents>>();
-    const defferedPaneAPI = deferred<ViewAPI<"pane", PaneComponents>>();
+    const deferredAPI = {
+      dock: defer<ViewAPI<"dock", DockComponents>>(),
+      pane: defer<ViewAPI<"pane", PaneComponents>>(),
+    };
 
+    status?.("Adding dock");
     const [dockAPI, _dock] = await Promise.all([
-      defferedDockAPI.promise,
+      deferredAPI.dock.promise,
       api.addSnippetPanel("dock", {
-        onReady: ({ api }) => defferedDockAPI.resolve(api),
+        onReady: ({ api }) => deferredAPI.dock.resolve(api),
       }),
     ]);
 
+    status?.("Adding pane");
     const [paneAPI, pane, terminal] = await Promise.all([
-      defferedPaneAPI.promise,
+      deferredAPI.pane.promise,
       api.addSnippetPanel(
         "pane",
-        { onReady: ({ api }) => defferedPaneAPI.resolve(api) },
+        { onReady: ({ api }) => deferredAPI.pane.resolve(api) },
         {
           maximumWidth: 800,
           size: 200,
@@ -190,6 +199,9 @@
       },
     );
 
+    status?.("File tree initializing");
+    await tree.exports.ready();
+
     tree.panel.headerVisible = false;
 
     dockAPI.onDidActivePanelChange((e) =>
@@ -198,9 +210,7 @@
       ),
     );
 
-    os.watch((change) => {
-      if (!change.path.startsWith("/")) change.path = `/${change.path}`;
-
+    await os.watch((change) => {
       const { path, action, type } = change;
 
       switch (action) {

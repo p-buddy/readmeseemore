@@ -1,1 +1,3 @@
-// Reexport your entry components here
+import Workspace from "$lib/Workspace.svelte";
+
+export { Workspace };
