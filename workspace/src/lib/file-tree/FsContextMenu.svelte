@@ -16,6 +16,7 @@
     nameUI?: EditableName;
     target?: HTMLElement;
     atCursor?: boolean;
+    beforeAction?: () => void;
   } & Partial<Pick<TTreeItem, "name" | "remove">> &
     Partial<Record<"open" | "copy" | "addFile" | "addFolder", OnClick>>;
 
@@ -29,18 +30,33 @@
     name,
     target,
     atCursor,
+    beforeAction,
   }: Props = $props();
 
   let contextMenu: ContextMenu;
+  let tempTarget: HTMLElement | undefined;
 
-  let cursorTarget: HTMLElement | undefined;
   const createCursorTarget = (event: MouseEvent) =>
-    (cursorTarget = createAtEvent(event));
+    (tempTarget = createAtEvent(event));
+
+  const createFixedTarget = (target: HTMLElement) => {
+    const { top, left, width, height } = target.getBoundingClientRect();
+    const fixed = document.createElement("div");
+    fixed.style.position = "fixed";
+    fixed.style.top = `${top}px`;
+    fixed.style.left = `${left}px`;
+    fixed.style.width = `${width}px`;
+    fixed.style.height = `${height}px`;
+    fixed.style.backgroundColor = "transparent";
+    document.body.appendChild(fixed);
+    tempTarget = fixed;
+    return fixed;
+  };
 
   const close = () => {
     nameUI?.highlight(false);
     unmount(contextMenu);
-    cursorTarget?.remove();
+    tempTarget?.remove();
     closeCurrent = undefined;
   };
 
@@ -49,6 +65,7 @@
     (event) => {
       event.preventDefault();
       event.stopPropagation();
+      beforeAction?.();
       fn(event);
       close();
     };
@@ -84,7 +101,9 @@
       nameUI?.highlight(true);
       closeCurrent?.();
       contextMenu = mount(ContextMenu, {
-        target: atCursor ? createCursorTarget(event) : target,
+        target: atCursor
+          ? createCursorTarget(event)
+          : createFixedTarget(target),
         props: { items },
       });
       closeCurrent = close;

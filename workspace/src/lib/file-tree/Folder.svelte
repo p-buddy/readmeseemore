@@ -45,6 +45,7 @@
     children.sort((a, b) => a.name.localeCompare(b.name));
     if (!expandOn || !children.some(({ path }) => path === expandOn)) return;
     expanded = true;
+    expandOn = undefined;
   });
 
   const add = async (type: "file" | "folder") =>
@@ -65,6 +66,7 @@
   remove={_delete}
   target={topLevel}
   {name}
+  beforeAction={() => nameUI?.edit(false, name)}
 />
 
 <button

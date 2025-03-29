@@ -29,10 +29,18 @@
     if (toFocus !== path) return;
     nameUI?.highlight();
     nameUI?.edit(true, name.length);
+    toFocus = undefined;
   });
 </script>
 
-<FsContextMenu {nameUI} open={onclick} {remove} target={topLevel} {name} />
+<FsContextMenu
+  {nameUI}
+  open={onclick}
+  {remove}
+  target={topLevel}
+  {name}
+  beforeAction={() => nameUI?.edit(false, name)}
+/>
 
 <button
   {onclick}

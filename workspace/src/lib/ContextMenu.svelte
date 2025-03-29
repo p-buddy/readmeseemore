@@ -13,7 +13,7 @@
 </script>
 
 <div
-  class="absolute z-20 top-full left-0 shadow-md rounded-lg bg-neutral-800 border border-neutral-700"
+  class="absolute overflow-visible visible clear-both z-10000 top-full left-0 shadow-md rounded-lg bg-neutral-800 border border-neutral-700"
   role="menu"
   aria-orientation="vertical"
   aria-labelledby="hs-default"
