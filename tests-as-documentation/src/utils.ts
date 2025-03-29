@@ -1,4 +1,4 @@
-import { resolve, dirname, join, extname, basename, isAbsolute, parse } from "path";
+import { resolve, dirname, join, extname, isAbsolute, parse } from "path";
 import { existsSync, statSync } from "fs";
 import { exports } from 'resolve.exports';
 import type { Package } from './Reporter';
