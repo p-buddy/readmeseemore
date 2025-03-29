@@ -1,5 +1,11 @@
 <script lang="ts">
-  import type { WithOnFileClick, TFolder } from "./Tree.svelte";
+  import {
+    type WithOnFileClick,
+    type TFolder,
+    tryRenameAt,
+    writeChild,
+    type WithWrite,
+  } from "./Tree.svelte";
   import type { Props } from "$lib/utils/ui-framework.js";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
@@ -12,12 +18,17 @@
   let {
     expanded = false,
     name = $bindable(),
+    path,
     rename,
     focused,
     children,
     remove: _delete,
     onFileClick,
-  }: TFolder & WithOnFileClick & Props<typeof EditableName> = $props();
+    write,
+  }: TFolder &
+    WithOnFileClick &
+    Props<typeof EditableName> &
+    WithWrite = $props();
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
@@ -27,7 +38,14 @@
   });
 </script>
 
-<FsContextMenu {nameUI} remove={_delete} target={topLevel} {name} />
+<FsContextMenu
+  addFile={() => writeChild(children, "file", path, write)}
+  addFolder={() => writeChild(children, "folder", path, write)}
+  {nameUI}
+  remove={_delete}
+  target={topLevel}
+  {name}
+/>
 
 <button
   onclick={() => (expanded = !expanded)}
@@ -45,11 +63,17 @@
 
 {#if expanded}
   <ul transition:slide={{ duration: 300 }}>
-    {#each children as child}
-      {@const rename = child.rename.bind(child)}
+    {#each children as child, index}
+      {@const rename: typeof child.rename = (...args) => tryRenameAt(children, index, ...args)}
       <li>
         {#if child.type === "folder"}
-          <Self {...child} {rename} bind:name={child.name} {onFileClick} />
+          <Self
+            {...child}
+            {rename}
+            {onFileClick}
+            {write}
+            bind:name={child.name}
+          />
         {:else}
           {@const onclick = () => onFileClick(child)}
           <File {...child} {rename} bind:name={child.name} {onclick} />

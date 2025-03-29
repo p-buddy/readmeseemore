@@ -34,32 +34,41 @@
   });
 </script>
 
-<div>
-  {#if editing}
-    <input
-      bind:this={input}
-      type="text"
-      class="bg-transparent w-full outline outline-1 outline-transparent"
-      onblur={({ currentTarget: { value } }) => edit(false, value)}
-      onkeydown={({ key, currentTarget }) =>
-        key !== "Enter" || currentTarget.blur()}
-    />
-  {:else}
-    <span
-      role="button"
-      class="outline outline-1 outline-transparent"
-      class:highlighted
-      tabindex="0"
-      ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
-    >
-      {name}
-    </span>
-  {/if}
-</div>
+{#if editing}
+  <input
+    bind:this={input}
+    type="text"
+    class="bg-transparent outline outline-transparent"
+    style:width="calc(100% - 1.25rem)"
+    onblur={({ currentTarget: { value } }) => edit(false, value)}
+    onkeydown={({ key, currentTarget }) =>
+      key !== "Enter" || currentTarget.blur()}
+    onclick={(event) => {
+      event.stopPropagation();
+    }}
+  />
+{:else}
+  <span
+    role="button"
+    class="outline outline-transparent"
+    class:highlighted
+    tabindex="0"
+    ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
+  >
+    {name}
+  </span>
+{/if}
 
 <style>
   input:focus,
   .highlighted {
     outline-color: #007fd4;
+  }
+  input {
+    /* Remove default border and padding */
+    border: none;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
   }
 </style>

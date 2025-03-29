@@ -79,7 +79,7 @@
   snippets={{ pane, dock, terminal }}
   proportionalLayout={false}
   onReady={async ({ api }) => {
-    os = await OperatingSystem.Create({ filesystem, status });
+    os = await OperatingSystem.Create({ filesystem, status, watch: true });
 
     const { container, xterm } = os;
     const { fs } = container;
@@ -198,6 +198,8 @@
               break;
           }
         },
+        write: (type, path) =>
+          type === "file" ? fs.writeFile(path, "") : fs.mkdir(path),
       },
       {
         title: "Explorer",
@@ -237,5 +239,6 @@
           break;
       }
     });
+    console.log("ready");
   }}
 />

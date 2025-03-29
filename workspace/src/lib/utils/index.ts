@@ -54,3 +54,11 @@ export type OnClick<T extends HTMLElement = HTMLButtonElement> = MouseEventHandl
 export const dirname = (path: string) => path.split("/").slice(0, -1).join("/");
 
 export type OnlyRequire<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;
+
+export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLElement) => {
+  const element = document.createElement("div");
+  element.style.position = "fixed";
+  element.style.top = `${clientY}px`;
+  element.style.left = `${clientX}px`;
+  return (parent ?? document.body).appendChild(element);
+}

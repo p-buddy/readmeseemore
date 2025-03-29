@@ -26,17 +26,17 @@ type CreateOptions = {
   filesystem?: FileSystemTree,
   status?: (status: string) => void,
   force?: boolean,
+  watch?: boolean,
 }
 
 export default class OperatingSystem {
-  private onChange?: Set<FsChangeCallback>;
-  private _watch?: Promise<WebContainerProcess>;
-
   private constructor(
     public readonly container: WebContainer,
     public readonly jsh: WebContainerProcess,
     public readonly xterm: Terminal,
     private readonly fitAddon: FitAddon,
+    private _watch?: Promise<WebContainerProcess>,
+    private onChange?: Set<FsChangeCallback>
   ) { }
 
   private static instance: OperatingSystem | null = null;
@@ -154,6 +154,14 @@ export default class OperatingSystem {
     const { cols, rows } = xterm;
     xterm.loadAddon(addon);
 
+    let onChange: Set<FsChangeCallback> | undefined;
+    let watch: Promise<WebContainerProcess> | undefined;
+
+    if (options?.watch) {
+      onChange = new Set<FsChangeCallback>();
+      watch = OperatingSystem.Watch(container, onChange);
+    }
+
     status?.("Spawning jsh");
     const jsh = await container.spawn("jsh", {
       env: {},
@@ -173,6 +181,6 @@ export default class OperatingSystem {
     }));
     xterm.clear();
 
-    return new OperatingSystem(container, jsh, xterm, addon);
+    return new OperatingSystem(container, jsh, xterm, addon, watch, onChange);
   }
 }

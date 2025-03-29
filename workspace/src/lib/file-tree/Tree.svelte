@@ -34,10 +34,16 @@
   type OnRemove = (item: TTreeItem) => void;
   export type WithOnRemove = { onRemove: OnRemove };
 
+  type OnAdd = (item: TTreeItem) => void;
+  export type WithOnAdd = { onAdd: OnAdd };
+
+  type Write = (type: FsItemType, path: string) => Promise<void>;
+  export type WithWrite = { write: Write };
+
   type Dirname = () => string;
   type WithDirname = { dirname: Dirname };
 
-  const join = (parent: string, child: string) =>
+  export const join = (parent: string, child: string) =>
     parent ? `${parent}/${child}` : child;
 
   type BaseConfig<T extends FsItemType = FsItemType> = WithOnPathUpdate &
@@ -82,6 +88,8 @@
       return renamed;
     }
   }
+
+  type Rename = Base<FsItemType>["rename"];
 
   class Folder extends Base<"folder"> implements TFolder {
     children = $state<TTreeItem[]>([]);
@@ -158,6 +166,32 @@
     const name = parts.pop()!;
     return { dirname: parts.join("/"), name, parts };
   };
+
+  export const tryRenameAt = (
+    children: TTreeItem[],
+    index: number,
+    ...[name, force]: Parameters<Rename>
+  ) => {
+    if (!name) return false;
+    for (let i = 0; i < children.length; i++)
+      if (i !== index && children[i].name === name) return false;
+    return children[index].rename(name, force);
+  };
+
+  const validName = (children: TTreeItem[], type: FsItemType) => {
+    let candidate: string = type;
+    let index = 0;
+    while (children.some((child) => child.name === candidate))
+      candidate = `${type}(${++index})`;
+    return candidate;
+  };
+
+  export const writeChild = (
+    children: TTreeItem[],
+    type: FsItemType,
+    path: string,
+    write: Write,
+  ) => write(type, join(path, validName(children, type)));
 </script>
 
 <script lang="ts">
@@ -166,12 +200,17 @@
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import { onMount } from "svelte";
   import type { OnlyRequire } from "$lib/utils/index.js";
+  import FsContextMenu from "./FsContextMenu.svelte";
 
-  type Props = WithFs & WithOnFileClick & WithOnPathUpdate & WithOnRemove;
+  type Props = WithFs &
+    WithOnFileClick &
+    WithOnPathUpdate &
+    WithOnRemove &
+    WithWrite;
 
   let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
-  const { fs, onFileClick, onPathUpdate, onRemove } = params;
+  const { fs, onFileClick, onPathUpdate, onRemove, write } = params;
 
   const root = new Folder({
     name: "",
@@ -243,14 +282,14 @@
     currentFocused = item;
   };
 
-  let container: HTMLElement;
+  let container = $state<HTMLElement>();
 
   export const getContainer = () => container;
 
   export const ready = () => populated.then(() => true);
 
   onMount(() => {
-    let parent = container.parentElement;
+    let parent = container!.parentElement;
     while (parent && !parent?.classList.contains("dv-pane-body"))
       parent = parent.parentElement;
     parent?.classList.add("override-no-focus-outline");
@@ -261,31 +300,32 @@
   });
 </script>
 
-<div class="w-full h-full flex flex-col z-50" bind:this={container}>
-  <div class="flex-grow p-2 shadow-md focus:before:outline-none">
-    {#each root.children as child}
-      {@const rename = child.rename.bind(child)}
-      {#if child.type === "folder"}
-        <FolderComponent
-          {...child}
-          {rename}
-          {onFileClick}
-          bind:name={child.name}
-        />
-      {:else}
-        {@const onclick = () => onFileClick(child)}
-        <FileComponent {...child} {rename} {onclick} bind:name={child.name} />
-      {/if}
-    {/each}
-  </div>
-  <div class="w-full p-2">
-    <button
-      type="button"
-      class="w-full focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-1 me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
-    >
-      Add File
-    </button>
-  </div>
+<FsContextMenu
+  addFile={() => writeChild(root.children, "file", "", write)}
+  addFolder={() => writeChild(root.children, "folder", "", write)}
+  target={container}
+  atCursor={true}
+/>
+
+<div
+  class="w-full h-full flex flex-col z-50 p-2 shadow-md focus:before:outline-none"
+  bind:this={container}
+>
+  {#each root.children as child, index}
+    {@const rename: Rename = (...args) => tryRenameAt(root.children, index, ...args)}
+    {#if child.type === "folder"}
+      <FolderComponent
+        {...child}
+        {rename}
+        {onFileClick}
+        {write}
+        bind:name={child.name}
+      />
+    {:else}
+      {@const onclick = () => onFileClick(child)}
+      <FileComponent {...child} {rename} {onclick} bind:name={child.name} />
+    {/if}
+  {/each}
 </div>
 
 <style>

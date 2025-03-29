@@ -20,7 +20,7 @@
 >
   <ul class="p-1 space-y-0.5 border-b border-neutral-800" style:z-index="10000">
     {#each items as { onclick, content }}
-      <li>
+      <li class="whitespace-nowrap">
         <button
           type="button"
           {onclick}
