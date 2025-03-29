@@ -21,13 +21,15 @@ export const mouseEventToCaretIndex = <
   Target extends HTMLElement,
 >(
   { currentTarget, offsetX }: T,
-  { length }: string
+  { length }: string,
+  useChild = true
 ) => {
-  const spanWidth = currentTarget.getBoundingClientRect().width;
+  const element = useChild ? currentTarget.children[0] : currentTarget;
+  const { width } = element.getBoundingClientRect();
 
   if (length === 0) return 0;
 
-  const approxCharWidth = spanWidth / length;
+  const approxCharWidth = width / length;
   const caretIndex = Math.round(offsetX / approxCharWidth);
   return caretIndex > length ? length : caretIndex;
 }

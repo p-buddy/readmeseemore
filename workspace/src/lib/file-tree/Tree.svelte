@@ -180,7 +180,7 @@
 
   const validName = (children: TTreeItem[], type: FsItemType) => {
     let candidate: string = type;
-    let index = 0;
+    let index = 1;
     while (children.some((child) => child.name === candidate))
       candidate = `${type}(${++index})`;
     return candidate;
@@ -191,12 +191,19 @@
     type: FsItemType,
     path: string,
     write: Write,
-  ) => write(type, join(path, validName(children, type)));
+  ) => {
+    const child = join(path, validName(children, type));
+    write(type, child);
+    const focus = type === "file" ? focusFile : focusFolder;
+    return focus(child);
+  };
 </script>
 
 <script lang="ts">
-  import FolderComponent from "./Folder.svelte";
-  import FileComponent from "./File.svelte";
+  import FolderComponent, {
+    focusOnMount as focusFolder,
+  } from "./Folder.svelte";
+  import FileComponent, { focusOnMount as focusFile } from "./File.svelte";
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import { onMount } from "svelte";
   import type { OnlyRequire } from "$lib/utils/index.js";

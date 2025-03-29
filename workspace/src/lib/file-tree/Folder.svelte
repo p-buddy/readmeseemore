@@ -1,3 +1,8 @@
+<script lang="ts" module>
+  let toFocus: string | undefined;
+  export const focusOnMount = (path: string) => (toFocus = path);
+</script>
+
 <script lang="ts">
   import {
     type WithOnFileClick,
@@ -14,6 +19,7 @@
   import ClosedFolder from "./svgs/ClosedFolder.svelte";
   import EditableName from "./EditableName.svelte";
   import FsContextMenu from "./FsContextMenu.svelte";
+  import { onMount } from "svelte";
 
   let {
     expanded = false,
@@ -33,14 +39,28 @@
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
 
+  let expandOn: string | undefined;
+
   $effect(() => {
     children.sort((a, b) => a.name.localeCompare(b.name));
+    if (!expandOn || !children.some(({ path }) => path === expandOn)) return;
+    expanded = true;
+  });
+
+  const add = async (type: "file" | "folder") =>
+    (expandOn = writeChild(children, type, path, write));
+
+  onMount(() => {
+    if (toFocus !== path) return;
+    nameUI?.highlight();
+    nameUI?.edit(true, name.length);
+    toFocus = undefined;
   });
 </script>
 
 <FsContextMenu
-  addFile={() => writeChild(children, "file", path, write)}
-  addFolder={() => writeChild(children, "folder", path, write)}
+  addFile={() => add("file")}
+  addFolder={() => add("folder")}
   {nameUI}
   remove={_delete}
   target={topLevel}
@@ -53,10 +73,12 @@
   class="relative flex w-full"
   bind:this={topLevel}
 >
-  <span class="w-fit flex items-center gap-0.5">
+  <span class="w-full flex items-center gap-0.5">
     {#if expanded}
-      <OpenFolder />{:else}
-      <ClosedFolder />{/if}
+      <OpenFolder />
+    {:else}
+      <ClosedFolder />
+    {/if}
     <EditableName bind:name {rename} bind:this={nameUI} />
   </span>
 </button>

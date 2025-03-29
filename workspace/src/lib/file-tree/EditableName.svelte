@@ -50,12 +50,14 @@
 {:else}
   <span
     role="button"
-    class="outline outline-transparent"
+    class="outline outline-transparent flex-grow text-left"
     class:highlighted
     tabindex="0"
     ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
   >
-    {name}
+    <span class="w-fit">
+      {name}
+    </span>
   </span>
 {/if}
 

@@ -1,14 +1,21 @@
+<script lang="ts" module>
+  let toFocus: string | undefined;
+  export const focusOnMount = (path: string) => (toFocus = path);
+</script>
+
 <script lang="ts">
   import type { TFile } from "./Tree.svelte";
   import type { Props } from "$lib/utils/ui-framework.js";
   import EditableName from "./EditableName.svelte";
   import type { MouseEventHandler } from "svelte/elements";
   import FsContextMenu from "./FsContextMenu.svelte";
+  import { onMount } from "svelte";
 
   type OnClick = MouseEventHandler<HTMLButtonElement>;
 
   let {
     name = $bindable(),
+    path,
     focused,
     rename,
     onclick,
@@ -17,6 +24,12 @@
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
+
+  onMount(() => {
+    if (toFocus !== path) return;
+    nameUI?.highlight();
+    nameUI?.edit(true, name.length);
+  });
 </script>
 
 <FsContextMenu {nameUI} open={onclick} {remove} target={topLevel} {name} />
