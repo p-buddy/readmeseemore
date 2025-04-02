@@ -8,6 +8,7 @@
   let input = $state<HTMLInputElement>();
   let caretIndex = $state(-1);
   let highlighted = $state(false);
+  let editableNameOverride: string | undefined;
 
   export const edit = <
     Condition extends true | false,
@@ -15,20 +16,22 @@
   >(
     condition: Condition,
     detail: Detail,
+    override?: string,
   ) => {
     editing = condition;
+    editableNameOverride = override;
     if (condition) caretIndex = detail as number;
     else rename(detail as string);
   };
 
   export const highlight = (setting?: boolean) => {
-    setting ??= !highlight;
+    setting ??= !highlighted;
     highlighted = setting;
   };
 
   $effect(() => {
     if (!input) return;
-    input.value = name;
+    input.value = editableNameOverride ?? name;
     input.focus();
     if (caretIndex >= 0) input.setSelectionRange(caretIndex, caretIndex);
   });
@@ -62,8 +65,7 @@
 {/if}
 
 <style>
-  input:focus,
-  .highlighted {
+  input:focus {
     outline-color: #007fd4;
   }
   input {

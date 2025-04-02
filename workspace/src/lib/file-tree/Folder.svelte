@@ -1,8 +1,3 @@
-<script lang="ts" module>
-  let toFocus: string | undefined;
-  export const focusOnMount = (path: string) => (toFocus = path);
-</script>
-
 <script lang="ts">
   import {
     type WithOnFileClick,
@@ -19,7 +14,7 @@
   import ClosedFolder from "./svgs/ClosedFolder.svelte";
   import EditableName from "./EditableName.svelte";
   import FsContextMenu from "./FsContextMenu.svelte";
-  import { onMount } from "svelte";
+  import { untrack } from "svelte";
 
   let {
     expanded = false,
@@ -31,31 +26,37 @@
     remove: _delete,
     onFileClick,
     write,
+    editingTarget,
   }: TFolder &
-    WithOnFileClick &
-    Props<typeof EditableName> &
+    WithOnFileClick & { editingTarget?: string } & Props<typeof EditableName> &
     WithWrite = $props();
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
-
   let expandOn: string | undefined;
+  let childEditingTarget = $state<string>();
+
+  $inspect(childEditingTarget);
 
   $effect(() => {
     children.sort((a, b) => a.name.localeCompare(b.name));
-    if (!expandOn || !children.some(({ path }) => path === expandOn)) return;
-    expanded = true;
+    if (expandOn && children.some(({ path }) => path === expandOn)) {
+      expanded = true;
+      childEditingTarget = expandOn;
+    }
     expandOn = undefined;
   });
 
   const add = async (type: "file" | "folder") =>
     (expandOn = writeChild(children, type, path, write));
 
-  onMount(() => {
-    if (toFocus !== path) return;
-    nameUI?.highlight();
-    nameUI?.edit(true, name.length);
-    toFocus = undefined;
+  $effect(() => {
+    if (editingTarget !== path) return;
+    untrack(() => {
+      nameUI?.highlight();
+      nameUI?.edit(true, 0, "");
+    });
+    editingTarget = undefined;
   });
 </script>
 
@@ -96,11 +97,18 @@
             {rename}
             {onFileClick}
             {write}
+            editingTarget={childEditingTarget}
             bind:name={child.name}
           />
         {:else}
           {@const onclick = () => onFileClick(child)}
-          <File {...child} {rename} bind:name={child.name} {onclick} />
+          <File
+            {...child}
+            {rename}
+            bind:name={child.name}
+            {onclick}
+            editingTarget={childEditingTarget}
+          />
         {/if}
       </li>
     {/each}

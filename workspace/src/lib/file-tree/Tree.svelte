@@ -194,16 +194,13 @@
   ) => {
     const child = join(path, validName(children, type));
     write(type, child);
-    const focus = type === "file" ? focusFile : focusFolder;
-    return focus(child);
+    return child;
   };
 </script>
 
 <script lang="ts">
-  import FolderComponent, {
-    focusOnMount as focusFolder,
-  } from "./Folder.svelte";
-  import FileComponent, { focusOnMount as focusFile } from "./File.svelte";
+  import FolderComponent from "./Folder.svelte";
+  import FileComponent from "./File.svelte";
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import { onMount } from "svelte";
   import type { OnlyRequire } from "$lib/utils/index.js";
@@ -305,11 +302,14 @@
   $effect(() => {
     root.children.sort((a, b) => a.name.localeCompare(b.name));
   });
+
+  let editingTarget = $state<string>();
 </script>
 
 <FsContextMenu
-  addFile={() => writeChild(root.children, "file", "", write)}
-  addFolder={() => writeChild(root.children, "folder", "", write)}
+  addFile={() => (editingTarget = writeChild(root.children, "file", "", write))}
+  addFolder={() =>
+    (editingTarget = writeChild(root.children, "folder", "", write))}
   target={container}
   atCursor={true}
 />
@@ -326,11 +326,18 @@
         {rename}
         {onFileClick}
         {write}
+        {editingTarget}
         bind:name={child.name}
       />
     {:else}
       {@const onclick = () => onFileClick(child)}
-      <FileComponent {...child} {rename} {onclick} bind:name={child.name} />
+      <FileComponent
+        {...child}
+        {rename}
+        {onclick}
+        {editingTarget}
+        bind:name={child.name}
+      />
     {/if}
   {/each}
 </div>

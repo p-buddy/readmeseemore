@@ -1,8 +1,3 @@
-<script lang="ts" module>
-  let toFocus: string | undefined;
-  export const focusOnMount = (path: string) => (toFocus = path);
-</script>
-
 <script lang="ts">
   import type { TFile } from "./Tree.svelte";
   import type { Props } from "$lib/utils/ui-framework.js";
@@ -19,17 +14,18 @@
     focused,
     rename,
     onclick,
+    editingTarget,
     remove,
-  }: { onclick: OnClick } & TFile & Props<typeof EditableName> = $props();
+  }: { onclick: OnClick } & TFile &
+    Props<typeof EditableName> & { editingTarget?: string } = $props();
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
 
   onMount(() => {
-    if (toFocus !== path) return;
+    if (editingTarget !== path) return;
     nameUI?.highlight();
-    nameUI?.edit(true, name.length);
-    toFocus = undefined;
+    nameUI?.edit(true, 0, "");
   });
 </script>
 
