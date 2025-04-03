@@ -320,13 +320,14 @@
 >
   {#each root.children as child, index}
     {@const rename: Rename = (...args) => tryRenameAt(root.children, index, ...args)}
+    {@const editing = editingTarget === child.path}
     {#if child.type === "folder"}
       <FolderComponent
         {...child}
         {rename}
         {onFileClick}
         {write}
-        {editingTarget}
+        {editing}
         bind:name={child.name}
       />
     {:else}
@@ -335,7 +336,7 @@
         {...child}
         {rename}
         {onclick}
-        {editingTarget}
+        {editing}
         bind:name={child.name}
       />
     {/if}

@@ -1,15 +1,10 @@
-import { defineConfig } from "vitest/config";
+import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
-
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-    server: {
-        host: '0.0.0.0',
-    },
-    plugins: [nodePolyfills(), sveltekit()],
-
-    test: {
-        include: ['src/**/*.{test,spec}.{js,ts}']
-    },
+	server: {
+		host: "0.0.0.0"
+	},
+	plugins: [tailwindcss(), sveltekit()]
 });

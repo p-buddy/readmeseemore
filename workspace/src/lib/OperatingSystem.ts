@@ -1,7 +1,7 @@
 import type { WebContainer, FileSystemTree, WebContainerProcess } from "@webcontainer/api";
 import { file } from "./utils/fs-helper.js";
-import { Terminal, type ITheme } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
+import type { ITheme, Terminal } from "@xterm/xterm";
+import type { FitAddon } from "@xterm/addon-fit";
 import { boot, teardown } from "./utils/webcontainer.js";
 
 const cliFlags = {
@@ -21,7 +21,7 @@ type FsChange = {
 
 type FsChangeCallback = (change: FsChange) => any;
 
-type CreateOptions = {
+export type CreateOptions = {
   terminalTheme?: ITheme,
   filesystem?: FileSystemTree,
   status?: (status: string) => void,
@@ -50,12 +50,6 @@ export default class OperatingSystem {
 
   public fitXterm() {
     this.fitAddon.fit();
-  }
-
-  public async clearFileSystem() {
-    const { container } = this;
-    const rm = await container.spawn("rm", ["-rf", "./*"]);
-    await rm.exit;
   }
 
   static async Create(options?: CreateOptions) {
@@ -149,8 +143,8 @@ export default class OperatingSystem {
     mv.kill();
 
     status?.("Creating terminal");
-    const xterm = new Terminal({ convertEol: true });
-    const addon = new FitAddon();
+    const xterm = new (await import("@xterm/xterm")).Terminal({ convertEol: true });
+    const addon = new (await import("@xterm/addon-fit")).FitAddon();
     const { cols, rows } = xterm;
     xterm.loadAddon(addon);
 

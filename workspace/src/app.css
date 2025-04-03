@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import '@xterm/xterm/css/xterm.css';
+/* @import '@xterm/xterm/css/xterm.css'; */
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;

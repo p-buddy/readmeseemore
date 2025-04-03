@@ -3,5 +3,9 @@
 </script>
 
 <div class="w-screen h-screen">
-  <Workspace />
+  <Workspace
+    onReady={() => {
+      console.log("ready");
+    }}
+  />
 </div>

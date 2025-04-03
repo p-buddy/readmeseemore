@@ -4,28 +4,29 @@
   import EditableName from "./EditableName.svelte";
   import type { MouseEventHandler } from "svelte/elements";
   import FsContextMenu from "./FsContextMenu.svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
 
   type OnClick = MouseEventHandler<HTMLButtonElement>;
 
   let {
     name = $bindable(),
-    path,
     focused,
     rename,
     onclick,
-    editingTarget,
     remove,
-  }: { onclick: OnClick } & TFile &
-    Props<typeof EditableName> & { editingTarget?: string } = $props();
+    editing,
+  }: { onclick: OnClick; editing: boolean } & TFile &
+    Props<typeof EditableName> = $props();
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
 
-  onMount(() => {
-    if (editingTarget !== path) return;
-    nameUI?.highlight();
-    nameUI?.edit(true, 0, "");
+  $effect(() => {
+    if (!editing) return;
+    untrack(() => {
+      nameUI?.highlight();
+      nameUI?.edit(true, 0, "");
+    });
   });
 </script>
 

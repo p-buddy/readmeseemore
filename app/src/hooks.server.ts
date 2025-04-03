@@ -3,6 +3,7 @@ export async function handle({ event, resolve }) {
   setHeaders({
     'Cross-Origin-Embedder-Policy': 'require-corp',
     'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
   })
   return await resolve(event)
 }

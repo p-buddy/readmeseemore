@@ -6,7 +6,7 @@
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
   import { type FileSystemTree } from "@webcontainer/api";
   import MountedDiv from "./utils/MountedDiv.svelte";
-  import OperatingSystem from "$lib/OperatingSystem.js";
+  import OperatingSystem, { type CreateOptions } from "$lib/OperatingSystem.js";
   import { defer } from "./utils/index.js";
   import {
     type WithViewOnReady,
@@ -18,13 +18,14 @@
     Orientation,
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "./utils/FilePanelTracker.js";
+  import "@xterm/xterm/css/xterm.css";
 
   type Props = {
     filesystem?: FileSystemTree;
-    status?: (msg: string) => void;
-  };
+    onReady?: () => void;
+  } & Pick<CreateOptions, "status">;
 
-  let { filesystem, status }: Props = $props();
+  let { filesystem, status, onReady }: Props = $props();
 
   let os = $state<OperatingSystem>();
 
@@ -79,6 +80,7 @@
   snippets={{ pane, dock, terminal }}
   proportionalLayout={false}
   onReady={async ({ api }) => {
+    status?.("Creating operating system");
     os = await OperatingSystem.Create({ filesystem, status, watch: true });
 
     const { container, xterm } = os;
@@ -102,7 +104,7 @@
       }),
     ]);
 
-    status?.("Adding pane");
+    status?.("Adding terminal and file system views");
     const [paneAPI, _, terminal] = await Promise.all([
       deferredAPI.pane.promise,
       api.addSnippetPanel(
@@ -160,6 +162,7 @@
       },
     };
 
+    status?.("Adding initial file tree");
     const tree = await paneAPI!.addComponentPanel(
       "Tree",
       {
@@ -218,6 +221,7 @@
       ),
     );
 
+    status?.("Creating file system watcher");
     await os.watch((change) => {
       const { path, action, type } = change;
 
@@ -239,6 +243,6 @@
           break;
       }
     });
-    console.log("ready");
+    onReady?.();
   }}
 />

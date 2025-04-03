@@ -26,23 +26,21 @@
     remove: _delete,
     onFileClick,
     write,
-    editingTarget,
+    editing,
   }: TFolder &
-    WithOnFileClick & { editingTarget?: string } & Props<typeof EditableName> &
+    WithOnFileClick & { editing: boolean } & Props<typeof EditableName> &
     WithWrite = $props();
 
   let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
   let expandOn: string | undefined;
-  let childEditingTarget = $state<string>();
-
-  $inspect(childEditingTarget);
+  let editingTarget = $state<string>();
 
   $effect(() => {
     children.sort((a, b) => a.name.localeCompare(b.name));
     if (expandOn && children.some(({ path }) => path === expandOn)) {
       expanded = true;
-      childEditingTarget = expandOn;
+      editingTarget = expandOn;
     }
     expandOn = undefined;
   });
@@ -51,12 +49,11 @@
     (expandOn = writeChild(children, type, path, write));
 
   $effect(() => {
-    if (editingTarget !== path) return;
+    if (!editing) return;
     untrack(() => {
       nameUI?.highlight();
       nameUI?.edit(true, 0, "");
     });
-    editingTarget = undefined;
   });
 </script>
 
@@ -97,7 +94,7 @@
             {rename}
             {onFileClick}
             {write}
-            editingTarget={childEditingTarget}
+            editing={editingTarget === child.path}
             bind:name={child.name}
           />
         {:else}
@@ -107,7 +104,7 @@
             {rename}
             bind:name={child.name}
             {onclick}
-            editingTarget={childEditingTarget}
+            editing={editingTarget === child.path}
           />
         {/if}
       </li>

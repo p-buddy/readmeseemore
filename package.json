@@ -1,5 +1,5 @@
 {
-  "name": "readmeseemore",
+  "name": "@readmeseemore/",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,9 +8,7 @@
   },
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "vite-plugin-dts": "^4.5.0"
-  },
+  "devDependencies": {},
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
