@@ -4,7 +4,7 @@
   import Editor from "./Editor.svelte";
   import { type Props as PropsOf } from "./utils/ui-framework.js";
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
-  import { type FileSystemTree } from "@webcontainer/api";
+  import { type FileSystemTree, type BufferEncoding } from "@webcontainer/api";
   import MountedDiv from "./utils/MountedDiv.svelte";
   import OperatingSystem, { type CreateOptions } from "$lib/OperatingSystem.js";
   import { defer } from "./utils/index.js";
@@ -37,6 +37,17 @@
       : { background: "#f3f3f3", foreground: "#000", cursor: "#666" };
     xterm.refresh(0, xterm.rows - 1);
   });
+
+  const sanitize = (path: string) => {
+    while (path.startsWith("/")) path = path.slice(1);
+    return path;
+  };
+
+  export const writeFile = (path: string, content = "") =>
+    os!.container.fs.writeFile(sanitize(path), content);
+
+  export const readFile = (path: string, encoding: BufferEncoding = "utf-8") =>
+    os!.container.fs.readFile(sanitize(path), encoding);
 </script>
 
 {#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}
@@ -74,175 +85,195 @@
   <MountedDiv {...props.params} />
 {/snippet}
 
-<GridView
-  orientation={Orientation.HORIZONTAL}
-  className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
-  snippets={{ pane, dock, terminal }}
-  proportionalLayout={false}
-  onReady={async ({ api }) => {
-    status?.("Creating operating system");
-    os = await OperatingSystem.Create({ filesystem, status, watch: true });
+<section class="w-full h-full">
+  <GridView
+    orientation={Orientation.HORIZONTAL}
+    className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
+    snippets={{ pane, dock, terminal }}
+    proportionalLayout={false}
+    onReady={async ({ api }) => {
+      status?.("Creating operating system");
+      os = await OperatingSystem.Create({ filesystem, status, watch: true });
 
-    const { container, xterm } = os;
-    const { fs } = container;
+      const { container, xterm } = os;
+      const { fs } = container;
 
-    if (!os) throw new Error("Operating system not initialized");
+      if (!os) throw new Error("Operating system not initialized");
 
-    type DockComponents = { Editor: typeof Editor; preview: typeof preview };
-    type PaneComponents = { Tree: typeof Tree };
+      type DockComponents = { Editor: typeof Editor; preview: typeof preview };
+      type PaneComponents = { Tree: typeof Tree };
 
-    const deferredAPI = {
-      dock: defer<ViewAPI<"dock", DockComponents>>(),
-      pane: defer<ViewAPI<"pane", PaneComponents>>(),
-    };
+      const deferredAPI = {
+        dock: defer<ViewAPI<"dock", DockComponents>>(),
+        pane: defer<ViewAPI<"pane", PaneComponents>>(),
+      };
 
-    status?.("Adding dock");
-    const [dockAPI, _dock] = await Promise.all([
-      deferredAPI.dock.promise,
-      api.addSnippetPanel("dock", {
-        onReady: ({ api }) => deferredAPI.dock.resolve(api),
-      }),
-    ]);
+      status?.("Adding dock");
+      const [dockAPI, _dock] = await Promise.all([
+        deferredAPI.dock.promise,
+        api.addSnippetPanel("dock", {
+          onReady: ({ api }) => deferredAPI.dock.resolve(api),
+        }),
+      ]);
 
-    status?.("Adding terminal and file system views");
-    const [paneAPI, _, terminal] = await Promise.all([
-      deferredAPI.pane.promise,
-      api.addSnippetPanel(
-        "pane",
-        { onReady: ({ api }) => deferredAPI.pane.resolve(api) },
-        {
-          maximumWidth: 800,
-          size: 200,
-          position: {
-            direction: "left",
-            referencePanel: _dock.reference,
+      status?.("Adding terminal and left pane views");
+      const [paneAPI, _, terminal] = await Promise.all([
+        deferredAPI.pane.promise,
+        api.addSnippetPanel(
+          "pane",
+          { onReady: ({ api }) => deferredAPI.pane.resolve(api) },
+          {
+            maximumWidth: 800,
+            size: 200,
+            position: {
+              direction: "left",
+              referencePanel: _dock.reference,
+            },
           },
-        },
-      ),
-      api.addSnippetPanel(
-        "terminal",
-        {
-          onMount(root) {
-            xterm.open(root);
-            os?.fitXterm();
+        ),
+        api.addSnippetPanel(
+          "terminal",
+          {
+            onMount(root) {
+              xterm.open(root);
+              os?.fitXterm();
+            },
+            style: "height: 100%; padding: 10px;",
           },
-          style: "height: 100%; padding: 10px;",
-        },
-        {
-          minimumHeight: 100,
-          size: 200,
-          position: {
-            direction: "below",
-            referencePanel: _dock.reference,
+          {
+            minimumHeight: 100,
+            size: 200,
+            position: {
+              direction: "below",
+              referencePanel: _dock.reference,
+            },
           },
+        ),
+      ]);
+
+      terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
+      container.on("server-ready", async (port, url) => {});
+
+      const filePanelTracker = new FilePanelTracker();
+
+      const pending = {
+        rm: new Set<string>(),
+      };
+
+      const rm = async (path: string) => {
+        fs.rm(path, { recursive: true });
+        pending.rm.delete(path);
+      };
+
+      const dir = {
+        empty: async (path: string) => (await fs.readdir(path)).length === 0,
+        tryRemoveEmpty: async (path: string) => {
+          if (!(await dir.empty(path))) return false;
+          rm(path);
+          return true;
         },
-      ),
-    ]);
+      };
 
-    terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
-    container.on("server-ready", async (port, url) => {});
-
-    const filePanelTracker = new FilePanelTracker();
-
-    const pending = {
-      rm: new Set<string>(),
-    };
-
-    const rm = async (path: string) => {
-      fs.rm(path, { recursive: true });
-      pending.rm.delete(path);
-    };
-
-    const dir = {
-      empty: async (path: string) => (await fs.readdir(path)).length === 0,
-      tryRemoveEmpty: async (path: string) => {
-        if (!(await dir.empty(path))) return false;
-        rm(path);
-        return true;
-      },
-    };
-
-    status?.("Adding initial file tree");
-    const tree = await paneAPI!.addComponentPanel(
-      "Tree",
-      {
-        fs,
-        onFileClick: async (file) => {
-          const id = `${filePanelTracker.add(file.path)}`;
-          (
-            dockAPI!.getPanel(id) ??
+      status?.("Adding initial file tree");
+      const tree = await paneAPI!.addComponentPanel(
+        "Tree",
+        {
+          fs,
+          onFileClick: async (file) => {
+            const id = `${filePanelTracker.add(file.path)}`;
             (
-              await dockAPI!.addComponentPanel(
-                "Editor",
-                { fs, file },
-                { id, title: file.name },
-              )
-            ).panel
-          ).api.setActive();
+              dockAPI!.getPanel(id) ??
+              (
+                await dockAPI!.addComponentPanel(
+                  "Editor",
+                  { fs, file },
+                  { id, title: file.name },
+                )
+              ).panel
+            ).api.setActive();
+          },
+          onRemove: async ({ path }) => rm(path),
+          onPathUpdate: async ({ current, previous, type }) => {
+            switch (type) {
+              case "folder":
+                fs.mkdir(current);
+                if (!(await dir.tryRemoveEmpty(previous)))
+                  pending.rm.add(previous);
+                break;
+              case "file":
+                fs.writeFile(current, await fs.readFile(previous));
+                await fs.rm(previous);
+
+                const parent = previous.split("/").slice(0, -1).join("/");
+                if (pending.rm.has(parent)) dir.tryRemoveEmpty(parent);
+
+                if (!filePanelTracker.has("path", previous)) return;
+                filePanelTracker.set(current, filePanelTracker.id(previous)!);
+                filePanelTracker.drop("path", previous);
+                break;
+            }
+          },
+          write: (type, path) =>
+            type === "file" ? fs.writeFile(path, "") : fs.mkdir(path),
         },
-        onRemove: async ({ path }) => rm(path),
-        onPathUpdate: async ({ current, previous, type }) => {
-          switch (type) {
-            case "folder":
-              fs.mkdir(current);
-              if (!(await dir.tryRemoveEmpty(previous)))
-                pending.rm.add(previous);
-              break;
-            case "file":
-              fs.writeFile(current, await fs.readFile(previous));
-              await fs.rm(previous);
-
-              const parent = previous.split("/").slice(0, -1).join("/");
-              if (pending.rm.has(parent)) dir.tryRemoveEmpty(parent);
-
-              if (!filePanelTracker.has("path", previous)) return;
-              filePanelTracker.set(current, filePanelTracker.id(previous)!);
-              filePanelTracker.drop("path", previous);
-              break;
-          }
+        {
+          title: "Explorer",
+          isExpanded: true,
         },
-        write: (type, path) =>
-          type === "file" ? fs.writeFile(path, "") : fs.mkdir(path),
-      },
-      {
-        title: "Explorer",
-        isExpanded: true,
-      },
-    );
+      );
 
-    status?.("File tree initializing");
-    await tree.exports.ready();
+      tree.panel.headerVisible = false;
 
-    tree.panel.headerVisible = false;
+      status?.("Creating file system watcher");
+      await os.watch((change) => {
+        const { path, action, type } = change;
 
-    dockAPI.onDidActivePanelChange((e) =>
-      tree.exports.focus(
-        e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
-      ),
-    );
+        switch (action) {
+          case "add":
+          case "addDir":
+            if (!tree.exports.find(path)) tree.exports.add(path, type);
+            break;
+          case "unlink":
+            tree.exports.remove(path);
+            const id = filePanelTracker.id(path);
+            if (id === undefined) return;
+            filePanelTracker.drop("path", path);
+            const panel = dockAPI.getPanel(`${id}`);
+            if (panel) dockAPI.removePanel(panel);
+            break;
+          case "unlinkDir":
+            tree.exports.remove(path);
+            break;
+        }
+      });
 
-    status?.("Creating file system watcher");
-    await os.watch((change) => {
-      const { path, action, type } = change;
+      status?.("File tree initializing");
+      await tree.exports.ready();
 
-      switch (action) {
-        case "add":
-        case "addDir":
-          if (!tree.exports.find(path)) tree.exports.add(path, type);
-          break;
-        case "unlink":
-          tree.exports.remove(path);
-          const id = filePanelTracker.id(path);
-          if (id === undefined) return;
-          filePanelTracker.drop("path", path);
-          const panel = dockAPI.getPanel(`${id}`);
-          if (panel) dockAPI.removePanel(panel);
-          break;
-        case "unlinkDir":
-          tree.exports.remove(path);
-          break;
-      }
-    });
-    onReady?.();
-  }}
-/>
+      dockAPI.onDidActivePanelChange((e) =>
+        tree.exports.focus(
+          e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
+        ),
+      );
+
+      onReady?.();
+    }}
+  />
+</section>
+
+<style>
+  section {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: dark;
+    background-color: #181818;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+</style>
