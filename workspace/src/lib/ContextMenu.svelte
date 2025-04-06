@@ -18,7 +18,7 @@
   aria-orientation="vertical"
   aria-labelledby="hs-default"
 >
-  <ul class="p-1 space-y-0.5 border-b border-neutral-800" style:z-index="10000">
+  <ul class="p-1 space-y-0.5 border-b border-neutral-800">
     {#each items as { onclick, content }}
       <li class="whitespace-nowrap">
         <button

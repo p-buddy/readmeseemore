@@ -36,13 +36,17 @@
   let contextMenu: ContextMenu;
   let tempTarget: HTMLElement | undefined;
 
-  const createCursorTarget = (event: MouseEvent) =>
-    (tempTarget = createAtEvent(event));
+  const createCursorTarget = (event: MouseEvent) => {
+    tempTarget = createAtEvent(event);
+    tempTarget.style.zIndex = "10000";
+    return tempTarget;
+  };
 
   const createFixedTarget = (target: HTMLElement) => {
     const { top, left, width, height } = target.getBoundingClientRect();
     const fixed = document.createElement("div");
     fixed.style.position = "fixed";
+    fixed.style.zIndex = "10000";
     fixed.style.top = `${top}px`;
     fixed.style.left = `${left}px`;
     fixed.style.width = `${width}px`;
