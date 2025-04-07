@@ -1,12 +1,29 @@
-import type { Parsed, Markdown } from ".";
 import type { FileSystemTree, DirectoryNode, FileNode } from "@webcontainer/api";
+import { fromMarkdown } from "mdast-util-from-markdown";
+import { visit, type BuildVisitor } from "unist-util-visit";
 
 type FileSystemNode = FileSystemTree[keyof FileSystemTree];
+
+type Markdown = {
+  Tree: ReturnType<typeof fromMarkdown>;
+  Node: { [k in "Code" | "Heading"]: Parameters<BuildVisitor<Markdown["Tree"], Lowercase<k>>>[0] };
+}
+
+export const getPathParts = (path: string) => {
+  const leadingOrTrailingDotsAndSlashes = /^(\.|\/)*|(\.|\/)*$/g;
+  const redundantPathSeparators = /\/\.?\//g;
+  const dirs = path
+    .replace(leadingOrTrailingDotsAndSlashes, '')
+    .replace(redundantPathSeparators, '/')
+    .split("/")
+    .map(part => part.trim())
+    .filter(Boolean);
+  return { basename: dirs.pop()!, dirs };
+}
 
 export const is = {
   file: (node: FileSystemNode): node is FileNode => "file" in node,
   directory: (node: FileSystemNode): node is DirectoryNode => "directory" in node,
-  appendError: (result: ReturnType<typeof tryAppendBlock>): result is string => typeof result === "string",
 }
 
 export const getID = (node: Markdown["Node"][keyof Markdown["Node"]]) => {
@@ -19,14 +36,15 @@ export const getID = (node: Markdown["Node"][keyof Markdown["Node"]]) => {
       return match ? match[2] : null;
     case "heading":
       const { children } = node;
-      const text = children.find((child) => child.type === "text");
-      if (!text || !text.value) return null;
+      const texts = children.filter((child) => child.type === "text");
+      if (texts.length === 0) return null;
       const specialCharacters = /[^a-z0-9\s-]/g;
       const spacesPattern = /\s+/g;
       const multipleHyphens = /-+/g;
       const leadingTrailingHyphens = /^-+|-+$/g;
-
-      return text.value
+      return texts.map(text => text.value)
+        .join(" ")
+        .trim()
         .toLowerCase()
         .replace(specialCharacters, '')
         .replace(spacesPattern, '-')
@@ -48,58 +66,91 @@ const captureProtocol = `(^|\\s)(${Object.keys(protocol).join('|')}):\/\/([^\\s]
 
 type ProtocolType = keyof typeof protocol;
 
-const isProtocol = (type: string): type is ProtocolType => type in protocol;
+const isRelevantProtocol = (type: string): type is ProtocolType => type in protocol;
 
 type Protocol<T extends ProtocolType = ProtocolType> = { type: T, value: T extends "rmsm" ? ReadMeSeeMoreReserved : string };
 
-type ProtocolError = string;
+export type CodeBlock = Markdown["Node"]["Code"];
+export type Heading = Markdown["Node"]["Heading"];
 
-export const getProtocol = <T extends ProtocolType>({ meta }: Markdown["Node"]["Code"]): Protocol<T> | null | ProtocolError => {
+export type LocalizedCodeBlock = {
+  node: CodeBlock;
+  headings: Heading[];
+};
+
+export const getProtocol = <T extends ProtocolType>({ meta }: CodeBlock): Protocol<T> | null | { error: string } => {
   if (!meta) return null;
   const match = meta.match(new RegExp(captureProtocol));
   if (!match) return null;
   const [, , type, value] = match;
-  if (!isProtocol(type)) return `Invalid protocol: ${type}`;
-  if (type === "rmsm" && !reserved.includes(value as ReadMeSeeMoreReserved)) return `Invalid rmsm protocol value: ${value}`;
+  if (!isRelevantProtocol(type)) return null;
+  if (type === "rmsm" && !reserved.includes(value as ReadMeSeeMoreReserved)) return { error: `Invalid rmsm protocol value: ${value}` };
   return { type, value } as Protocol<T>;
 }
 
-export const tryAppendBlock = (parsed: Parsed, block: Markdown["Node"]["Code"]): true | string => {
-  const protocol = getProtocol(block);
-  if (!protocol) return true;
-  if (typeof protocol === "string") return protocol;
-  switch (protocol.type) {
+export const getLocalizedCodeBlocks = (content: string) => {
+  const ast = fromMarkdown(content);
+  const codeBlocks: LocalizedCodeBlock[] = [];
+  const stack: Heading[] = [];
+
+  visit(ast, (node) => {
+    if (node.type === "heading") {
+      while (stack.length > 0 && stack[stack.length - 1].depth >= node.depth)
+        stack.pop();
+      stack.push(node);
+    } else if (node.type === "code")
+      codeBlocks.push({ node, headings: [...stack] });
+  });
+
+  return codeBlocks;
+}
+
+export const blockIsIncluded = ({ node, headings }: LocalizedCodeBlock, ids: string[],) => {
+  if (ids.length === 0) return true;
+  const id = getID(node);
+  if (id && ids.includes(id)) return true;
+  return headings.some((heading) => {
+    const id = getID(heading);
+    return id && ids.includes(id);
+  });
+}
+
+type FileBlock = { type: "file", path?: string };
+type ReadMeSeeMoreBlock = { type: ReadMeSeeMoreReserved };
+
+export const identifyCodeBlockType = (code: CodeBlock): FileBlock | ReadMeSeeMoreBlock => {
+  const protocol = getProtocol(code);
+  if (!protocol) return { type: "file" };
+  if ("error" in protocol) throw new Error(protocol.error);
+  const { type, value } = protocol;
+  switch (type) {
     case "rmsm":
-      switch (protocol.value as ReadMeSeeMoreReserved) {
-        case "startup":
-          if (parsed.startup) return "Multiple startup blocks provided, using the first one";
-          if (block.lang !== "bash") return "Startup blocks must be bash scripts";
-          parsed.startup = block.value;
-          return true;
-      }
+      return { type: value as ReadMeSeeMoreReserved };
     case "file":
-      let { value } = protocol;
-      const leadingOrTrailingDotsAndSlashes = /^(\.|\/)*|(\.|\/)*$/g;
-      const redundantPathSeparators = /\/\.?\//g;
+      return { type, path: value };
+  }
+}
 
-      value = value
-        .replace(leadingOrTrailingDotsAndSlashes, '')
-        .replace(redundantPathSeparators, '/');
+export const tryInsertCodeAsFile = (fs: FileSystemTree, code: CodeBlock, path: string) => {
+  const { dirs, basename } = getPathParts(path);
+  for (let i = 0; i < dirs.length; i++) {
+    const part = dirs[i];
+    if (!part) continue;
+    fs[part] ??= { directory: {} };
+    if (is.file(fs[part]))
+      return `${dirs.slice(0, i + 1).join("/")} has already been defined as a file, but is being treated as a directory`;
+    fs = fs[part].directory;
+  }
+  fs[basename] = { file: { contents: code.value } };
+}
 
-      if (!value) return "Invalid file path";
-
-      const parts = value.split('/');
-      const name = parts.pop()!;
-      let current = parsed.filesystem;
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (!part) continue;
-        current[part] ??= { directory: {} };
-        if (is.file(current[part]))
-          return `${parts.slice(0, i + 1).join("/")} has already been defined as a file`;
-        current = current[part].directory;
-      }
-      current[name] = { file: { contents: block.value } };
-      return true;
+export const getHeadingBasedFileNamer = () => {
+  const unnamedFilesByHeading = new Map<Heading, number>();
+  return ({ node, headings }: LocalizedCodeBlock) => {
+    const parent = headings[headings.length - 1];
+    const id = getID(parent)!;
+    const count = unnamedFilesByHeading.get(parent) ?? 0;
+    unnamedFilesByHeading.set(parent, count + 1);
+    return `${id}-${count + 1}.${node.lang}`;
   }
 }

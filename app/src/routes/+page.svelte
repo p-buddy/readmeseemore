@@ -29,10 +29,13 @@
   import MarkdownEntry from "$lib/MarkdownEntry.svelte";
   import { untilFontsLoaded } from "$lib";
   import Startup from "$lib/Startup.svelte";
+  import { fly } from "svelte/transition";
 
   let workspace = $state<Workspace>();
   let workspaceReady = $state(false);
   let markdownContent = $state<string>();
+
+  let showWorkspace = $state(false);
 
   let steps = $state<string[]>([]);
 
@@ -84,23 +87,31 @@
     />
   </div>
   <div></div>
-  <div
-    class="absolute top-0 left-0 w-full h-full bg-black/50 z-10 opacity-0 transition-opacity duration-200"
-    class:opacity-100={fontsLoaded}
-  >
+  {#if !showWorkspace}
     <div
-      class="w-3/5 m-auto h-full flex flex-col gap-6 items-center justify-center"
+      class="absolute top-0 left-0 w-full h-full bg-black/50 z-10 opacity-0 transition-opacity duration-200"
+      class:opacity-100={fontsLoaded}
+      out:fly
     >
-      {#if !links}
+      <div
+        class="w-3/5 m-auto h-full flex flex-col gap-6 items-center justify-center"
+      >
+        {#if !links}
+          <div class="w-full">
+            <MarkdownEntry
+              canStart={workspaceReady}
+              canSkip={workspaceReady}
+              onStart={() => {}}
+              onSkip={() => (showWorkspace = true)}
+            />
+          </div>
+        {/if}
         <div class="w-full">
-          <MarkdownEntry />
+          <Startup completed={workspaceReady} messages={steps} />
         </div>
-      {/if}
-      <div class="w-full">
-        <Startup completed={workspaceReady} messages={steps} />
       </div>
     </div>
-  </div>
+  {/if}
 </div>
 
 <style>

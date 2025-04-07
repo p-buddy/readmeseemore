@@ -1,5 +1,5 @@
 {
-  "name": "@readme-see-more/tests-as-documentation",
+  "name": "@readmeseemore/tests-as-documentation",
   "version": "0.0.0",
   "main": "src/index.ts",
   "exports": {

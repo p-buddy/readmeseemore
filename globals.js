@@ -20,7 +20,7 @@ export const externalizePackageDependencies = ({ dependencies, peerDependencies 
   ...(peerDependencies ? Object.keys(peerDependencies) : []),
 ];
 
-export const organization = "readme-see-more";
+export const organization = "readmeseemore";
 
 export const testAsDocumentationReporter = `@${organization}/tests-as-documentation/Reporter`;
 

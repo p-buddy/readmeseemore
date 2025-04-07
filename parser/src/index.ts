@@ -1,48 +1,38 @@
-import { fromMarkdown } from "mdast-util-from-markdown";
-import { visit, type BuildVisitor } from "unist-util-visit";
-import { getID, tryAppendBlock, is } from "./utils";
+
+import { type ReadMeSeeMoreReserved, getLocalizedCodeBlocks, blockIsIncluded, identifyCodeBlockType, getHeadingBasedFileNamer, tryInsertCodeAsFile } from "./utils";
 import type { FileSystemTree } from "@webcontainer/api";
 
-export type Markdown = {
-  Tree: ReturnType<typeof fromMarkdown>;
-  Node: { [k in "Code" | "Heading"]: Parameters<BuildVisitor<Markdown["Tree"], Lowercase<k>>>[0] };
-}
-
 export type Parsed = {
-  startup?: string;
   filesystem: FileSystemTree;
   errors?: string[];
-};
+} & { [k in ReadMeSeeMoreReserved]?: string };
 
-export const parse = (content: string, ...ids: string[]) => {
-  const ast = fromMarkdown(content);
-  const blocks: Markdown["Node"]["Code"][] = [];
-  const useID = ids.length > 0;
+// Process:
+// 1. find all code blocks, and associate them with their immediate heading(s) (if it exists)
+// 2. Next, determine if the code block should be included, either by checking if it's meta has an id, or if any of it's parent headings (meaning the immediate heading or any of it's ancestors) text converted to an id matches the query.
+// 2. If no id's are specified, then all code blocks should be included.
+// 3. Once, code blocks have been filtered, determine the filename to associate with the code block, either by reading the 'file://' specifier in the meta, or by using the heading text
+// 3a. An important thing to check first is if the code block has a 'rmsm://' protocol, which would specify some special behavior, typically startup behavior.
+// 3b. If the code block does not have a filename associated and is not an `rmsm` block, then the filename should be the heading text, suffixed with a number if there are multiple code blocks in the heading
 
-  let currentHeadingMatch: { depth: number } | null = null;
+export const parse = (content: string, ...ids: string[]): Parsed => {
+  const blocks = getLocalizedCodeBlocks(content).filter(block => blockIsIncluded(block, ids));
+  const namer = getHeadingBasedFileNamer();
+  const filesystem: FileSystemTree = {};
+  let startup: string | undefined;
 
-  const visitor: BuildVisitor = (node) => {
-    switch (node.type) {
-      case "heading":
-        if (!useID) return;
-        const heading = node as Markdown["Node"]["Heading"];
-        const { depth } = heading;
-        if (depth <= (currentHeadingMatch?.depth ?? -1)) currentHeadingMatch = null;
-        if (ids.includes(getID(heading)!)) currentHeadingMatch = { depth };
+  for (const block of blocks) {
+    const { node } = block;
+    const result = identifyCodeBlockType(node);
+    switch (result.type) {
+      case "file":
+        tryInsertCodeAsFile(filesystem, node, result.path ?? namer(block));
         break;
-      case "code":
-        const code = node as Markdown["Node"]["Code"];
-        if (!useID || currentHeadingMatch || ids.includes(getID(code)!))
-          blocks.push(code);
+      case "startup":
+        startup = node.value;
         break;
     }
-  };
+  }
 
-  visit(ast, visitor);
-
-  const parsed: Parsed = { filesystem: {} };
-  const tryAppend = tryAppendBlock.bind(null, parsed);
-  parsed.errors = blocks.map(tryAppend).filter(is.appendError);
-  return parsed;
+  return { startup, filesystem };
 };
-
