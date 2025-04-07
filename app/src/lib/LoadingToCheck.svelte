@@ -3,12 +3,15 @@
 
   type Props = {
     checked: boolean;
+    size?: number;
   };
 
-  let { checked }: Props = $props();
+  let { checked, size = 6 }: Props = $props();
+
+  const dimensions = `w-${size} h-${size}`;
 </script>
 
-<div class="relative w-6 h-6">
+<div class="relative {dimensions}">
   {#if checked}
     <svg
       class="absolute checkmark w-full h-full shadow-green-500"

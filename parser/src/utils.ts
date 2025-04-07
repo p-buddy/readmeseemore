@@ -26,6 +26,12 @@ export const is = {
   directory: (node: FileSystemNode): node is DirectoryNode => "directory" in node,
 }
 
+const getHeadingText = ({ children }: Heading) => {
+  const texts = children.filter((child) => child.type === "text");
+  if (texts.length === 0) return null;
+  return texts.map(text => text.value).join(" ");
+}
+
 export const getID = (node: Markdown["Node"][keyof Markdown["Node"]]) => {
   switch (node.type) {
     case "code":
@@ -35,21 +41,18 @@ export const getID = (node: Markdown["Node"][keyof Markdown["Node"]]) => {
       const match = meta.match(captureHashtagID);
       return match ? match[2] : null;
     case "heading":
-      const { children } = node;
-      const texts = children.filter((child) => child.type === "text");
-      if (texts.length === 0) return null;
       const specialCharacters = /[^a-z0-9\s-]/g;
       const spacesPattern = /\s+/g;
       const multipleHyphens = /-+/g;
       const leadingTrailingHyphens = /^-+|-+$/g;
-      return texts.map(text => text.value)
-        .join(" ")
-        .trim()
+      return getHeadingText(node)
+        ?.trim()
         .toLowerCase()
         .replace(specialCharacters, '')
         .replace(spacesPattern, '-')
         .replace(multipleHyphens, '-')
-        .replace(leadingTrailingHyphens, '');
+        .replace(leadingTrailingHyphens, '')
+        ?? null;
   }
 }
 
@@ -74,7 +77,7 @@ export type CodeBlock = Markdown["Node"]["Code"];
 export type Heading = Markdown["Node"]["Heading"];
 
 export type LocalizedCodeBlock = {
-  node: CodeBlock;
+  code: CodeBlock;
   headings: Heading[];
 };
 
@@ -99,15 +102,15 @@ export const getLocalizedCodeBlocks = (content: string) => {
         stack.pop();
       stack.push(node);
     } else if (node.type === "code")
-      codeBlocks.push({ node, headings: [...stack] });
+      codeBlocks.push({ code: node, headings: [...stack] });
   });
 
   return codeBlocks;
 }
 
-export const blockIsIncluded = ({ node, headings }: LocalizedCodeBlock, ids: string[],) => {
+export const blockIsIncluded = ({ code, headings }: LocalizedCodeBlock, ids: string[],) => {
   if (ids.length === 0) return true;
-  const id = getID(node);
+  const id = getID(code);
   if (id && ids.includes(id)) return true;
   return headings.some((heading) => {
     const id = getID(heading);
@@ -138,19 +141,33 @@ export const tryInsertCodeAsFile = (fs: FileSystemTree, code: CodeBlock, path: s
     if (!part) continue;
     fs[part] ??= { directory: {} };
     if (is.file(fs[part]))
-      return `${dirs.slice(0, i + 1).join("/")} has already been defined as a file, but is being treated as a directory`;
+      throw new Error(`${dirs.slice(0, i + 1).join("/")} has already been defined as a file, but is being treated as a directory`);
     fs = fs[part].directory;
   }
   fs[basename] = { file: { contents: code.value } };
 }
 
 export const getHeadingBasedFileNamer = () => {
-  const unnamedFilesByHeading = new Map<Heading, number>();
-  return ({ node, headings }: LocalizedCodeBlock) => {
+  let unnamedFilesByHeading: Map<Heading, number>;
+  let orphanFileCount = 1;
+  return ({ code, headings }: LocalizedCodeBlock) => {
+    const codeID = getID(code);
+
+    if (headings.length === 0) {
+      if (codeID) return `${codeID}.${code.lang}`;
+      return `${orphanFileCount++}.${code.lang}`;
+    }
+
     const parent = headings[headings.length - 1];
-    const id = getID(parent)!;
+    const text = getHeadingText(parent);
+    if (text?.endsWith(`.${code.lang}`)) return text;
+
+    if (codeID) return `${codeID}.${code.lang}`;
+
+    const headingID = getID(parent)!;
+    unnamedFilesByHeading ??= new Map();
     const count = unnamedFilesByHeading.get(parent) ?? 0;
     unnamedFilesByHeading.set(parent, count + 1);
-    return `${id}-${count + 1}.${node.lang}`;
+    return `${headingID}-${count + 1}.${code.lang}`;
   }
 }

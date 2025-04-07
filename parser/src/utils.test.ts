@@ -58,6 +58,10 @@ describe(getID.name, () => {
     test('should handle multiple hyphens and trim leading/trailing hyphens', () => {
       expect(getID(heading({ text: '---Hello---World---' }))).toBe('hello-world');
     });
+
+    test('dummy', () => {
+      console.log(getID(heading({ text: 'package.json' })));
+    })
   });
 });
 
