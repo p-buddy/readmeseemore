@@ -98,11 +98,11 @@ export default class OperatingSystem {
     private _watch?: Promise<WebContainerProcess>,
     private onChange?: Set<FsChangeCallback>
   ) {
-    xterm.onData((data) => input.write(data));
     const self = this;
-    xterm.onKey(({ key }) => {
-      if (key === "Enter") self.executing = true;
-    })
+    xterm.onData((data) => {
+      if (data === cli.input.user.return) self.executing = true;
+      input.write(data);
+    });
     jsh.output.pipeTo(new WritableStream({
       write: this.onJshOutput.bind(this),
     }));
