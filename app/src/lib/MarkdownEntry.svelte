@@ -16,8 +16,9 @@
   import { fade, scale } from "svelte/transition";
   import Overlapping from "./Overlapping.svelte";
   import { untrack } from "svelte";
-  import { flip } from "svelte/animate";
   import LoadingToCheck from "./LoadingToCheck.svelte";
+  import ErrorIndicatorWithTooltip from "./ErrorIndicatorWithTooltip.svelte";
+  import { flip } from "svelte/animate";
 
   type Props = {
     canStart: boolean;
@@ -85,6 +86,8 @@
   };
 
   let dropping = $state(false);
+
+  let gallery: HTMLElement;
 </script>
 
 <div class="w-full">
@@ -92,7 +95,7 @@
     class="mb-4 text-3xl font-extrabold tracking-tight leading-none text-gray-900 dark:text-white w-full flex flex-row justify-between items-center"
   >
     <div>
-      <span class="feed-me text-red-500">Feed me</span> your markdown
+      <span class="rusty-attack mr-1 text-red-500">Feed me</span> your markdown
     </div>
 
     <button
@@ -123,7 +126,7 @@
         />
         {#if response}
           <div
-            class="absolute right-2 top-0 h-full w-4 flex items-center"
+            class="absolute right-2 top-0 h-full w-4 flex items-center z-10"
             in:fade={{ duration: 300 }}
             out:fade={{ duration: 300 }}
           >
@@ -133,28 +136,7 @@
               {:then _}
                 <LoadingToCheck checked={true} size={4} />
               {:catch error}
-                <div
-                  class="has-tooltip text-red-500 overflow-visible"
-                  in:fade={{ duration: 300 }}
-                  out:fade={{ duration: 300 }}
-                >
-                  <span
-                    class="tooltip rounded shadow-lg p-1 bg-gray-100 text-red-500 -mt-8 max-w-screen whitespace-nowrap right-0"
-                  >
-                    {error}
-                  </span>
-                  <svg
-                    class="shrink-0 w-4 text-red-500"
-                    aria-hidden="true"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"
-                    />
-                  </svg>
-                </div>
+                <ErrorIndicatorWithTooltip msg={error} />
               {/await}
             </Overlapping>
           </div>
@@ -214,8 +196,11 @@
     </label>
   </div>
   <div
-    class="max-h-0 overflow-y-clip transition-all duration-500 mt-2"
-    class:max-h-100={uploads.length > 0}
+    class="max-h-0 overflow-y-clip transition-all mt-2 ease-in-out"
+    class:duration-500={uploads.length > 0}
+    class:max-h-screen={uploads.length > 0}
+    class:duration-300={uploads.length === 0}
+    bind:this={gallery}
   >
     {#each uploads as file, index (identify(file))}
       <span
@@ -233,6 +218,10 @@
           aria-label="Remove"
           onclick={() => {
             texts.delete(identify(file));
+            if (uploads.length === 1) {
+              const galleryRect = gallery.getBoundingClientRect();
+              gallery.style.height = `${galleryRect.height}px`;
+            }
             uploads.splice(index, 1);
           }}
         >
@@ -264,7 +253,7 @@
         <button
           type="button"
           class="{common} hover:bg-gradient-to-br focus:ring-4 focus:outline-none focus:ring-blue-300 dark:focus:ring-blue-800"
-          in:fade
+          transition:fade={{ duration: 200 }}
           onclick={start}
         >
           Start
@@ -274,7 +263,7 @@
           type="button"
           disabled
           class="{common} opacity-50 cursor-not-allowed"
-          out:fade
+          transition:fade={{ duration: 200 }}
         >
           Start
         </button>
@@ -288,6 +277,7 @@
         <button
           type="button"
           class="{common} focus:outline-none hover:bg-gray-100 hover:text-blue-700 focus:ring-gray-100 dark:focus:ring-gray-700 dark:hover:text-white dark:hover:bg-gray-700"
+          transition:fade={{ duration: 200 }}
           onclick={onSkip}
         >
           Skip
@@ -296,6 +286,7 @@
         <button
           type="button"
           class="{common} opacity-50 cursor-not-allowed"
+          transition:fade={{ duration: 200 }}
           disabled
         >
           Skip
@@ -304,18 +295,3 @@
     </Overlapping>
   </div>
 </div>
-
-<style>
-  .feed-me {
-    font-family: "Rusty Attack";
-    margin-right: 0.25rem;
-  }
-
-  .tooltip {
-    @apply invisible absolute;
-  }
-
-  .has-tooltip:hover .tooltip {
-    @apply visible z-50;
-  }
-</style>

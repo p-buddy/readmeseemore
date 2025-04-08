@@ -1,6 +1,7 @@
 import type { FileSystemTree, DirectoryNode, FileNode } from "@webcontainer/api";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { visit, type BuildVisitor } from "unist-util-visit";
+import Merger from "json-merger";
 
 type FileSystemNode = FileSystemTree[keyof FileSystemTree];
 
@@ -171,3 +172,39 @@ export const getHeadingBasedFileNamer = () => {
     return `${headingID}-${count + 1}.${code.lang}`;
   }
 }
+
+const uniqueName = (target: FileSystemTree, key: string) => {
+  const parts = key.split('.');
+  const name = parts[0];
+  const ext = parts.slice(1).join('.');
+  let counter = 1;
+  while (target[key])
+    key = `${name}(${counter++})${ext ? '.' + ext : ''}`;
+  return key;
+}
+
+export const mergeFilesystems = (
+  { target, source, errors }: { target: FileSystemTree, source: FileSystemTree, errors?: string[] },
+  path: string = ""
+) => {
+  for (const [key, value] of Object.entries(source))
+    if (is.file(value))
+      if (!(key in target)) target[key] = value;
+      else
+        if (is.directory(target[key]))
+          errors?.push(`Conflict: ${path}/${key} is a directory in one filesystem but a file in another`);
+        else if (key === 'package.json')
+          target[key] = Merger.prototype.mergeObjects([target[key], value]);
+        else
+          target[uniqueName(target, key)] = value;
+    else if (is.directory(value))
+      if (!(key in target)) target[key] = value;
+      else
+        if (is.file(target[key]))
+          errors?.push(`Conflict: ${path}/${key} is a file in one filesystem but a directory in another`);
+        else
+          mergeFilesystems(
+            { target: target[key].directory, source: value.directory, errors },
+            `${path}/${key}`
+          );
+};

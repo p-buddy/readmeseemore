@@ -48,6 +48,18 @@
 
   export const readFile = (path: string, encoding: BufferEncoding = "utf-8") =>
     os!.container.fs.readFile(sanitize(path), encoding);
+
+  export const updateFilesystem = async (
+    filesystem: FileSystemTree,
+    path = "",
+  ) => {
+    for (const [key, value] of Object.entries(filesystem))
+      if ("directory" in value)
+        await updateFilesystem(value.directory, `${path}/${key}`);
+      else if ("file" in value)
+        if ("contents" in value.file && typeof value.file.contents === "string")
+          await writeFile(`${path}/${key}`, value.file.contents);
+  };
 </script>
 
 {#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}

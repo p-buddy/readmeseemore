@@ -3,12 +3,21 @@
 
   type Props = {
     checked: boolean;
-    size?: number;
+    size?: 2 | 4 | 6 | 8 | 10;
   };
 
   let { checked, size = 6 }: Props = $props();
 
-  const dimensions = `w-${size} h-${size}`;
+  const dimensions =
+    size === 2
+      ? "w-2 h-2"
+      : size === 4
+        ? "w-4 h-4"
+        : size === 6
+          ? "w-6 h-6"
+          : size === 8
+            ? "w-8 h-8"
+            : "w-10 h-10";
 </script>
 
 <div class="relative {dimensions}">

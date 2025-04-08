@@ -64,6 +64,7 @@
         onFileClick: () => {},
         onPathUpdate: () => {},
         onRemove: () => {},
+        write: pocket.os.container.fs.writeFile,
       }}
       bind:this={pocket.tree}
     />

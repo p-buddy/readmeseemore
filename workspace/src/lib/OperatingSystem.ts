@@ -3,13 +3,28 @@ import { file } from "./utils/fs-helper.js";
 import type { ITheme, Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { boot, teardown } from "./utils/webcontainer.js";
+import { defer } from "./utils/index.js";
 
-const cliFlags = {
-  npx: {
-    yesToAll: "-y",
+const cli = {
+  flags: {
+    npx: {
+      yesToAll: "-y",
+    },
+    chokidar: {
+      ignore: "-i",
+    }
   },
-  chokidar: {
-    ignore: "-i",
+  input: {
+    prompt: {
+      default: "\u001b[1G\u001b[0J\u001b[35m❯\u001b[39m \u001b[3G",
+      error: "\u001b[1G\u001b[0J\u001b[31m❯\u001b[39m \u001b[3G",
+      prefix: "❯ "
+    },
+    user: {
+      return: "\r",
+    },
+    eol: String.fromCharCode(5),
+    backspace: "\b"
   }
 } as const;
 
@@ -30,16 +45,97 @@ export type CreateOptions = {
 }
 
 export default class OperatingSystem {
+  private executing: boolean = false;
+  private clearing: boolean = false;
+
+  private commandQueue: string[] = [];
+  private _onQueueEmpty?: Promise<void>;
+  private resolveQueueEmpty?: () => void;
+
+  public get onQueueEmpty() {
+    if (this._onQueueEmpty) return this._onQueueEmpty;
+    if (this.commandQueue.length === 0) return Promise.resolve();
+    const { resolve, promise } = defer<void>();
+    this._onQueueEmpty = promise;
+    this.resolveQueueEmpty = resolve;
+    return promise;
+  }
+
+  private restore?: string;
+
+  public get userInput() {
+    if (this.executing) return undefined;
+    const { buffer: { active } } = this.xterm;
+    const { cursorY, baseY } = active;
+    const line = active.getLine(cursorY + baseY);
+    if (!line) return undefined;
+    let content = line.translateToString();
+    if (content.startsWith(cli.input.prompt.prefix))
+      content = content.slice(cli.input.prompt.prefix.length).trim();
+    return content.length > 0 ? content : undefined;
+  }
+
   private constructor(
     public readonly container: WebContainer,
     public readonly jsh: WebContainerProcess,
+    private readonly input: WritableStreamDefaultWriter<string>,
     public readonly xterm: Terminal,
     private readonly fitAddon: FitAddon,
     private _watch?: Promise<WebContainerProcess>,
     private onChange?: Set<FsChangeCallback>
-  ) { }
+  ) {
+    xterm.onData((data) => input.write(data));
+    const self = this;
+    xterm.onKey(({ key }) => {
+      if (key === "Enter") self.executing = true;
+    })
+    jsh.output.pipeTo(new WritableStream({
+      write: this.onJshOutput.bind(this),
+    }));
+    xterm.clear();
+  }
 
   private static instance: OperatingSystem | null = null;
+
+  private onJshOutput(data: string) {
+    let next: string | undefined;
+    switch (data) {
+      case cli.input.prompt.default:
+      case cli.input.prompt.error:
+        if (this.clearing) {
+          this.clearing = false;
+          break;
+        }
+        this.executing = false;
+        const command = this.commandQueue.shift();
+        next = command ?? this.restore;
+        if (!command) this.restore = undefined;
+        break;
+    }
+    const callback = next ? () => this.input.write(next) : undefined;
+    this.xterm.write(data, callback);
+  }
+
+  public getAndClearUserInput() {
+    const current = this.userInput;
+    if (!current) return undefined;
+    this.clearing = true;
+    this.input.write(cli.input.eol);
+    for (let i = 0; i < current.length; i++)
+      this.input.write(cli.input.backspace);
+    return current;
+  }
+
+  public enqueue(command: string) {
+    if (!command.endsWith(cli.input.user.return))
+      command += cli.input.user.return;
+
+    if (this.executing) return this.commandQueue.push(command);
+
+    this.restore = this.getAndClearUserInput();
+    this.executing = true;
+    this.input.write(command);
+  }
 
   public async watch(callback: FsChangeCallback) {
     this.onChange ??= new Set<FsChangeCallback>();
@@ -50,6 +146,7 @@ export default class OperatingSystem {
 
   public fitXterm() {
     this.fitAddon.fit();
+    this.jsh.resize({ cols: this.xterm.cols, rows: this.xterm.rows });
   }
 
   static async Create(options?: CreateOptions) {
@@ -83,10 +180,10 @@ export default class OperatingSystem {
     } as const;
 
     const watch = await container.spawn('npx', [
-      cliFlags.npx.yesToAll,
+      cli.flags.npx.yesToAll,
       watchConfig.command,
       watchConfig.directory,
-      cliFlags.chokidar.ignore,
+      cli.flags.chokidar.ignore,
       watchConfig.ignore,
     ]);
 
@@ -168,13 +265,6 @@ export default class OperatingSystem {
     await reader.read();
     reader.releaseLock();
 
-    status?.("Setting up terminal");
-    xterm.onData((data) => input.write(data));
-    jsh.output.pipeTo(new WritableStream({
-      write: (data) => xterm.write(data),
-    }));
-    xterm.clear();
-
-    return new OperatingSystem(container, jsh, xterm, addon, watch, onChange);
+    return new OperatingSystem(container, jsh, input, xterm, addon, watch, onChange);
   }
 }

@@ -5,8 +5,6 @@
     },
   });
 
-  type DropEvent = CustomEvent<{ acceptedFiles: File[] }>;
-
   class Params {
     private readonly entries: [string, string][];
     constructor(searchParams: URLSearchParams) {
@@ -30,11 +28,10 @@
   import { untilFontsLoaded } from "$lib";
   import Startup from "$lib/Startup.svelte";
   import { fly } from "svelte/transition";
+  import { multiparse, mergeFilesystems } from "@readmeseemore/parser";
 
   let workspace = $state<Workspace>();
   let workspaceReady = $state(false);
-  let markdownContent = $state<string>();
-
   let showWorkspace = $state(false);
 
   let steps = $state<string[]>([]);
@@ -42,7 +39,8 @@
   const params = new Params(page.url.searchParams);
 
   const links = params.get("link");
-  console.log("link", links);
+  const ids = params.get("id");
+
   const dependencies = params.get("pkg")?.reduce(
     (acc, specifier) => {
       let [name, version] = specifier.trim().split("@");
@@ -101,7 +99,20 @@
             <MarkdownEntry
               canStart={workspaceReady}
               canSkip={workspaceReady}
-              onStart={() => {}}
+              onStart={async (promise) => {
+                showWorkspace = true;
+                const contents = await promise;
+                const { filesystem, errors } = ids
+                  ? multiparse(contents, ...ids)
+                  : multiparse(contents);
+                if (initialFs)
+                  mergeFilesystems({
+                    target: filesystem,
+                    source: initialFs,
+                    errors,
+                  });
+                await workspace!.updateFilesystem(filesystem);
+              }}
               onSkip={() => (showWorkspace = true)}
             />
           </div>
@@ -118,5 +129,9 @@
   @font-face {
     font-family: "Rusty Attack";
     src: url("/rusty-attack-demo.regular.otf");
+  }
+
+  :global(.rusty-attack) {
+    font-family: "Rusty Attack";
   }
 </style>
