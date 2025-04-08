@@ -25,8 +25,14 @@
     xterm.open(container);
     os.fitXterm();
     fn = () => {
-      os.enqueue("curl https://httpbin.org/delay/1");
-      os.enqueue("echo 'hello'");
+      const first = os.enqueue("curl https://httpbin.org/delay/1", true);
+      const second = os.enqueue("echo 'hello'", true);
+      first.then((result) => {
+        console.log(result);
+      });
+      second.then((result) => {
+        console.log(result);
+      });
       os.commandQueue.onEmpty.then(() => {
         console.log("queue empty");
       });

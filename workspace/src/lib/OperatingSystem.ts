@@ -3,7 +3,8 @@ import { file } from "./utils/fs-helper.js";
 import type { ITheme, Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { boot, teardown } from "./utils/webcontainer.js";
-import { defer } from "./utils/index.js";
+import { defer, removeFirstInstance, removeLastInstance } from "./utils/index.js";
+import stripAnsi from "strip-ansi";
 
 const cli = {
   flags: {
@@ -24,7 +25,10 @@ const cli = {
       return: "\r",
     },
     eol: String.fromCharCode(5),
-    backspace: "\b"
+    backspace: "\b",
+  },
+  output: {
+    location: "~/workspace"
   }
 } as const;
 
@@ -44,8 +48,12 @@ export type CreateOptions = {
   watch?: boolean,
 }
 
+type CaptureCommandOutput = (command: string, last?: boolean) => void;
+
 class CommandQueue {
-  private readonly queue: string[] = [];
+  private readonly commands: string[] = [];
+  private readonly callbacks: (CaptureCommandOutput | undefined)[] = [];
+
   private defferedOnEmpty?: ReturnType<typeof defer<void>>;
 
   public get onEmpty() {
@@ -58,16 +66,17 @@ class CommandQueue {
   }
 
   public get isEmpty() {
-    return this.queue.length === 0;
+    return this.commands.length === 0;
   }
 
-  public enqueue(command: string) {
-    this.queue.push(command);
+  public enqueue(command: string, callback?: CaptureCommandOutput) {
+    this.commands.push(command);
+    this.callbacks.push(callback);
   }
 
   public dequeue() {
-    if (this.isEmpty) return this.defferedOnEmpty?.resolve();
-    else return this.queue.shift();
+    if (this.isEmpty) this.defferedOnEmpty?.resolve();
+    else return [this.commands.shift(), this.callbacks.shift()] as const;
   }
 }
 
@@ -76,6 +85,9 @@ export default class OperatingSystem {
   private forceClear: boolean = false;
 
   public readonly commandQueue: CommandQueue = new CommandQueue();
+
+  private capture?: string = "";
+  private onCapture?: CaptureCommandOutput;
 
   public get userInput() {
     if (this.executing) return undefined;
@@ -120,11 +132,17 @@ export default class OperatingSystem {
           this.forceClear = false;
           break;
         }
+        this.onCapture?.("\n", true);
         this.executing = false;
-        const command = this.commandQueue.dequeue();
-        if (command) callback = () => this.input.write(command);
+        const next = this.commandQueue.dequeue();
+        if (next)
+          callback = () => {
+            this.input.write(next[0]);
+            this.onCapture = next[1];
+          };
         break;
     }
+    if (!this.forceClear) this.onCapture?.(data);
     this.xterm.write(data, callback);
   }
 
@@ -139,22 +157,45 @@ export default class OperatingSystem {
   }
 
 
-  public enqueue(command: string, onEmpty?: () => void) {
+  public enqueue<TCapture extends boolean = false>(
+    command: string,
+    capture: TCapture = false as TCapture
+  ): TCapture extends true ? Promise<string> : void {
     if (!command.endsWith(cli.input.user.return))
       command += cli.input.user.return;
 
     const { commandQueue } = this;
 
-    if (onEmpty) commandQueue.onEmpty.then(onEmpty);
+    let onCapture: CaptureCommandOutput | undefined;
+    let deferredCapture: ReturnType<typeof defer<string>> | undefined;
+
+    if (capture) {
+      let captured = "";
+      deferredCapture = defer<string>();
+      onCapture = (data, last) => {
+        captured += data;
+        if (last) {
+          captured = stripAnsi(captured);
+          captured = removeFirstInstance(captured, cli.input.prompt.prefix);
+          captured = removeFirstInstance(captured, command);
+          captured = removeLastInstance(captured, cli.output.location);
+          captured = captured.trim();
+          deferredCapture?.resolve(captured);
+        }
+      };
+    }
 
     if (this.executing)
-      commandQueue.enqueue(command);
+      commandQueue.enqueue(command, onCapture);
     else {
       const current = this.getAndClearUserInput();
       if (current) commandQueue.onEmpty.then(() => this.input.write(current));
       this.executing = true;
       this.input.write(command);
+      this.onCapture = onCapture;
     }
+
+    return deferredCapture?.promise as TCapture extends true ? Promise<string> : void;
   }
 
   public async watch(callback: FsChangeCallback) {

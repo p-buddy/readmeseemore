@@ -64,3 +64,16 @@ export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLEle
   element.style.left = `${clientX}px`;
   return (parent ?? document.body).appendChild(element);
 }
+
+export const removeFirstInstance = (str: string, instance: string) => {
+  const index = str.indexOf(instance);
+  if (index === -1) return str;
+  return str.slice(0, index) + str.slice(index + instance.length).trimStart();
+}
+
+export const removeLastInstance = (str: string, instance: string) => {
+  const index = str.lastIndexOf(instance);
+  if (index === -1) return str;
+  return str.slice(0, index) + str.slice(index + instance.length).trimStart();
+}
+

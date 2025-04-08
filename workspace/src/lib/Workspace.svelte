@@ -60,6 +60,10 @@
         if ("contents" in value.file && typeof value.file.contents === "string")
           await writeFile(`${path}/${key}`, value.file.contents);
   };
+
+  const runCommand = (command: string) => {
+    os!.enqueue(command);
+  };
 </script>
 
 {#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}
