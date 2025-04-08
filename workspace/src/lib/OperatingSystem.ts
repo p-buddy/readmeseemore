@@ -44,24 +44,37 @@ export type CreateOptions = {
   watch?: boolean,
 }
 
+class CommandQueue {
+  private readonly queue: string[] = [];
+  private defferedOnEmpty?: ReturnType<typeof defer<void>>;
+
+  public get onEmpty() {
+    if (this.defferedOnEmpty)
+      return this.defferedOnEmpty.promise;
+    this.defferedOnEmpty = defer<void>();
+    const { promise } = this.defferedOnEmpty;
+    promise.then(() => this.defferedOnEmpty = undefined);
+    return promise;
+  }
+
+  public get isEmpty() {
+    return this.queue.length === 0;
+  }
+
+  public enqueue(command: string) {
+    this.queue.push(command);
+  }
+
+  public dequeue() {
+    if (this.isEmpty) return this.defferedOnEmpty?.resolve();
+    else return this.queue.shift();
+  }
+}
+
 export default class OperatingSystem {
   private executing: boolean = false;
 
-  private commandQueue: string[] = [];
-  private defferedOnQueueEmpty?: ReturnType<typeof defer<void>>;
-
-  public get queueIsEmpty() {
-    return this.commandQueue.length === 0;
-  }
-
-  public get onQueueEmpty() {
-    if (this.defferedOnQueueEmpty)
-      return this.defferedOnQueueEmpty.promise;
-    this.defferedOnQueueEmpty = defer<void>();
-    const { promise } = this.defferedOnQueueEmpty;
-    promise.then(() => this.defferedOnQueueEmpty = undefined);
-    return promise;
-  }
+  public readonly commandQueue: CommandQueue = new CommandQueue();
 
   public get userInput() {
     if (this.executing) return undefined;
@@ -103,9 +116,9 @@ export default class OperatingSystem {
       case cli.input.prompt.default:
       case cli.input.prompt.error:
         this.executing = false;
-        const command = this.commandQueue.shift();
+        const command = this.commandQueue.dequeue();
+        console.log("command", command);
         if (command) callback = () => this.input.write(command);
-        else this.defferedOnQueueEmpty?.resolve();
         break;
     }
     this.xterm.write(data, callback);
@@ -122,17 +135,19 @@ export default class OperatingSystem {
 
 
   public enqueue(command: string, onEmpty?: () => void) {
+    console.log("executing", this.executing);
+    console.log("input", this.userInput);
     if (!command.endsWith(cli.input.user.return))
       command += cli.input.user.return;
 
-    if (onEmpty) this.onQueueEmpty.then(onEmpty);
+    if (onEmpty) this.commandQueue.onEmpty.then(onEmpty);
 
     if (this.executing)
-      this.commandQueue.push(command);
+      this.commandQueue.enqueue(command);
     else {
-      this.executing = true;
       const current = this.getAndClearUserInput();
-      if (current) this.onQueueEmpty.then(() => this.input.write(current));
+      if (current) this.commandQueue.onEmpty.then(() => this.input.write(current));
+      this.executing = true;
       this.input.write(command);
     }
   }
