@@ -46,22 +46,22 @@ export type CreateOptions = {
 
 export default class OperatingSystem {
   private executing: boolean = false;
-  private clearing: boolean = false;
 
   private commandQueue: string[] = [];
-  private _onQueueEmpty?: Promise<void>;
-  private resolveQueueEmpty?: () => void;
+  private defferedOnQueueEmpty?: ReturnType<typeof defer<void>>;
 
-  public get onQueueEmpty() {
-    if (this._onQueueEmpty) return this._onQueueEmpty;
-    if (this.commandQueue.length === 0) return Promise.resolve();
-    const { resolve, promise } = defer<void>();
-    this._onQueueEmpty = promise;
-    this.resolveQueueEmpty = resolve;
-    return promise;
+  public get queueIsEmpty() {
+    return this.commandQueue.length === 0;
   }
 
-  private restore?: string;
+  public get onQueueEmpty() {
+    if (this.defferedOnQueueEmpty)
+      return this.defferedOnQueueEmpty.promise;
+    this.defferedOnQueueEmpty = defer<void>();
+    const { promise } = this.defferedOnQueueEmpty;
+    promise.then(() => this.defferedOnQueueEmpty = undefined);
+    return promise;
+  }
 
   public get userInput() {
     if (this.executing) return undefined;
@@ -98,43 +98,43 @@ export default class OperatingSystem {
   private static instance: OperatingSystem | null = null;
 
   private onJshOutput(data: string) {
-    let next: string | undefined;
+    let callback: (() => void) | undefined;
     switch (data) {
       case cli.input.prompt.default:
       case cli.input.prompt.error:
-        if (this.clearing) {
-          this.clearing = false;
-          break;
-        }
         this.executing = false;
         const command = this.commandQueue.shift();
-        next = command ?? this.restore;
-        if (!command) this.restore = undefined;
+        if (command) callback = () => this.input.write(command);
+        else this.defferedOnQueueEmpty?.resolve();
         break;
     }
-    const callback = next ? () => this.input.write(next) : undefined;
     this.xterm.write(data, callback);
   }
 
   public getAndClearUserInput() {
     const current = this.userInput;
     if (!current) return undefined;
-    this.clearing = true;
     this.input.write(cli.input.eol);
     for (let i = 0; i < current.length; i++)
       this.input.write(cli.input.backspace);
     return current;
   }
 
-  public enqueue(command: string) {
+
+  public enqueue(command: string, onEmpty?: () => void) {
     if (!command.endsWith(cli.input.user.return))
       command += cli.input.user.return;
 
-    if (this.executing) return this.commandQueue.push(command);
+    if (onEmpty) this.onQueueEmpty.then(onEmpty);
 
-    this.restore = this.getAndClearUserInput();
-    this.executing = true;
-    this.input.write(command);
+    if (this.executing)
+      this.commandQueue.push(command);
+    else {
+      this.executing = true;
+      const current = this.getAndClearUserInput();
+      if (current) this.onQueueEmpty.then(() => this.input.write(current));
+      this.input.write(command);
+    }
   }
 
   public async watch(callback: FsChangeCallback) {

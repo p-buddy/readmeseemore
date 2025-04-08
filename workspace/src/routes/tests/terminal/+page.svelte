@@ -27,6 +27,9 @@
     fn = () => {
       os.enqueue("curl https://httpbin.org/delay/1");
       os.enqueue("echo 'hello'");
+      os.onQueueEmpty.then(() => {
+        console.log("queue empty");
+      });
     };
   }}
 >
