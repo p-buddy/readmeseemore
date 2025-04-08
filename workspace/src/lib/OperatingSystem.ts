@@ -73,6 +73,7 @@ class CommandQueue {
 
 export default class OperatingSystem {
   private executing: boolean = false;
+  private forceClear: boolean = false;
 
   public readonly commandQueue: CommandQueue = new CommandQueue();
 
@@ -115,9 +116,12 @@ export default class OperatingSystem {
     switch (data) {
       case cli.input.prompt.default:
       case cli.input.prompt.error:
+        if (this.forceClear) {
+          this.forceClear = false;
+          break;
+        }
         this.executing = false;
         const command = this.commandQueue.dequeue();
-        console.log("command", command);
         if (command) callback = () => this.input.write(command);
         break;
     }
@@ -128,6 +132,7 @@ export default class OperatingSystem {
     const current = this.userInput;
     if (!current) return undefined;
     this.input.write(cli.input.eol);
+    this.forceClear = true;
     for (let i = 0; i < current.length; i++)
       this.input.write(cli.input.backspace);
     return current;
@@ -135,18 +140,18 @@ export default class OperatingSystem {
 
 
   public enqueue(command: string, onEmpty?: () => void) {
-    console.log("executing", this.executing);
-    console.log("input", this.userInput);
     if (!command.endsWith(cli.input.user.return))
       command += cli.input.user.return;
 
-    if (onEmpty) this.commandQueue.onEmpty.then(onEmpty);
+    const { commandQueue } = this;
+
+    if (onEmpty) commandQueue.onEmpty.then(onEmpty);
 
     if (this.executing)
-      this.commandQueue.enqueue(command);
+      commandQueue.enqueue(command);
     else {
       const current = this.getAndClearUserInput();
-      if (current) this.commandQueue.onEmpty.then(() => this.input.write(current));
+      if (current) commandQueue.onEmpty.then(() => this.input.write(current));
       this.executing = true;
       this.input.write(command);
     }
