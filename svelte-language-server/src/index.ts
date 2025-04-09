@@ -35,8 +35,9 @@ export const start = (port: number, log = false) => {
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
 
         const npxRoot = dirname(import.meta.resolve(""));
+        console.log("npxRoot", npxRoot);
         const script = join(npxRoot, "svelte-language-server", "bin", "server.js");
-
+        console.log("script", script);
         // Spawn the Svelte Language Server process (stdio mode)
         const serverConnection = createServerProcess(name, 'node', [script]);
 
