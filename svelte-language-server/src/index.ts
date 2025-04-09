@@ -4,7 +4,7 @@ import { WebSocketServer } from 'ws';
 import { type IWebSocket, WebSocketMessageReader, WebSocketMessageWriter } from 'vscode-ws-jsonrpc';
 import { createConnection, createServerProcess, forward } from 'vscode-ws-jsonrpc/server';
 import { Message, InitializeRequest, type InitializeParams } from 'vscode-languageserver-protocol';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 
 // see: https://github.com/TypeFox/monaco-languageclient/blob/main/packages/examples/src/common/node/server-commons.ts
 
@@ -34,11 +34,11 @@ export const start = (port: number, log = false) => {
         const writer = new WebSocketMessageWriter(socket);
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
 
-        const script = import.meta.resolve("svelte-language-server");
+        const npxRoot = dirname(import.meta.resolve(""));
+        const script = join(npxRoot, "svelte-language-server", "bin", "server.js");
+
         // Spawn the Svelte Language Server process (stdio mode)
-        const serverConnection = createServerProcess(name,
-          'node', [join(script, "bin/server.js")]
-        );
+        const serverConnection = createServerProcess(name, 'node', [script]);
 
         if (!serverConnection) {
           const msg = 'Failed to spawn Svelte Language Server';
