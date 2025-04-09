@@ -12,8 +12,7 @@ export const start = (port: number, log = false) => {
   const app = express();
   const server: Server = app.listen(port);
   const wss = new WebSocketServer({ noServer: true });
-  server.on('upgrade', (request, socket, head) => {
-
+  server.on('upgrade', (request, socket, head) =>
     wss.handleUpgrade(request, socket, head, webSocket => {
       const socket: IWebSocket = {
         send: content => webSocket.send(content, error => {
@@ -36,7 +35,7 @@ export const start = (port: number, log = false) => {
 
         // Spawn the Svelte Language Server process (stdio mode)
         const serverConnection = createServerProcess(name,
-          'node', ['node_modules/svelte-language-server/bin/server.js', '--stdio']
+          'node', ['./node_modules/svelte-language-server/bin/server.js']
         );
 
         if (!serverConnection) {
@@ -71,7 +70,6 @@ export const start = (port: number, log = false) => {
 
       if (webSocket.readyState === webSocket.OPEN) launch()
       else webSocket.on('open', launch);
-    });
-  });
-
+    })
+  );
 }
