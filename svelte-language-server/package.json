@@ -2,7 +2,7 @@
 	"name": "@readmeseemore/svelte-language-server",
 	"type": "module",
 	"private": false,
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"main": "src/index.ts",
 	"bin": "src/cli.ts",
 	"publishConfig": {
@@ -31,7 +31,7 @@
 		"test": "vitest",
 		"test:run": "vitest run",
 		"prepublishOnly": "pnpm test:run && pnpm build && npm version patch --git-tag-version false && pnpm build:cli",
-		"postpublish": "git add ./package.json && git commit -m 'bump version' && git push"
+		"postpublish": "git add ./package.json && git commit -m \"bump version: $(basename $(pwd))\" && git push"
 	},
 	"devDependencies": {
 		"@types/express": "^5.0.1",
