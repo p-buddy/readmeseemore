@@ -34,19 +34,13 @@ export const start = (port: number, log = false) => {
         const reader = new WebSocketMessageReader(socket);
         const writer = new WebSocketMessageWriter(socket);
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
-
-        const module = import.meta.resolve("test");
-        console.log("module", module);
-        const path = fileURLToPath(module);
-        console.log("path", path);
-        const dir = dirname(path);
-        console.log("dir", dir);
-        const script = join(dir, "bin", "server.js");
-        console.log("script", script);
-        // Spawn the Svelte Language Server process (stdio mode)
-        const serverConnection = createServerProcess(name,
-          'node', [join(script, "bin", "server.js")]
+        const path = fileURLToPath(import.meta.url);
+        const script = join(
+          path, "node_modules", "svelte-language-server", "bin", "server.js"
         );
+
+        // Spawn the Svelte Language Server process (stdio mode)
+        const serverConnection = createServerProcess(name, 'node', [script]);
 
         if (!serverConnection) {
           const msg = 'Failed to spawn Svelte Language Server';

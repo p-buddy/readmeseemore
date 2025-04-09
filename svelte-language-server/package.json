@@ -46,6 +46,7 @@
 	"dependencies": {
 		"@commander-js/extra-typings": "^13.1.0",
 		"express": "^5.1.0",
+		"svelte-language-server": "^0.17.11",
 		"vscode-languageserver-protocol": "^3.17.5",
 		"vscode-ws-jsonrpc": "^3.4.0",
 		"ws": "^8.18.1"
