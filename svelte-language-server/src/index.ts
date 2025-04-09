@@ -35,7 +35,7 @@ export const start = (port: number, log = false) => {
         const writer = new WebSocketMessageWriter(socket);
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
 
-        const module = import.meta.resolve("");
+        const module = import.meta.resolve("test");
         console.log("module", module);
         const path = fileURLToPath(module);
         console.log("path", path);
