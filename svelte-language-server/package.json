@@ -2,7 +2,7 @@
 	"name": "@readmeseemore/svelte-language-server",
 	"type": "module",
 	"private": false,
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"main": "src/index.ts",
 	"bin": "src/cli.ts",
 	"publishConfig": {
@@ -30,7 +30,8 @@
 		"run:": "npx tsx src/cli.ts",
 		"test": "vitest",
 		"test:run": "vitest run",
-		"prepublishOnly": "pnpm test:run && pnpm build && npm version patch && git push && pnpm build:cli"
+		"prepublishOnly": "pnpm test:run && pnpm build && npm version patch --git-tag-version false && pnpm build:cli",
+		"postpublish": "git add ./package.json && git commit -m 'bump version' && git push"
 	},
 	"devDependencies": {
 		"@types/express": "^5.0.1",
