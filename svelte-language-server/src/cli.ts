@@ -6,9 +6,12 @@ import { start } from '.';
 const program = new Command()
   .version(version)
   .option('-d, --debug')
+  .argument('[port]', 'port to listen on')
   .option('-p, --port <port>', 'port to listen on', '6009')
+  .option('-v, --verbose', 'verbose output')
   .parse();
 
-const options = program.opts();
+const [portArg] = program.args;
+const { port, verbose } = program.opts();
 
-start(parseInt(options.port));
+start(parseInt(portArg ?? port), verbose || false);

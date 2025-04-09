@@ -6,6 +6,7 @@ import { name as packageName } from './package.json';
 export default defineConfig({
   resolve: {
     alias: {
+      '.': packageName,
       './': packageName,
       './index': packageName,
     },

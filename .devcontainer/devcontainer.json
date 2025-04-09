@@ -30,7 +30,7 @@
     "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly"
   ],
   "containerEnv": {
-    "NPM_TOKEN": "${localEnv:REPLRN_NPM_TOKEN}",
+    "NPM_TOKEN": "${localEnv:READMESEEMORE_NPM_TOKEN}",
     "GIT_USER_NAME": "${localEnv:GIT_USER_NAME}",
     "GIT_USER_EMAIL": "${localEnv:GIT_USER_EMAIL}"
   }
