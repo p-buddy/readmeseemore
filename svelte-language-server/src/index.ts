@@ -9,6 +9,17 @@ import { fileURLToPath } from 'node:url';
 
 // see: https://github.com/TypeFox/monaco-languageclient/blob/main/packages/examples/src/common/node/server-commons.ts
 
+let server: ReturnType<typeof createServerProcess>;
+
+const createServer = (name: string) => {
+  if (server) return server;
+  const relative = "@readmeseemore/svelte-language-server/dist/index.js"
+  const { url } = import.meta;
+  const path = fileURLToPath(url).replace(relative, "");
+  const script = join(path, "svelte-language-server", "bin", "server.js");
+  return (server = createServerProcess(name, 'node', [script]));
+}
+
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
   const app = express();
@@ -18,11 +29,11 @@ export const start = (port: number, log = false) => {
     wss.handleUpgrade(request, socket, head, webSocket => {
       const socket: IWebSocket = {
         send: content => webSocket.send(content, error => {
-          if (error) {
-            throw error;
-          }
+          if (log && !error) console.log("sent", content);
+          if (error) throw error;
         }),
         onMessage: cb => webSocket.on('message', (data) => {
+          if (log) console.log("message", data);
           cb(data);
         }),
         onError: cb => webSocket.on('error', cb),
@@ -34,24 +45,17 @@ export const start = (port: number, log = false) => {
         const reader = new WebSocketMessageReader(socket);
         const writer = new WebSocketMessageWriter(socket);
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
-        const relative = "@readmeseemore/svelte-language-server/dist/index.js"
-        const { url } = import.meta;
-        console.log("url", url);
-        const path = fileURLToPath(url).replace(relative, "");
-        console.log("path", path);
-        const script = join(path, "svelte-language-server", "bin", "server.js");
-        console.log("script", script);
-
         // Spawn the Svelte Language Server process (stdio mode)
-        const serverConnection = createServerProcess(name, 'node', [script]);
+        const serverConnection = createServer(name);
 
         if (!serverConnection) {
           const msg = 'Failed to spawn Svelte Language Server';
           console.error(msg);
           throw new Error(msg);
         }
-
         forward(socketConnection, serverConnection, message => {
+          if (log) console.log("forward", message);
+
           if (Message.isRequest(message)) {
             if (message.method === InitializeRequest.type.method) {
               const initializeParams = message.params as InitializeParams;
