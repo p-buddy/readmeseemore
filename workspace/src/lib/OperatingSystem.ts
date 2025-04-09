@@ -80,13 +80,14 @@ class CommandQueue {
   }
 }
 
+type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
+
 export default class OperatingSystem {
   private executing: boolean = false;
   private forceClear: boolean = false;
 
-  public readonly commandQueue: CommandQueue = new CommandQueue();
+  public readonly commandQueue: LimitedCommandQueue = new CommandQueue();
 
-  private capture?: string = "";
   private onCapture?: CaptureCommandOutput;
 
   public get userInput() {
@@ -132,9 +133,9 @@ export default class OperatingSystem {
           this.forceClear = false;
           break;
         }
-        this.onCapture?.("\n", true);
+        this.onCapture?.("", true);
         this.executing = false;
-        const next = this.commandQueue.dequeue();
+        const next = (this.commandQueue as CommandQueue).dequeue();
         if (next)
           callback = () => {
             this.input.write(next[0]);
@@ -157,7 +158,7 @@ export default class OperatingSystem {
   }
 
 
-  public enqueue<TCapture extends boolean = false>(
+  public enqueueCommand<TCapture extends boolean = false>(
     command: string,
     capture: TCapture = false as TCapture
   ): TCapture extends true ? Promise<string> : void {
@@ -181,12 +182,13 @@ export default class OperatingSystem {
           captured = removeLastInstance(captured, cli.output.location);
           captured = captured.trim();
           deferredCapture?.resolve(captured);
+          this.onCapture = undefined;
         }
       };
     }
 
     if (this.executing)
-      commandQueue.enqueue(command, onCapture);
+      (commandQueue as CommandQueue).enqueue(command, onCapture);
     else {
       const current = this.getAndClearUserInput();
       if (current) commandQueue.onEmpty.then(() => this.input.write(current));

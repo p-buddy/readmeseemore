@@ -102,7 +102,7 @@
               onStart={async (promise) => {
                 showWorkspace = true;
                 const contents = await promise;
-                const { filesystem, errors } = ids
+                const { filesystem, errors, startup } = ids
                   ? multiparse(contents, ...ids)
                   : multiparse(contents);
                 if (initialFs)
@@ -112,6 +112,11 @@
                     errors,
                   });
                 await workspace!.updateFilesystem(filesystem);
+                if (startup)
+                  for (const command of startup.split("\n"))
+                    workspace!.OS().enqueueCommand(command);
+                else if (await workspace?.readFile("package.json"))
+                  workspace!.OS().enqueueCommand("npm install");
               }}
               onSkip={() => (showWorkspace = true)}
             />

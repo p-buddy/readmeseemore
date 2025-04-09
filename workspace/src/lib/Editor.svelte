@@ -138,11 +138,13 @@
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
-  } & { file: Pick<TFile, "name" | "path"> };
+    file: Pick<TFile, "name" | "path">;
+    onSave: (path: Pick<TFile, "name" | "path">) => void;
+  };
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 
-  const { fs } = params;
+  const { fs, onSave } = params;
 
   const react = sveltify({ Monaco } as any) as any as {
     Monaco: Component<EditorProps>;
@@ -213,6 +215,13 @@
       sourceResolver,
       fileRootPath: "file:///",
     }).then((t) => (typings = t));
+
+    editor.onKeyDown((e) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
+        e.preventDefault();
+        onSave(params.file);
+      }
+    });
 
     createAllCodeModels(_monaco as typeof monaco, fs);
   }}

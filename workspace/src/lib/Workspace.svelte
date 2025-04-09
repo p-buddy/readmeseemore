@@ -61,8 +61,11 @@
           await writeFile(`${path}/${key}`, value.file.contents);
   };
 
-  const runCommand = (command: string) => {
-    os!.enqueue(command);
+  export const OS = <TRequire extends boolean = true>(
+    require = true as TRequire,
+  ): TRequire extends true ? OperatingSystem : OperatingSystem | undefined => {
+    if (!os && require) throw new Error("Operating system not initialized");
+    return os!;
   };
 </script>
 
@@ -202,7 +205,16 @@
               (
                 await dockAPI!.addComponentPanel(
                   "Editor",
-                  { fs, file },
+                  {
+                    fs,
+                    file,
+                    onSave: ({ path }) => {
+                      if (path.endsWith(".ts")) {
+                        const command = `npx --yes tsx ${path}`;
+                        os!.enqueueCommand(command);
+                      }
+                    },
+                  },
                   { id, title: file.name },
                 )
               ).panel
