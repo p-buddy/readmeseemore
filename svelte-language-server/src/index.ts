@@ -35,7 +35,13 @@ export const start = (port: number, log = false) => {
         const writer = new WebSocketMessageWriter(socket);
         const socketConnection = createConnection(reader, writer, () => webSocket.terminate());
 
-        const script = dirname(dirname(fileURLToPath(import.meta.resolve(""))));
+        const module = import.meta.resolve("");
+        console.log("module", module);
+        const path = fileURLToPath(module);
+        console.log("path", path);
+        const dir = dirname(path);
+        console.log("dir", dir);
+        const script = join(dir, "bin", "server.js");
         console.log("script", script);
         // Spawn the Svelte Language Server process (stdio mode)
         const serverConnection = createServerProcess(name,
