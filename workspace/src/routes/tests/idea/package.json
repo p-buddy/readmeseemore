@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "vscode-jsonrpc": "^8.2.1",
+    "vscode-ws-jsonrpc": "^3.4.0",
+    "ws": "^8.18.1"
+  }
+}
