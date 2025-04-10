@@ -66,11 +66,9 @@ export const start = (port: number, log = false) => {
             }
           }
 
-          if (Message.isResponse(message)) {
-            if (log) {
-              console.log(`${name} Server sent:`);
-              console.log(message);
-            }
+          if (Message.isResponse(message) && log) {
+            console.log(`${name} Server sent:`);
+            console.log(message);
           }
 
           if (Message.isNotification(message) && log) {

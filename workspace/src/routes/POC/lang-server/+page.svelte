@@ -2,7 +2,8 @@
   import { Sweater } from "sweater-vest";
   import Workspace from "$lib/Workspace.svelte";
   import { defer } from "$lib/utils/index.js";
-  import contents from "./dummy.ts?raw";
+  import contents from "./.assets/index.ts?raw";
+  import pkg from "./.assets/package.json?raw";
   import stripAnsi from "strip-ansi";
 </script>
 
@@ -32,22 +33,36 @@
       "--verbose",
     ]);
 
+    const test = {
+      method: "testNotification",
+      params: "Hello World",
+    };
+
     const reader = proc.output.getReader();
     reader.read().then(function read({ done, value }): any {
-      if (value) console.log(stripAnsi(value));
+      if (value) {
+        const stripped = stripAnsi(value);
+        console.log(stripped);
+        if (stripped.includes(test.method) && stripped.includes(test.params)) {
+          console.log("success");
+        }
+      }
       if (done) return;
       return reader.read().then(read);
     });
 
+    const deps = Object.keys(JSON.parse(pkg)["dependencies"]).filter(
+      (dep) => !dep.startsWith("@types/"),
+    );
+
     await Promise.all([
-      os.enqueueCommand(
-        "npm install vscode-jsonrpc vscode-ws-jsonrpc ws",
-        true,
-      ),
+      os.enqueueCommand(`npm install ${deps.join(" ")}`, true),
       onServer.promise,
     ]);
 
-    os.enqueueCommand("npx --yes tsx index.ts");
+    os.enqueueCommand(
+      `npx --yes tsx index.ts "${test.method}" "${test.params}"`,
+    );
   }}
 >
   {#snippet vest(pocket: {
