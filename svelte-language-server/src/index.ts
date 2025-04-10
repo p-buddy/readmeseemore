@@ -4,7 +4,7 @@ import { WebSocketServer } from 'ws';
 import { type IWebSocket, WebSocketMessageReader, WebSocketMessageWriter } from 'vscode-ws-jsonrpc';
 import { createConnection, createServerProcess, forward } from 'vscode-ws-jsonrpc/server';
 import { Message, InitializeRequest, type InitializeParams } from 'vscode-languageserver-protocol';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // see: https://github.com/TypeFox/monaco-languageclient/blob/main/packages/examples/src/common/node/server-commons.ts
@@ -52,6 +52,7 @@ export const start = (port: number, log = false) => {
           console.error(msg);
           throw new Error(msg);
         }
+
         forward(socketConnection, serverConnection, message => {
           if (Message.isRequest(message)) {
             if (message.method === InitializeRequest.type.method) {
@@ -70,6 +71,11 @@ export const start = (port: number, log = false) => {
               console.log(`${name} Server sent:`);
               console.log(message);
             }
+          }
+
+          if (Message.isNotification(message) && log) {
+            console.log(`${name} Server notification:`);
+            console.log(message);
           }
 
           return message;
