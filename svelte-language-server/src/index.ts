@@ -33,7 +33,6 @@ export const start = (port: number, log = false) => {
           if (error) throw error;
         }),
         onMessage: cb => webSocket.on('message', (data) => {
-          if (log) console.log("message", data);
           cb(data);
         }),
         onError: cb => webSocket.on('error', cb),
@@ -54,8 +53,6 @@ export const start = (port: number, log = false) => {
           throw new Error(msg);
         }
         forward(socketConnection, serverConnection, message => {
-          if (log) console.log("forward", message);
-
           if (Message.isRequest(message)) {
             if (message.method === InitializeRequest.type.method) {
               const initializeParams = message.params as InitializeParams;
