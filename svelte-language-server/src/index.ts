@@ -1,4 +1,4 @@
-import { StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
+import { StreamMessageReader, StreamMessageWriter } from '../node_modules/vscode-jsonrpc/node';
 import { createConnection, createServerProcess, forward } from 'vscode-ws-jsonrpc/server';
 import { Message, InitializeRequest, type InitializeParams } from 'vscode-languageserver-protocol';
 import { join } from 'node:path';

@@ -11,7 +11,7 @@ export default defineConfig({
       './index': packageName,
     },
   },
-  plugins: [externalizeDeps({ nodeBuiltins: false, devDeps: true, include: [packageName] })],
+  plugins: [externalizeDeps({ nodeBuiltins: false, devDeps: true, include: [packageName], except: ["vscode-jsonrpc/node"] })],
   build: {
     lib: {
       fileName: 'cli',
