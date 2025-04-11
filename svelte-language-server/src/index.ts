@@ -14,8 +14,10 @@ const createServer = (name: string) => {
   const { url } = import.meta;
   const path = fileURLToPath(url).split(packageName)[0];
   const script = join(path, "svelte-language-server", "bin", "server.js");
-  return (server = createServerProcess(name, 'node', [script]));
+  return (server = createServerProcess(name, 'node', [script, "--stdio"]));
 }
+
+const decoder = new TextDecoder();
 
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
@@ -24,8 +26,24 @@ export const start = (port: number, log = false) => {
     console.log("DATA", data);
   });
   process.stdin.setRawMode(true);
-  const reader = new StreamMessageReader(process.stdin);
-  const writer = new StreamMessageWriter(process.stdout);
+  const reader = new StreamMessageReader(process.stdin, {
+    contentDecoder: {
+      name: "dummy",
+      decode: (chunk) => {
+        console.log("decode reader", decoder.decode(chunk));
+        return Promise.resolve(chunk);
+      }
+    }
+  });
+  const writer = new StreamMessageWriter(process.stdout, {
+    contentEncoder: {
+      name: "dummy",
+      encode: (chunk) => {
+        console.log("encode writer", decoder.decode(chunk));
+        return Promise.resolve(chunk);
+      }
+    }
+  });
 
   const dispose = () => {
     reader.dispose();
