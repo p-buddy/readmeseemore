@@ -1,4 +1,4 @@
-import { WebContainer } from "@webcontainer/api";
+import { WebContainer, type WebContainerProcess } from "@webcontainer/api";
 
 let webcontainer: WebContainer | null = null;
 
@@ -14,3 +14,20 @@ export const teardown = () => {
   webcontainer?.teardown();
   webcontainer = null;
 };
+
+export const io = async (process: WebContainerProcess, output: (data: string) => void) => {
+  const reader = process.output.getReader();
+  await reader.read();
+  reader.releaseLock();
+
+  process.output.pipeTo(new WritableStream({
+    write: (chunk) => output(chunk),
+  }));
+
+  const input = process.input.getWriter();
+  const write = (chunk: string) => input.write(chunk);
+
+  return {
+    write,
+  }
+}

@@ -1,6 +1,6 @@
 <script lang="ts" module>
   import { type WithLimitFs } from "./utils/fs-helper.js";
-  import type * as monaco from "monaco-editor";
+  import * as monaco from "monaco-editor";
   import {
     AutoTypings,
     LocalStorageCache,
@@ -67,6 +67,7 @@
   const languageByExtension = {
     ts: "typescript",
     js: "javascript",
+    svelte: "svelte",
   };
 
   type Extension = keyof typeof languageByExtension;
@@ -124,6 +125,18 @@
       resolve();
     });
   };
+
+  export const registerLanguage = (id: string, ...extensions: string[]) => {
+    if (extensions.length === 0) extensions.push(`.${id}`);
+    extensions = extensions.map((ext) =>
+      ext.startsWith(".") ? ext : `.${ext}`,
+    );
+    monaco.languages.register({
+      id,
+      aliases: [id],
+      extensions,
+    });
+  };
 </script>
 
 <script lang="ts">
@@ -135,6 +148,7 @@
   import { onDestroy, type Component, type Snippet } from "svelte";
   import { retry } from "./utils/index.js";
   import type { MouseEventHandler } from "svelte/elements";
+  import { connect } from "./language-server.js";
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
@@ -224,5 +238,7 @@
     });
 
     createAllCodeModels(_monaco as typeof monaco, fs);
+    registerLanguage("svelte");
+    //connect(6000, "svelte");
   }}
 />

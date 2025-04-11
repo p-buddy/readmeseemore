@@ -42,6 +42,10 @@ export const start = (port: number, log = false) => {
     }
   });
 
+  reader.listen(chunk => {
+    console.log("reader!!", chunk);
+  });
+
   const processConnection = createConnection(reader, writer, () => {
     console.log("dispose!");
     reader.dispose();

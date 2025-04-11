@@ -58,13 +58,18 @@
 	"dependencies": {
 		"@monaco-editor/react": "^4.7.0",
 		"@p-buddy/dockview-svelte": "^0.0.6",
+		"@p-buddy/vscode-jsonrpc-node": "^0.0.17",
 		"@xterm/addon-fit": "^0.10.0",
 		"@xterm/xterm": "^5.5.0",
 		"monaco-editor": "^0.39.0",
 		"monaco-editor-auto-typings": "^0.4.6",
+		"monaco-languageclient": "^9.5.0",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
 		"strip-ansi": "^7.1.0",
-		"svelte-preprocess-react": "^2.1.0"
+		"svelte-preprocess-react": "^2.1.0",
+		"vscode-jsonrpc": "^8.2.1",
+		"vscode-languageclient": "^9.0.1",
+		"vscode-ws-jsonrpc": "^3.4.0"
 	}
 }
