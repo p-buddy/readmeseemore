@@ -20,6 +20,10 @@ const createServer = (name: string) => {
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
 
+  process.stdin.on('data', data => {
+    console.log("DATA", data);
+  });
+
   const reader = new StreamMessageReader(process.stdin);
   const writer = new StreamMessageWriter(process.stdout);
   const dispose = () => {
