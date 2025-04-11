@@ -40,7 +40,7 @@ export const start = (port: number, log = false) => {
       }
 
       if (log) {
-        console.log(`${name} Server received: ${message.method}`);
+        console.error(`${name} Server received: ${message.method}`);
         console.log(message);
       }
     }
@@ -54,6 +54,8 @@ export const start = (port: number, log = false) => {
       console.log(`${name} Server notification:`);
       console.log(message);
     }
+
+    console.log({ message });
 
     return message;
   });
