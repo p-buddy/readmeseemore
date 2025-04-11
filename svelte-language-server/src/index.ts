@@ -42,68 +42,44 @@ export const start = (port: number, log = false) => {
     }
   });
 
-  reader.listen(chunk => {
-    console.log("reader!!", chunk);
-  });
-
   const processConnection = createConnection(reader, writer, () => {
     console.log("dispose!");
     reader.dispose();
     writer.dispose();
   });
 
-  processConnection.forward({
-    reader: reader,
-    writer: writer,
-    forward(to, map) {
-      console.log("forward", to, map);
-    },
-    onClose() {
-      console.log("onClose");
-      return {
-        dispose() {
-          console.log("dispose");
-        }
-      }
-    },
-    dispose() {
-      console.log("dispose");
-    }
-  })
-
-
   const serverConnection = createServer(name);
 
   if (!serverConnection)
     throw new Error('Failed to spawn Svelte Language Server');
 
-  // forward(processConnection, serverConnection, message => {
-  //   if (Message.isRequest(message)) {
-  //     if (message.method === InitializeRequest.type.method) {
-  //       const initializeParams = message.params as InitializeParams;
-  //       initializeParams.processId = process.pid;
-  //     }
+  forward(processConnection, serverConnection, message => {
+    if (Message.isRequest(message)) {
+      if (message.method === InitializeRequest.type.method) {
+        const initializeParams = message.params as InitializeParams;
+        initializeParams.processId = process.pid;
+      }
 
-  //     if (log) {
-  //       console.log(`${name} Server received: ${message.method}`);
-  //       console.log(message);
-  //     }
-  //   }
+      if (log) {
+        console.log(`${name} Server received: ${message.method}`);
+        console.log(message);
+      }
+    }
 
-  //   if (Message.isResponse(message) && log) {
-  //     console.log(`${name} Server sent:`);
-  //     console.log(message);
-  //   }
+    if (Message.isResponse(message) && log) {
+      console.log(`${name} Server sent:`);
+      console.log(message);
+    }
 
-  //   if (Message.isNotification(message) && log) {
-  //     console.log(`${name} Server notification:`);
-  //     console.log(message);
-  //   }
+    if (Message.isNotification(message) && log) {
+      console.log(`${name} Server notification:`);
+      console.log(message);
+    }
 
-  //   console.log({ message });
+    console.log({ message });
 
-  //   return message;
-  // });
+    return message;
+  });
 
   console.log("READY");
 }
