@@ -21,6 +21,9 @@ export const start = (port: number, log = false) => {
   const name = "SvelteLS";
 
   process.stdin.setRawMode(true);
+  process.stdin.on('data', data => {
+    console.log("DATA", data);
+  });
   const reader = new StreamMessageReader(process.stdin);
   const writer = new StreamMessageWriter(process.stdout);
   const dispose = () => {
@@ -41,7 +44,7 @@ export const start = (port: number, log = false) => {
       }
 
       if (log) {
-        console.error(`${name} Server received: ${message.method}`);
+        console.log(`${name} Server received: ${message.method}`);
         console.log(message);
       }
     }
