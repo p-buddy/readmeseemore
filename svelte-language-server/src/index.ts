@@ -20,12 +20,13 @@ const createServer = (name: string) => {
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
 
-  process.stdin.setRawMode(true);
   process.stdin.on('data', data => {
     console.log("DATA", data);
   });
+  process.stdin.setRawMode(true);
   const reader = new StreamMessageReader(process.stdin);
   const writer = new StreamMessageWriter(process.stdout);
+
   const dispose = () => {
     reader.dispose();
     writer.dispose();

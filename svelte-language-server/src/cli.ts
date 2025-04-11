@@ -14,4 +14,5 @@ const program = new Command()
 const [portArg] = program.args;
 const { port, verbose } = program.opts();
 
+console.log(`Starting Svelte Language Server (v${version})`);
 start(parseInt(portArg ?? port), verbose || false);
