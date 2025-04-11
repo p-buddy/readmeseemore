@@ -4,10 +4,6 @@ import type { Writable, Readable } from 'node:stream';
 
 type Encoding = "ascii" | "utf-8";
 
-export declare class StreamMessageWriterType extends WriteableStreamMessageWriter {
-  constructor(writable: NodeJS.WritableStream, options?: Encoding | MessageWriterOptions);
-}
-
 export class StreamMessageReader extends _StreamMessageReader implements ReadableStreamMessageReader {
   constructor(readable: Readable, encoding?: Encoding | MessageReaderOptions) {
     super(readable, encoding);
