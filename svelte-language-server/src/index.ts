@@ -1,5 +1,5 @@
 import { StreamMessageReader, StreamMessageWriter } from './jsonrpc';
-import { createConnection, createServerProcess } from 'vscode-ws-jsonrpc/server';
+import { createConnection, createServerProcess, forward } from 'vscode-ws-jsonrpc/server';
 import { Message, InitializeRequest, type InitializeParams } from 'vscode-languageserver-protocol';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +22,7 @@ const decoder = new TextDecoder();
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
   process.stdin.setRawMode(true);
+
   const reader = new StreamMessageReader(process.stdin, {
     contentDecoder: {
       name: "dummy",
@@ -41,44 +42,64 @@ export const start = (port: number, log = false) => {
     }
   });
 
-  const dispose = () => {
+  const processConnection = createConnection(reader, writer, () => {
     console.log("dispose!");
     reader.dispose();
     writer.dispose();
-  }
-  const processConnection = createConnection(reader, writer, dispose);
+  });
+
+  processConnection.forward({
+    reader: reader,
+    writer: writer,
+    forward(to, map) {
+      console.log("forward", to, map);
+    },
+    onClose() {
+      console.log("onClose");
+      return {
+        dispose() {
+          console.log("dispose");
+        }
+      }
+    },
+    dispose() {
+      console.log("dispose");
+    }
+  })
+
+
   const serverConnection = createServer(name);
 
   if (!serverConnection)
     throw new Error('Failed to spawn Svelte Language Server');
 
-  processConnection.forward(serverConnection, message => {
-    if (Message.isRequest(message)) {
-      if (message.method === InitializeRequest.type.method) {
-        const initializeParams = message.params as InitializeParams;
-        initializeParams.processId = process.pid;
-      }
+  // forward(processConnection, serverConnection, message => {
+  //   if (Message.isRequest(message)) {
+  //     if (message.method === InitializeRequest.type.method) {
+  //       const initializeParams = message.params as InitializeParams;
+  //       initializeParams.processId = process.pid;
+  //     }
 
-      if (log) {
-        console.log(`${name} Server received: ${message.method}`);
-        console.log(message);
-      }
-    }
+  //     if (log) {
+  //       console.log(`${name} Server received: ${message.method}`);
+  //       console.log(message);
+  //     }
+  //   }
 
-    if (Message.isResponse(message) && log) {
-      console.log(`${name} Server sent:`);
-      console.log(message);
-    }
+  //   if (Message.isResponse(message) && log) {
+  //     console.log(`${name} Server sent:`);
+  //     console.log(message);
+  //   }
 
-    if (Message.isNotification(message) && log) {
-      console.log(`${name} Server notification:`);
-      console.log(message);
-    }
+  //   if (Message.isNotification(message) && log) {
+  //     console.log(`${name} Server notification:`);
+  //     console.log(message);
+  //   }
 
-    console.log({ message });
+  //   console.log({ message });
 
-    return message;
-  });
+  //   return message;
+  // });
 
   console.log("READY");
 }
