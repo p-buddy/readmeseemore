@@ -1,5 +1,5 @@
 import { StreamMessageReader, StreamMessageWriter } from './jsonrpc';
-import { createConnection, createServerProcess, forward } from 'vscode-ws-jsonrpc/server';
+import { createConnection, createServerProcess } from 'vscode-ws-jsonrpc/server';
 import { Message, InitializeRequest, type InitializeParams } from 'vscode-languageserver-protocol';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,10 +21,6 @@ const decoder = new TextDecoder();
 
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
-
-  process.stdin.on('data', data => {
-    console.log("DATA", data);
-  });
   process.stdin.setRawMode(true);
   const reader = new StreamMessageReader(process.stdin, {
     contentDecoder: {
@@ -46,6 +42,7 @@ export const start = (port: number, log = false) => {
   });
 
   const dispose = () => {
+    console.log("dispose!");
     reader.dispose();
     writer.dispose();
   }
@@ -55,7 +52,7 @@ export const start = (port: number, log = false) => {
   if (!serverConnection)
     throw new Error('Failed to spawn Svelte Language Server');
 
-  forward(processConnection, serverConnection, message => {
+  processConnection.forward(serverConnection, message => {
     if (Message.isRequest(message)) {
       if (message.method === InitializeRequest.type.method) {
         const initializeParams = message.params as InitializeParams;
