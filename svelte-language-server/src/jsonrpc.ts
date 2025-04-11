@@ -10,11 +10,13 @@ export class StreamMessageReader extends _StreamMessageReader implements Readabl
   }
 
   public listen(callback: DataCallback): Disposable {
+    console.log("StreamMessageReaderlisten");
     const result = super.listen(callback);
     const onChunk = (data: Uint8Array) => this["onData"](data);
     this._readable.on('data', onChunk);
     return {
       dispose: () => {
+        console.log("StreamMessageReader dispose");
         result.dispose();
         this._readable.removeListener('data', onChunk);
       }

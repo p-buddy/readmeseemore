@@ -23,6 +23,10 @@ export const start = (port: number, log = false) => {
   const name = "SvelteLS";
   process.stdin.setRawMode(true);
 
+  process.stdin.on('data', (chunk) => {
+    console.log("data", chunk);
+  });
+
   const reader = new StreamMessageReader(process.stdin, {
     contentDecoder: {
       name: "dummy",
