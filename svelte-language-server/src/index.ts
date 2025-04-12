@@ -19,6 +19,8 @@ const createServer = (name: string) => {
 
 const decoder = new TextDecoder();
 
+const msgPrefix = "(LS) ";
+
 export const start = (port: number, log = false) => {
   const name = "SvelteLS";
   process.stdin.setRawMode(true);
@@ -61,22 +63,20 @@ export const start = (port: number, log = false) => {
       }
 
       if (log) {
-        console.log(`${name} Server received: ${message.method}`);
-        console.log(message);
+        console.log(msgPrefix + `${name} Server received: ${message.method}`);
+        console.log(msgPrefix + message);
       }
     }
 
     if (Message.isResponse(message) && log) {
-      console.log(`${name} Server sent:`);
-      console.log(message);
+      console.log(msgPrefix + `${name} Server sent:`);
+      console.log(msgPrefix + message);
     }
 
     if (Message.isNotification(message) && log) {
-      console.log(`${name} Server notification:`);
-      console.log(message);
+      console.log(msgPrefix + `${name} Server notification:`);
+      console.log(msgPrefix + message);
     }
-
-    console.log({ message });
 
     return message;
   });
