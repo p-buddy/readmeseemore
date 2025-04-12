@@ -4,6 +4,8 @@ import type { Writable, Readable } from 'node:stream';
 
 type Encoding = "ascii" | "utf-8";
 
+const decoder = new TextDecoder();
+
 export class StreamMessageReader extends _StreamMessageReader implements ReadableStreamMessageReader {
   constructor(private _readable: Readable, encoding?: Encoding | MessageReaderOptions) {
     super(_readable, encoding);
@@ -12,9 +14,8 @@ export class StreamMessageReader extends _StreamMessageReader implements Readabl
   public listen(callback: DataCallback): Disposable {
     const result = super.listen(callback);
     const onChunk = (chunk: Buffer) => {
-      console.log("onChunk", chunk);
-      const data = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-      this["onData"](data);
+      console.log("onChunk", decoder.decode(chunk));
+      this["onData"](new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
     }
     this._readable.on('data', onChunk);
     return {
@@ -23,6 +24,10 @@ export class StreamMessageReader extends _StreamMessageReader implements Readabl
         this._readable.removeListener('data', onChunk);
       }
     };
+  }
+
+  protected fireError(error: any): void {
+    console.log("fireError", error);
   }
 }
 
