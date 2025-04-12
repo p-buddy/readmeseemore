@@ -12,15 +12,15 @@ export class StreamMessageReader extends _StreamMessageReader implements Readabl
   }
 
   public listen(callback: DataCallback): Disposable {
+    const { _readable: readable } = this;
     const result = super.listen(callback);
-    const onChunk = (chunk: Buffer) => {
-      this["onData"](new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength));
-    }
-    this._readable.on('data', onChunk);
+    const onChunk = ({ buffer, byteOffset, byteLength }: Buffer) =>
+      this["onData"](new Uint8Array(buffer, byteOffset, byteLength));
+    readable.on('data', onChunk);
     return {
       dispose: () => {
         result.dispose();
-        this._readable.removeListener('data', onChunk);
+        readable.removeListener('data', onChunk);
       }
     };
   }

@@ -5,8 +5,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { name as packageName } from '../package.json';
 
-// see: https://github.com/TypeFox/monaco-languageclient/blob/main/packages/examples/src/common/node/server-commons.ts
-
 let server: ReturnType<typeof createServerProcess>;
 
 const createServer = (name: string) => {
@@ -17,35 +15,19 @@ const createServer = (name: string) => {
   return (server = createServerProcess(name, 'node', [script, "--stdio"]));
 }
 
-const decoder = new TextDecoder();
-
 const msgPrefix = "(LS) ";
+const name = "Svelte";
 
-export const start = (port: number, log = false) => {
-  const name = "SvelteLS";
+const announce = (msg: string, payload: any) =>
+  (console.log(msgPrefix + msg), console.log(msgPrefix + JSON.stringify(payload)));
+
+export const start = (log = false) => {
   process.stdin.setRawMode(true);
-
-  const reader = new StreamMessageReader(process.stdin, {
-    contentDecoder: {
-      name: "dummy",
-      decode: (chunk) => {
-        console.log("decode reader", decoder.decode(chunk));
-        return Promise.resolve(chunk);
-      }
-    }
-  });
-  const writer = new StreamMessageWriter(process.stdout, {
-    contentEncoder: {
-      name: "dummy",
-      encode: (chunk) => {
-        console.log("encode writer", decoder.decode(chunk));
-        return Promise.resolve(chunk);
-      }
-    }
-  });
+  const reader = new StreamMessageReader(process.stdin);
+  const writer = new StreamMessageWriter(process.stdout);
 
   const processConnection = createConnection(reader, writer, () => {
-    console.log("dispose!");
+    console.log(msgPrefix + `${name} dispose`);
     reader.dispose();
     writer.dispose();
   });
@@ -62,21 +44,14 @@ export const start = (port: number, log = false) => {
         initializeParams.processId = process.pid;
       }
 
-      if (log) {
-        console.log(msgPrefix + `${name} Server received: ${message.method}`);
-        console.log(msgPrefix + message);
-      }
+      if (log) announce(`Server received: ${message.method}`, message);
     }
 
-    if (Message.isResponse(message) && log) {
-      console.log(msgPrefix + `${name} Server sent:`);
-      console.log(msgPrefix + message);
-    }
+    if (Message.isResponse(message) && log)
+      announce(`Server sent:`, message);
 
-    if (Message.isNotification(message) && log) {
-      console.log(msgPrefix + `${name} Server notification:`);
-      console.log(msgPrefix + message);
-    }
+    if (Message.isNotification(message) && log)
+      announce(`Server notification:`, message);
 
     return message;
   });
