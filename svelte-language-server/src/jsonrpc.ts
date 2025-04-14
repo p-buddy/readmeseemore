@@ -4,8 +4,6 @@ import type { Writable, Readable } from 'node:stream';
 
 type Encoding = "ascii" | "utf-8";
 
-const decoder = new TextDecoder();
-
 export class StreamMessageReader extends _StreamMessageReader implements ReadableStreamMessageReader {
   constructor(private _readable: Readable, encoding?: Encoding | MessageReaderOptions) {
     super(_readable, encoding);

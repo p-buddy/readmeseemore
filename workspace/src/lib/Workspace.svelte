@@ -1,7 +1,7 @@
 <script lang="ts">
   import { isDark } from "./mode.js";
   import Tree from "./file-tree/Tree.svelte";
-  import Editor from "./Editor.svelte";
+  import Editor from "./editor/Editor.svelte";
   import { type Props as PropsOf } from "./utils/ui-framework.js";
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
   import { type FileSystemTree, type BufferEncoding } from "@webcontainer/api";

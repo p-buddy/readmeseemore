@@ -4,9 +4,10 @@ import { svelteTesting } from "@testing-library/svelte/vite";
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+//import importMetaUrlPlugin from '@codingame/esbuild-import-meta-url-plugin'
 
 export default defineConfig({
-    plugins: [nodePolyfills(), sveltekit(), tailwindcss()],
+    plugins: [nodePolyfills({ include: ['path'], }), sveltekit(), tailwindcss()],
     server: {
         host: "0.0.0.0",
     },
