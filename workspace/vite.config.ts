@@ -10,8 +10,15 @@ export default defineConfig({
     plugins: [nodePolyfills({ include: ['path'], }), sveltekit(), tailwindcss()],
     server: {
         host: "0.0.0.0",
+        headers: {
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+        }
     },
     optimizeDeps: {
+        include: [
+            "vscode-textmate",
+            "vscode-oniguruma",
+        ],
         esbuildOptions: {
             plugins: [
                 {

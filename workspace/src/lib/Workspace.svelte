@@ -1,3 +1,21 @@
+<script lang="ts" module>
+  const iterateFilesystem = async (
+    filesystem: FileSystemTree,
+    callback: (path: string, content: string) => Promise<void> | void,
+    path = "",
+  ) => {
+    for (const [key, value] of Object.entries(filesystem))
+      if ("directory" in value)
+        await iterateFilesystem(value.directory, callback, `${path}/${key}`);
+      else if (
+        "file" in value &&
+        "contents" in value.file &&
+        typeof value.file.contents === "string"
+      )
+        await callback(`${path}/${key}`, value.file.contents);
+  };
+</script>
+
 <script lang="ts">
   import { isDark } from "./mode.js";
   import Tree from "./file-tree/Tree.svelte";
@@ -19,6 +37,8 @@
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "./utils/FilePanelTracker.js";
   import "@xterm/xterm/css/xterm.css";
+  import { takeAction } from "./editor/actions.js";
+  import { tryGetLanguageByFile } from "./editor/index.js";
 
   type Props = {
     filesystem?: FileSystemTree;
@@ -52,14 +72,7 @@
   export const updateFilesystem = async (
     filesystem: FileSystemTree,
     path = "",
-  ) => {
-    for (const [key, value] of Object.entries(filesystem))
-      if ("directory" in value)
-        await updateFilesystem(value.directory, `${path}/${key}`);
-      else if ("file" in value)
-        if ("contents" in value.file && typeof value.file.contents === "string")
-          await writeFile(`${path}/${key}`, value.file.contents);
-  };
+  ) => iterateFilesystem(filesystem, writeFile, path);
 
   export const OS = <TRequire extends boolean = true>(
     require = true as TRequire,
@@ -173,6 +186,13 @@
       terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
       container.on("server-ready", async (port, url) => {});
 
+      const actionOnFile = (path: string) =>
+        takeAction(tryGetLanguageByFile(path), {
+          container,
+        });
+
+      if (filesystem) iterateFilesystem(filesystem, actionOnFile);
+
       const filePanelTracker = new FilePanelTracker();
 
       const pending = {
@@ -229,6 +249,7 @@
                   pending.rm.add(previous);
                 break;
               case "file":
+                actionOnFile(current);
                 fs.writeFile(current, await fs.readFile(previous));
                 await fs.rm(previous);
 
@@ -258,6 +279,7 @@
 
         switch (action) {
           case "add":
+            actionOnFile(path);
           case "addDir":
             if (!tree.exports.find(path)) tree.exports.add(path, type);
             break;

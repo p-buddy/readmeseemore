@@ -3,6 +3,7 @@ import { MonacoLanguageClient } from "monaco-languageclient";
 import { createMessageConnection, NotificationType, type MessageConnection, type MessageReader, type MessageWriter, type DataCallback } from 'vscode-jsonrpc';
 import type { WebContainerProcess, WebContainer } from "@webcontainer/api";
 import stripAnsi from "strip-ansi";
+import { Uri } from "@codingame/monaco-vscode-editor-api";
 
 const createReader = (process: WebContainerProcess, log = false): MessageReader => {
   let onData: DataCallback;
@@ -61,10 +62,15 @@ const transports = (process: WebContainerProcess, log = false) => ({
   writer: createWriter(process, log),
 })
 
-export const createLanguageCleint = async (process: WebContainerProcess, id: string, log = false) => {
+export const createLanguageClient = async (process: WebContainerProcess, id: string, log = false) => {
   const languageClient = new MonacoLanguageClient({
     name: `${id} Language Client`,
     clientOptions: {
+      workspaceFolder: {
+        name: "workspace",
+        uri: Uri.parse("file:///home/workspace"),
+        index: 0,
+      },
       documentSelector: [id],
       errorHandler: {
         error: () => ({ action: /*ErrorAction.Continue*/ 1 }),
@@ -117,7 +123,7 @@ export const spawnLanguageServer = async (container: WebContainer, name: string,
     msg = stripAnsi(value ?? "").trim();
     console.log(msg);
   }
-  reader.releaseLock();
   await reader.cancel();
+  reader.releaseLock();
   return proc;
 }

@@ -1,42 +1,21 @@
 <script lang="ts" module>
-  import "vscode/localExtensionHost";
-  import "@codingame/monaco-vscode-theme-defaults-default-extension";
   import * as monaco from "@codingame/monaco-vscode-editor-api";
-  import { initServices } from "monaco-languageclient/vscode/services";
+  import { MonacoEditorLanguageClientWrapper } from "monaco-editor-wrapper";
+  import { configureDefaultWorkerFactory } from "monaco-editor-wrapper/workers/workerLoaders";
   import {
     RegisteredFileSystemProvider,
     RegisteredMemoryFile,
     registerFileSystemOverlay,
   } from "@codingame/monaco-vscode-files-service-override";
-  import getLanguagesServiceOverride from "@codingame/monaco-vscode-languages-service-override";
-  import getThemeServiceOverride from "@codingame/monaco-vscode-theme-service-override";
-  import getTextMateServiceOverride from "@codingame/monaco-vscode-textmate-service-override";
-  import EditorWorker from "@codingame/monaco-vscode-editor-api/esm/vs/editor/editor.worker.js?worker";
-  import TextMateWorker from "@codingame/monaco-vscode-textmate-service-override/worker?worker";
   import { type WithLimitFs } from "../utils/fs-helper.js";
-
-  const workers = {
-    TextEditorWorker: EditorWorker,
-    TextMateWorker: TextMateWorker,
-  } as Record<string, new (options?: { name?: string }) => Worker>;
 
   type Editor = typeof monaco.editor;
   export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
-  const root = "/";
-
   const join = (...paths: (string | undefined)[]) =>
     paths.filter(Boolean).join("/");
 
-  const urify = (path: string) => monaco.Uri.parse(`file:///${path}`);
-
-  const languageByExtension = {
-    ts: "typescript",
-    js: "javascript",
-    svelte: "svelte",
-  } as const;
-
-  type Extension = keyof typeof languageByExtension;
+  const urify = (path?: string) => monaco.Uri.parse(`file:///${path ?? ""}`);
 
   const registeredLanguages = new Set<string>();
 
@@ -54,21 +33,10 @@
     registeredLanguages.add(id);
   };
 
-  const tryGetLanguageByFileExtension = (extension?: string) => {
-    if (!extension || !(extension in languageByExtension)) return;
-    return languageByExtension[extension as Extension];
-  };
-
-  const tryTakeActionByLanguage = (language?: string) => {
-    if (!language || !(language in actionsByLanguage)) return;
-    actionsByLanguage[language as keyof typeof actionsByLanguage]?.();
-  };
-
   const tryRegisterLanguageByFile = (name: string) => {
     const extension = name.split(".").pop();
     const language = tryGetLanguageByFileExtension(extension);
     if (extension && language) registerLanguage(language, extension);
-    tryTakeActionByLanguage(language);
   };
 
   const fileSystemProvider = new RegisteredFileSystemProvider(false);
@@ -79,17 +47,19 @@
   type Disposable = ReturnType<RegisteredFileSystemProvider["registerFile"]>;
   const disposableByPath = new Map<string, Disposable>();
 
-  const remove = (path: string) => {
-    referenceByPath.get(path)?.dispose();
-    referenceByPath.delete(path);
-    disposableByPath.get(path)?.dispose();
-    disposableByPath.delete(path);
+  const dispose = (map: Map<string, Disposable>, key: string) => {
+    map.get(key)?.dispose();
+    map.delete(key);
   };
 
-  const cleanup = async (location: string | undefined, valid: Set<string>) => {
-    const uri = urify(location ?? "");
-    for (const [name] of await fileSystemProvider.readdir(uri))
-      if (!valid.has(name)) remove(join(location, name));
+  const remove = (path: string) => {
+    dispose(referenceByPath, path);
+    dispose(disposableByPath, path);
+  };
+
+  const cleanup = async (directory: string | undefined, valid: Set<string>) => {
+    for (const [name] of await fileSystemProvider.readdir(urify(directory)))
+      if (!valid.has(name)) remove(join(directory, name));
   };
 
   const createFileReference = async (
@@ -97,16 +67,14 @@
     name: string,
     fs: WithLimitFs<"readFile">,
   ): Promise<Reference | undefined> => {
-    const uri = urify(path);
     if (referenceByPath.has(path)) return referenceByPath.get(path);
+    const uri = urify(path);
     const content = await fs.readFile(path, "utf-8");
     tryRegisterLanguageByFile(name);
-    disposableByPath.set(
-      path,
-      fileSystemProvider.registerFile(new RegisteredMemoryFile(uri, content)),
-    );
-    console.log(uri, content);
+    const file = new RegisteredMemoryFile(uri, content);
+    disposableByPath.set(path, fileSystemProvider.registerFile(file));
     const reference = await monaco.editor.createModelReference(uri);
+    reference.object.setLanguageId("typescript");
     referenceByPath.set(path, reference);
     return reference;
   };
@@ -138,9 +106,37 @@
     });
   };
 
-  let createModelsInProgress:
-    | ReturnType<typeof createAllReferences>
-    | undefined;
+  let createAllInProgress: ReturnType<typeof createAllReferences> | undefined;
+
+  const wrapper = new MonacoEditorLanguageClientWrapper();
+
+  const initializer = () =>
+    wrapper
+      .init({
+        $type: "extended",
+        vscodeApiConfig: {
+          enableExtHostWorker: true,
+          userConfiguration: {
+            json: JSON.stringify({
+              "workbench.colorTheme": "Default Dark Modern",
+              "typescript.tsserver.web.projectWideIntellisense.enabled": true,
+              "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": false,
+              "diffEditor.renderSideBySide": false,
+              "editor.lightbulb.enabled": "on",
+              "editor.glyphMargin": true,
+              "editor.guides.bracketPairsHorizontal": true,
+              "editor.experimental.asyncTokenization": true,
+            }),
+          },
+        },
+        editorAppConfig: {
+          monacoWorkerFactory: configureDefaultWorkerFactory,
+        },
+      })
+      .then(() => {
+        registerFileSystemOverlay(1, fileSystemProvider);
+        wrapper.getEditorApp()?.dispose();
+      });
 </script>
 
 <script lang="ts">
@@ -148,8 +144,11 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import { actionsByLanguage } from "./actions.js";
-  import { initialize } from "./index.js";
+  import {
+    initializeOnce,
+    tryGetLanguageByFile,
+    tryGetLanguageByFileExtension,
+  } from "./index.js";
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
@@ -190,37 +189,13 @@
 </script>
 
 <MountedDiv
-  class="h-full w-full pt-10"
+  class="h-full w-full pt-1"
   onMount={async (element) => {
-    await initialize(() =>
-      initServices({
-        enableExtHostWorker: true,
-        serviceOverrides: {
-          ...getLanguagesServiceOverride(),
-          ...getThemeServiceOverride(),
-          ...getTextMateServiceOverride(),
-        },
-        userConfiguration: {
-          json: JSON.stringify({
-            "workbench.colorTheme": "Default Dark Modern",
-            "editor.experimental.asyncTokenization": true,
-          }),
-        },
-      }).then(() => {
-        registerFileSystemOverlay(1, fileSystemProvider);
-        window.MonacoEnvironment!.getWorker = (moduleId, label) => {
-          console.log("getWorker", moduleId, label);
-          const Worker = workers[label];
-          if (Worker === undefined)
-            throw new Error(`Unimplemented worker ${label} (${moduleId})`);
-          return new Worker();
-        };
-      }),
-    );
+    await initializeOnce(initializer);
 
-    createModelsInProgress ??= createAllReferences(fs);
-    await createModelsInProgress;
-    createModelsInProgress = undefined;
+    createAllInProgress ??= createAllReferences(fs);
+    await createAllInProgress;
+    createAllInProgress = undefined;
 
     reference = await createFileReference(path, params.file.name, fs);
 
@@ -230,8 +205,6 @@
     editor = monaco.editor.create(element, {
       model: reference.object.textEditorModel,
     });
-
-    if (!editor) throw new Error("Editor not found");
 
     editor.onDidChangeModelContent(() => {
       fs.writeFile(path, editor!.getValue() || "", "utf-8");
