@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  import "vscode/localExtensionHost";
+  import "@codingame/monaco-vscode-theme-defaults-default-extension";
   import * as monaco from "@codingame/monaco-vscode-editor-api";
   import { initServices } from "monaco-languageclient/vscode/services";
   import {
@@ -6,32 +8,35 @@
     RegisteredMemoryFile,
     registerFileSystemOverlay,
   } from "@codingame/monaco-vscode-files-service-override";
-  import { configureDefaultWorkerFactory } from "monaco-editor-wrapper/workers/workerLoaders";
   import getLanguagesServiceOverride from "@codingame/monaco-vscode-languages-service-override";
   import getThemeServiceOverride from "@codingame/monaco-vscode-theme-service-override";
   import getTextMateServiceOverride from "@codingame/monaco-vscode-textmate-service-override";
+  import EditorWorker from "@codingame/monaco-vscode-editor-api/esm/vs/editor/editor.worker.js?worker";
+  import TextMateWorker from "@codingame/monaco-vscode-textmate-service-override/worker?worker";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
-  export type Editor = monaco.editor.IStandaloneCodeEditor;
+  const workers = {
+    TextEditorWorker: EditorWorker,
+    TextMateWorker: TextMateWorker,
+  } as Record<string, new (options?: { name?: string }) => Worker>;
 
-  const sanitize = (path: string) => {
-    while (path.startsWith("/")) path = path.slice(1);
-    return path;
-  };
+  type Editor = typeof monaco.editor;
+  export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
-  const urify = (path: string) => monaco.Uri.parse(`file:///${sanitize(path)}`);
+  const root = "/";
 
-  const matches = ({ uri }: monaco.editor.ITextModel, path: string) =>
-    sanitize(uri.path) === sanitize(path);
+  const join = (...paths: (string | undefined)[]) =>
+    paths.filter(Boolean).join("/");
+
+  const urify = (path: string) => monaco.Uri.parse(`file:///${path}`);
 
   const languageByExtension = {
     ts: "typescript",
     js: "javascript",
     svelte: "svelte",
-  };
+  } as const;
 
   type Extension = keyof typeof languageByExtension;
-  const supportedExtensions = Object.keys(languageByExtension) as Extension[];
 
   const registeredLanguages = new Set<string>();
 
@@ -49,94 +54,102 @@
     registeredLanguages.add(id);
   };
 
-  const tryRegisterExtension = (extension?: string) => {
+  const tryGetLanguageByFileExtension = (extension?: string) => {
     if (!extension || !(extension in languageByExtension)) return;
-    const language = languageByExtension[extension as Extension];
-    registerLanguage(language, extension);
+    return languageByExtension[extension as Extension];
   };
 
-  const getExistingModels = () =>
-    new Set(
-      monaco.editor.getModels().map(({ uri: { path } }) => sanitize(path)),
-    );
+  const tryTakeActionByLanguage = (language?: string) => {
+    if (!language || !(language in actionsByLanguage)) return;
+    actionsByLanguage[language as keyof typeof actionsByLanguage]?.();
+  };
+
+  const tryRegisterLanguageByFile = (name: string) => {
+    const extension = name.split(".").pop();
+    const language = tryGetLanguageByFileExtension(extension);
+    if (extension && language) registerLanguage(language, extension);
+    tryTakeActionByLanguage(language);
+  };
 
   const fileSystemProvider = new RegisteredFileSystemProvider(false);
 
-  const refByModel = new Map<
-    monaco.editor.ITextModel,
-    Awaited<ReturnType<(typeof monaco.editor)["createModelReference"]>>
-  >();
+  type Reference = Awaited<ReturnType<Editor["createModelReference"]>>;
+  const referenceByPath = new Map<string, Reference>();
 
-  const createFileModel = async (
+  type Disposable = ReturnType<RegisteredFileSystemProvider["registerFile"]>;
+  const disposableByPath = new Map<string, Disposable>();
+
+  const remove = (path: string) => {
+    referenceByPath.get(path)?.dispose();
+    referenceByPath.delete(path);
+    disposableByPath.get(path)?.dispose();
+    disposableByPath.delete(path);
+  };
+
+  const cleanup = async (location: string | undefined, valid: Set<string>) => {
+    const uri = urify(location ?? "");
+    for (const [name] of await fileSystemProvider.readdir(uri))
+      if (!valid.has(name)) remove(join(location, name));
+  };
+
+  const createFileReference = async (
     path: string,
     name: string,
     fs: WithLimitFs<"readFile">,
-    models?: Set<string>,
-  ): Promise<monaco.editor.ITextModel | null> => {
-    const { editor } = monaco;
-    const sanitized = sanitize(path);
-    const uri = urify(sanitized);
-    models ??= getExistingModels();
-    if (models.has(sanitized)) return editor.getModel(uri);
+  ): Promise<Reference | undefined> => {
+    const uri = urify(path);
+    if (referenceByPath.has(path)) return referenceByPath.get(path);
     const content = await fs.readFile(path, "utf-8");
-    tryRegisterExtension(name.split(".").pop());
-    models.add(sanitized);
-    fileSystemProvider.registerFile(new RegisteredMemoryFile(uri, content));
-    const ref = await editor.createModelReference(uri, content);
-    const model = ref.object.textEditorModel;
-    if (model) refByModel.set(model, ref);
-    return model;
+    tryRegisterLanguageByFile(name);
+    disposableByPath.set(
+      path,
+      fileSystemProvider.registerFile(new RegisteredMemoryFile(uri, content)),
+    );
+    console.log(uri, content);
+    const reference = await monaco.editor.createModelReference(uri);
+    referenceByPath.set(path, reference);
+    return reference;
   };
 
   /**
    * @todo determine the performance impact of scanning whole filesystem (including node_modules)
    */
-  const createAllCodeModels = (
+  const createAllReferences = (
     fs: WithLimitFs<"readdir" | "readFile">,
-    options?: Partial<{
-      directory: string;
-      models: Set<string>;
-    }>,
+    directory?: string,
   ) => {
-    options ??= {};
-    options.directory ??= "/";
-    options.models ??= getExistingModels();
-    const { models, directory } = options;
     return new Promise<void>(async (resolve) => {
-      const entries = await fs.readdir(directory, {
+      const entries = await fs.readdir(directory ?? "/", {
         withFileTypes: true,
       });
-      await Promise.all(
-        entries
-          .map(async (entry) => {
-            const path = `${directory}/${entry.name}`;
-            return entry.isDirectory()
-              ? createAllCodeModels(fs, {
-                  directory: sanitize(path),
-                  models,
-                })
-              : createFileModel(path, entry.name, fs, models);
-          })
-          .filter(Boolean),
-      );
+      const existing = new Set<string>(entries.map((entry) => entry.name));
+      const promises = new Array<Promise<any>>();
+      for (const entry of entries) {
+        const path = join(directory, entry.name);
+        promises.push(
+          entry.isDirectory()
+            ? createAllReferences(fs, path)
+            : createFileReference(path, entry.name, fs),
+        );
+      }
+      promises.push(cleanup(directory, existing));
+      await Promise.all(promises);
       resolve();
     });
   };
 
   let createModelsInProgress:
-    | ReturnType<typeof createAllCodeModels>
+    | ReturnType<typeof createAllReferences>
     | undefined;
-
-  let initialized: Promise<void> | undefined;
 </script>
 
 <script lang="ts">
   import type { PanelProps } from "@p-buddy/dockview-svelte";
   import type { TFile } from "../file-tree/Tree.svelte";
-  import { onDestroy, type Snippet } from "svelte";
-  import { retry } from "../utils/index.js";
-  import type { MouseEventHandler } from "svelte/elements";
+  import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
+  import { actionsByLanguage } from "./actions.js";
+  import { initialize } from "./index.js";
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
@@ -148,35 +161,30 @@
 
   const { fs, onSave } = params;
 
-  let editor = $state<Editor>();
+  let editor = $state<CodeEditor>();
+  let reference = $state<ReturnType<typeof referenceByPath.get>>();
 
   $effect(() => {
     const { name } = params.file;
     api?.setTitle(name);
   });
 
-  $effect(() => {
-    if (!editor) return;
-    retry(async () => {
-      const contents = await fs.readFile(params.file.path, "utf-8");
-      editor?.setValue(contents);
-    });
-  });
-
   onDestroy(() => {
-    const model = editor?.getModel();
-    if (model) refByModel.get(model)?.dispose() ?? model?.dispose();
     editor?.dispose();
   });
 
-  const uri = $derived(urify(params.file.path));
-
   const path = $derived.by(() => {
     const { path } = params.file;
-    const model = editor?.getModel();
-    if (model && !matches(model, path)) {
-      model.dispose();
-    }
+    if (!editor) return path;
+    const model = editor.getModel()!;
+    const previous = model.uri.path.split("/").pop()!;
+    if (previous === path) return path;
+    editor!.updateOptions({ readOnly: true });
+    createFileReference(path, params.file.name, fs).then((updated) => {
+      editor!.setModel(updated?.object.textEditorModel ?? null);
+      editor!.updateOptions({ readOnly: false });
+      remove(previous);
+    });
     return path;
   });
 </script>
@@ -184,43 +192,50 @@
 <MountedDiv
   class="h-full w-full pt-10"
   onMount={async (element) => {
-    initialized ??= initServices({
-      serviceOverrides: {
-        ...getLanguagesServiceOverride(),
-        ...getThemeServiceOverride(),
-        ...getTextMateServiceOverride(),
-      },
-      userConfiguration: {
-        json: JSON.stringify({
-          "workbench.colorTheme": "Default Dark Modern",
-          "editor.experimental.asyncTokenization": true,
-        }),
-      },
-    }).then(() => {
-      configureDefaultWorkerFactory();
-      registerFileSystemOverlay(1, fileSystemProvider);
-    });
+    await initialize(() =>
+      initServices({
+        enableExtHostWorker: true,
+        serviceOverrides: {
+          ...getLanguagesServiceOverride(),
+          ...getThemeServiceOverride(),
+          ...getTextMateServiceOverride(),
+        },
+        userConfiguration: {
+          json: JSON.stringify({
+            "workbench.colorTheme": "Default Dark Modern",
+            "editor.experimental.asyncTokenization": true,
+          }),
+        },
+      }).then(() => {
+        registerFileSystemOverlay(1, fileSystemProvider);
+        window.MonacoEnvironment!.getWorker = (moduleId, label) => {
+          console.log("getWorker", moduleId, label);
+          const Worker = workers[label];
+          if (Worker === undefined)
+            throw new Error(`Unimplemented worker ${label} (${moduleId})`);
+          return new Worker();
+        };
+      }),
+    );
 
-    await initialized;
-
-    createModelsInProgress ??= createAllCodeModels(fs);
+    createModelsInProgress ??= createAllReferences(fs);
     await createModelsInProgress;
     createModelsInProgress = undefined;
 
-    const model =
-      monaco.editor.getModel(uri) ??
-      (await createFileModel(path, params.file.name, fs));
+    reference = await createFileReference(path, params.file.name, fs);
+
+    if (!reference)
+      throw new Error(`Could not create reference for file: ${path}`);
 
     editor = monaco.editor.create(element, {
-      model,
+      model: reference.object.textEditorModel,
     });
 
     if (!editor) throw new Error("Editor not found");
 
     editor.onDidChangeModelContent(() => {
-      fs.writeFile(params.file.path, editor!.getValue() || "", "utf-8");
-      const model = editor!.getModel();
-      if (model) refByModel.get(model)?.object.save();
+      fs.writeFile(path, editor!.getValue() || "", "utf-8");
+      referenceByPath.get(path)?.object.save();
     });
 
     editor.onKeyDown((e) => {
