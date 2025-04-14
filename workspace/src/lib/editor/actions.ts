@@ -1,6 +1,6 @@
 import type { WebContainer } from "@webcontainer/api";
 import { type SupportedLanguage, onInit } from "./index.js";
-import { createLanguageClient, spawnLanguageServer } from "$lib/language-server.js";
+import { ConnectionTester, createLanguageClient, spawnLanguageServer } from "$lib/language-server.js";
 type Payload = {
   container: WebContainer;
 };
@@ -34,7 +34,10 @@ export const actionsByLanguage = {
         flags: ["verbose"],
       },
     );
-    onInit(() => createLanguageClient(proc, "svelte", true));
+    onInit(() => {
+      //const client = createLanguageClient(proc, "svelte", true);
+      new ConnectionTester(proc).test("testNotification", "Hello World");
+    });
   })
 } satisfies Partial<Record<SupportedLanguage, Action>>;
 

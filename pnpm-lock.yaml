@@ -197,18 +197,9 @@ importers:
       monaco-languageclient:
         specifier: 9.6.0-next.0
         version: 9.6.0-next.0
-      react:
-        specifier: ^18.2.0
-        version: 18.2.0
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.2.0(react@18.2.0)
       strip-ansi:
         specifier: ^7.1.0
         version: 7.1.0
-      svelte-preprocess-react:
-        specifier: ^2.1.0
-        version: 2.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(svelte@5.21.0)
       vscode-jsonrpc:
         specifier: ^8.2.1
         version: 8.2.1
@@ -3447,11 +3438,6 @@ packages:
     resolution: {integrity: sha512-RmkhL8CAyCRPXCE28MMH0z2PNWQBNk2Q09ZdxM9IOOXwxwZbN+qbWaatPkdkWIKL2ZVDImrN/pK5HTRz2PcS4g==}
     engines: {node: '>= 0.8'}
 
-  react-dom@18.2.0:
-    resolution: {integrity: sha512-6IMTriUmvsjHUjNtEDudZfuDQUoWXVxKHhlEGSk81n4YFS+r/Kl99wXiwlVXtPBtJenozv2P+hxDsw9eA7Xo6g==}
-    peerDependencies:
-      react: ^18.2.0
-
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
@@ -3538,9 +3524,6 @@ packages:
   saxes@6.0.0:
     resolution: {integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==}
     engines: {node: '>=v12.22.7'}
-
-  scheduler@0.23.0:
-    resolution: {integrity: sha512-CtuThmgHNg7zIZWAXi3AsyIzA3n4xx7aNyjwC2VJldO2LMVDhFK+63xGqq6CsJH4rTAt6/M+N4GhZiDYPx9eUw==}
 
   semver@7.5.4:
     resolution: {integrity: sha512-1bCSESV6Pv+i21Hvpxp3Dx+pSD8lIPt8uVjRrxAUt/nbswYc+tK6Y2btiULjd4+fnq15PX+nqQDC7Oft7WkwcA==}
@@ -3700,13 +3683,6 @@ packages:
     resolution: {integrity: sha512-OfUa/0jt0om1O6xWjML7I4C4ruvX7BrX5eSAk1DnjhJwYdvR8jHnmgio1HIkL6IcCsaxFFqfPVyIu42Sop+fMg==}
     engines: {node: '>= 18.0.0'}
     hasBin: true
-
-  svelte-preprocess-react@2.1.0:
-    resolution: {integrity: sha512-hCmJj5W9i40GjGuhvKvhKqizROyWOT4gi9M60s7wqIk6/P43j8g8J2i/SOSHChYqE4J2yR/o+kU1SnjPIDo1kQ==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-      svelte: '>=5.0.0'
 
   svelte2tsx@0.7.34:
     resolution: {integrity: sha512-WTMhpNhFf8/h3SMtR5dkdSy2qfveomkhYei/QW9gSPccb0/b82tjHvLop6vT303ZkGswU/da1s6XvrLgthQPCw==}
@@ -8029,12 +8005,6 @@ snapshots:
       iconv-lite: 0.6.3
       unpipe: 1.0.0
 
-  react-dom@18.2.0(react@18.2.0):
-    dependencies:
-      loose-envify: 1.4.0
-      react: 18.2.0
-      scheduler: 0.23.0
-
   react-is@17.0.2: {}
 
   react-is@18.3.1: {}
@@ -8167,10 +8137,6 @@ snapshots:
     dependencies:
       xmlchars: 2.2.0
     optional: true
-
-  scheduler@0.23.0:
-    dependencies:
-      loose-envify: 1.4.0
 
   semver@7.5.4:
     dependencies:
@@ -8377,14 +8343,6 @@ snapshots:
       vscode-uri: 3.0.8
     transitivePeerDependencies:
       - picomatch
-
-  svelte-preprocess-react@2.1.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(svelte@5.21.0):
-    dependencies:
-      estree-walker: 3.0.3
-      magic-string: 0.30.17
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      svelte: 5.21.0
 
   svelte2tsx@0.7.34(svelte@5.21.0)(typescript@5.8.2):
     dependencies:

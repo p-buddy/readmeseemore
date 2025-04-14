@@ -18,16 +18,36 @@ const createServer = (name: string) => {
 const msgPrefix = "(LS) ";
 const name = "Svelte";
 
-const announce = (msg: string, payload: any) =>
-  (console.log(msgPrefix + msg), console.log(msgPrefix + JSON.stringify(payload)));
+const announce = (msg: string, payload: any) => {
+  console.log(msgPrefix + msg);
+  console.log(msgPrefix + JSON.stringify(payload));
+};
 
 export const start = (log = false) => {
   process.stdin.setRawMode(true);
-  const reader = new StreamMessageReader(process.stdin);
-  const writer = new StreamMessageWriter(process.stdout);
+
+  const decoder = new TextDecoder();
+  const reader = new StreamMessageReader(process.stdin, {
+    contentDecoder: {
+      name: "dummy",
+      decode: (chunk) => {
+        console.log("decode reader", decoder.decode(chunk));
+        return Promise.resolve(chunk);
+      }
+    }
+  });
+  const writer = new StreamMessageWriter(process.stdout, {
+    contentEncoder: {
+      name: "dummy",
+      encode: (chunk) => {
+        console.log("encode writer", decoder.decode(chunk));
+        return Promise.resolve(chunk);
+      }
+    }
+  });
 
   const err = new StreamMessageReader(process.stderr);
-  const errListener = err.listen(msg => console.log(msgPrefix + `Error: ${msg}`));
+  const errListener = err.listen(msg => announce("Error", msg));
 
   const processConnection = createConnection(reader, writer, () => {
     console.log(msgPrefix + `${name} dispose`);

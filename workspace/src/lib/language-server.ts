@@ -68,7 +68,7 @@ export const createLanguageClient = async (process: WebContainerProcess, id: str
     clientOptions: {
       workspaceFolder: {
         name: "workspace",
-        uri: Uri.parse("file:///home/workspace"),
+        uri: Uri.parse("file:///home/workspace/"),
         index: 0,
       },
       documentSelector: [id],
@@ -113,7 +113,7 @@ export const spawnLanguageServer = async (container: WebContainer, name: string,
     `${pkgPrefix}${name}`,
     ...args,
     ...flags,
-    ...Object.entries(opts).map(([k, v]) => `--${k} ${v}`),
+    ...Object.entries(opts).flatMap(([k, v]) => [`--${k}`, v]),
   ]);
 
   const reader = proc.output.getReader();
@@ -125,5 +125,6 @@ export const spawnLanguageServer = async (container: WebContainer, name: string,
   }
   await reader.cancel();
   reader.releaseLock();
+
   return proc;
 }

@@ -9,7 +9,9 @@ const program = new Command()
   .option('-v, --verbose', 'verbose output')
   .parse();
 
-const { verbose } = program.opts();
+const options = program.opts();
 
-console.log(`Starting Svelte Language Server (v${version})`);
-start(verbose || false);
+const flags = Object.entries(options).map(([key, value]) => `${key}: ${value}`).join(', ');
+console.log(`Starting Svelte Language Server (v${version}, flags: ${flags})`);
+
+start(options.verbose || false);

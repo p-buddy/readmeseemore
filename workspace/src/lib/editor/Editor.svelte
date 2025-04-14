@@ -144,11 +144,7 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import {
-    initializeOnce,
-    tryGetLanguageByFile,
-    tryGetLanguageByFileExtension,
-  } from "./index.js";
+  import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
