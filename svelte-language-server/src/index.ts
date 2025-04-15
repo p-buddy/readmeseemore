@@ -29,15 +29,10 @@ export const start = (log = false) => {
   const reader = new StreamMessageReader(process.stdin);
   const writer = new StreamMessageWriter(process.stdout);
 
-  const err = new StreamMessageReader(process.stderr);
-  const errListener = err.listen(msg => announce("Error", msg));
-
   const processConnection = createConnection(reader, writer, () => {
     console.log(msgPrefix + `${name} dispose`);
     reader.dispose();
     writer.dispose();
-    errListener.dispose();
-    err.dispose();
   });
 
   const serverConnection = createServer(name);
