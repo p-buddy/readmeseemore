@@ -1,5 +1,4 @@
 import { type MessageReaderOptions, type MessageWriterOptions, ReadableStreamMessageReader, WriteableStreamMessageWriter, type Disposable } from "vscode-jsonrpc";
-import type { TranscodeEncoding } from "node:buffer";
 
 type Encoding = "ascii" | "utf-8";
 
@@ -72,21 +71,14 @@ class WritableStreamWrapper implements _WritableStream {
     return disosable(() => this.stream.off('end', listener));
   }
 
-  public write(data: Uint8Array | string, encoding?: TranscodeEncoding): Promise<void> {
+  public write(data: Uint8Array | string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const callback = (error: Error | undefined | null) => {
-        if (error === undefined || error === null) {
-          resolve();
-        } else {
-          reject(error);
-        }
-      };
-      console.log(`(LS) write ${typeof data} (enc: ${encoding}): ${typeof data === 'string' ? data : decoder.decode(data)}`);
-      if (typeof data === 'string') {
-        this.stream.write(encoder.encode(data), callback);
-      } else {
-        this.stream.write(data, callback);
-      }
+      const callback = (error: Error | undefined | null) =>
+        error ? resolve() : reject(error);
+      this.stream.write(
+        typeof data === 'string' ? encoder.encode(data) : data,
+        callback
+      );
     });
   }
 

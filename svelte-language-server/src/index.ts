@@ -15,22 +15,21 @@ const createServer = (name: string) => {
   return (server = createServerProcess(name, 'node', [script, "--stdio"]));
 }
 
-const msgPrefix = "(LS) ";
+const msgPrefix = "(LS)";
 const name = "Svelte";
 
-const announce = (msg: string, payload: any) => {
-  console.log(msgPrefix + msg);
-  console.log(msgPrefix + JSON.stringify(payload));
-};
+const announce = (msg: string, payload?: any) => console.log(
+  `${msgPrefix} (${name}) ${msg}${payload ? ":\n" + JSON.stringify(payload) : ""}`
+);
 
 export const start = (log = false) => {
   process.stdin.setRawMode(true);
 
-  const reader = new StreamMessageReader(process.stdin, "utf-8");
-  const writer = new StreamMessageWriter(process.stdout, "utf-8");
+  const reader = new StreamMessageReader(process.stdin);
+  const writer = new StreamMessageWriter(process.stdout);
 
   const processConnection = createConnection(reader, writer, () => {
-    console.log(msgPrefix + `${name} dispose`);
+    announce("dispose");
     reader.dispose();
     writer.dispose();
   });
