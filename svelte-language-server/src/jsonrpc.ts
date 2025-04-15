@@ -22,6 +22,7 @@ interface _WritableStream {
 const disosable = (fn: () => void) => ({ dispose: fn })
 
 const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 // https://github.com/microsoft/vscode-languageserver-node/blob/df05883f34b39255d40d68cef55caf2e93cff35f/jsonrpc/src/node/ril.ts#L48
 class ReadableStreamWrapper implements _ReadableStream {
@@ -82,7 +83,7 @@ class WritableStreamWrapper implements _WritableStream {
       };
       console.log(`(LS) write ${typeof data} (enc: ${encoding}): ${typeof data === 'string' ? data : decoder.decode(data)}`);
       if (typeof data === 'string') {
-        this.stream.write(data, "utf-8", callback);
+        this.stream.write(encoder.encode(data), callback);
       } else {
         this.stream.write(data, callback);
       }
