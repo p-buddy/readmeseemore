@@ -123,7 +123,6 @@ export const spawnLanguageServer = async (container: WebContainer, name: string,
     msg = stripAnsi(value ?? "").trim();
     console.log(msg);
   }
-  await reader.cancel();
   reader.releaseLock();
 
   return proc;

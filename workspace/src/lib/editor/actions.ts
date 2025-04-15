@@ -35,8 +35,8 @@ export const actionsByLanguage = {
       },
     );
     onInit(() => {
-      //const client = createLanguageClient(proc, "svelte", true);
-      new ConnectionTester(proc).test("testNotification", "Hello World");
+      const client = createLanguageClient(proc, "svelte", true);
+      //new ConnectionTester(proc).test("testNotification", "Hello World");
     });
   })
 } satisfies Partial<Record<SupportedLanguage, Action>>;
