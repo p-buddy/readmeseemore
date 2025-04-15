@@ -74,7 +74,8 @@ class WritableStreamWrapper implements _WritableStream {
     return new Promise((resolve, reject) => {
       this.stream.write(
         typeof data === 'string' ? encoder.encode(data) : data,
-        (error?: Error | null) => error ? resolve() : reject(error)
+        (error?: Error | null) =>
+          error === undefined || error === null ? resolve() : reject(error)
       );
     });
   }
