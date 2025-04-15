@@ -26,8 +26,8 @@ const announce = (msg: string, payload: any) => {
 export const start = (log = false) => {
   process.stdin.setRawMode(true);
 
-  const reader = new StreamMessageReader(process.stdin);
-  const writer = new StreamMessageWriter(process.stdout);
+  const reader = new StreamMessageReader(process.stdin, "utf-8");
+  const writer = new StreamMessageWriter(process.stdout, "utf-8");
 
   const processConnection = createConnection(reader, writer, () => {
     console.log(msgPrefix + `${name} dispose`);
