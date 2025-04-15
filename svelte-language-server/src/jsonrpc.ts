@@ -1,35 +1,105 @@
-import type { DataCallback, MessageReaderOptions, MessageWriterOptions, ReadableStreamMessageReader, WriteableStreamMessageWriter, Disposable } from "vscode-jsonrpc";
-import { StreamMessageReader as _StreamMessageReader, StreamMessageWriter as _StreamMessageWriter } from "../node_modules/vscode-jsonrpc/lib/node/main";
-import type { Writable, Readable } from 'node:stream';
+import { type MessageReaderOptions, type MessageWriterOptions, ReadableStreamMessageReader, WriteableStreamMessageWriter, type Disposable } from "vscode-jsonrpc";
+import type { TranscodeEncoding } from "node:buffer";
 
 type Encoding = "ascii" | "utf-8";
 
-export class StreamMessageReader extends _StreamMessageReader implements ReadableStreamMessageReader {
-  constructor(private _readable: Readable, encoding?: Encoding | MessageReaderOptions) {
-    super(_readable, encoding);
+interface _ReadableStream {
+  onData(listener: (data: Uint8Array) => void): Disposable;
+  onClose(listener: () => void): Disposable;
+  onError(listener: (error: any) => void): Disposable;
+  onEnd(listener: () => void): Disposable;
+}
+
+interface _WritableStream {
+  onClose(listener: () => void): Disposable;
+  onError(listener: (error: any) => void): Disposable;
+  onEnd(listener: () => void): Disposable;
+  write(data: Uint8Array): Promise<void>;
+  write(data: string, encoding: Encoding): Promise<void>;
+  end(): void;
+}
+
+const disosable = (fn: () => void) => ({ dispose: fn })
+
+// https://github.com/microsoft/vscode-languageserver-node/blob/df05883f34b39255d40d68cef55caf2e93cff35f/jsonrpc/src/node/ril.ts#L48
+class ReadableStreamWrapper implements _ReadableStream {
+
+  constructor(private stream: NodeJS.ReadableStream) {
   }
 
-  public listen(callback: DataCallback): Disposable {
-    const { _readable: readable } = this;
-    const result = super.listen(callback);
-    const onChunk = ({ buffer, byteOffset, byteLength }: Buffer) =>
-      this["onData"](new Uint8Array(buffer, byteOffset, byteLength));
-    readable.on('data', onChunk);
-    return {
-      dispose: () => {
-        result.dispose();
-        readable.removeListener('data', onChunk);
-      }
-    };
+  public onClose(listener: () => void): Disposable {
+    this.stream.on('close', listener);
+    return disosable(() => this.stream.off('close', listener));
   }
 
-  protected fireError(error: any): void {
-    console.log("(LS) fireError", error);
+  public onError(listener: (error: any) => void): Disposable {
+    this.stream.on('error', listener);
+    return disosable(() => this.stream.off('error', listener));
+  }
+
+  public onEnd(listener: () => void): Disposable {
+    this.stream.on('end', listener);
+    return disosable(() => this.stream.off('end', listener));
+  }
+
+  public onData(listener: (data: Uint8Array) => void): Disposable {
+    this.stream.on('data', listener);
+    return disosable(() => this.stream.off('data', listener));
   }
 }
 
-export class StreamMessageWriter extends _StreamMessageWriter implements WriteableStreamMessageWriter {
-  constructor(writable: Writable, options?: Encoding | MessageWriterOptions) {
-    super(writable, options);
+//https://github.com/microsoft/vscode-languageserver-node/blob/df05883f34b39255d40d68cef55caf2e93cff35f/jsonrpc/src/node/ril.ts#L74
+class WritableStreamWrapper implements _WritableStream {
+
+  constructor(private stream: NodeJS.WritableStream) {
+  }
+
+  public onClose(listener: () => void): Disposable {
+    this.stream.on('close', listener);
+    return disosable(() => this.stream.off('close', listener));
+  }
+
+  public onError(listener: (error: any) => void): Disposable {
+    this.stream.on('error', listener);
+    return disosable(() => this.stream.off('error', listener));
+  }
+
+  public onEnd(listener: () => void): Disposable {
+    this.stream.on('end', listener);
+    return disosable(() => this.stream.off('end', listener));
+  }
+
+  public write(data: Uint8Array | string, encoding?: TranscodeEncoding): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const callback = (error: Error | undefined | null) => {
+        if (error === undefined || error === null) {
+          resolve();
+        } else {
+          reject(error);
+        }
+      };
+      if (typeof data === 'string') {
+        if (!encoding) throw new Error('Encoding is required');
+        this.stream.write(data, encoding, callback);
+      } else {
+        this.stream.write(data, callback);
+      }
+    });
+  }
+
+  public end(): void {
+    this.stream.end();
+  }
+}
+
+export class StreamMessageReader extends ReadableStreamMessageReader {
+  public constructor(readable: NodeJS.ReadableStream, encoding?: Encoding | MessageReaderOptions) {
+    super(new ReadableStreamWrapper(readable), encoding);
+  }
+}
+
+export class StreamMessageWriter extends WriteableStreamMessageWriter {
+  public constructor(writable: NodeJS.WritableStream, options?: Encoding | MessageWriterOptions) {
+    super(new WritableStreamWrapper(writable), options);
   }
 }
