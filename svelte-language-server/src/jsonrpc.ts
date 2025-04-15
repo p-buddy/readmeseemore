@@ -20,7 +20,6 @@ interface _WritableStream {
 
 const disosable = (fn: () => void) => ({ dispose: fn })
 
-const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
 // https://github.com/microsoft/vscode-languageserver-node/blob/df05883f34b39255d40d68cef55caf2e93cff35f/jsonrpc/src/node/ril.ts#L48
@@ -73,11 +72,9 @@ class WritableStreamWrapper implements _WritableStream {
 
   public write(data: Uint8Array | string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const callback = (error: Error | undefined | null) =>
-        error ? resolve() : reject(error);
       this.stream.write(
         typeof data === 'string' ? encoder.encode(data) : data,
-        callback
+        (error?: Error | null) => error ? resolve() : reject(error)
       );
     });
   }
