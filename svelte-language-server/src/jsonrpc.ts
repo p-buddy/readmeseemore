@@ -82,7 +82,7 @@ class WritableStreamWrapper implements _WritableStream {
       };
       console.log(`(LS) write ${typeof data} (enc: ${encoding}): ${typeof data === 'string' ? data : decoder.decode(data)}`);
       if (typeof data === 'string') {
-        this.stream.write(data, encoding, callback);
+        this.stream.write(data, "utf-8", callback);
       } else {
         this.stream.write(data, callback);
       }
