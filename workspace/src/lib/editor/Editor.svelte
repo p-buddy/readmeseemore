@@ -55,14 +55,14 @@
   type Disposable = ReturnType<RegisteredFileSystemProvider["registerFile"]>;
   const disposableByPath = new Map<string, Disposable>();
 
-  const dispose = (map: Map<string, Disposable>, key: string) => {
+  const drop = (map: Map<string, Disposable>, key: string) => {
     map.get(key)?.dispose();
     map.delete(key);
   };
 
   const remove = (path: string) => {
-    dispose(referenceByPath, path);
-    dispose(disposableByPath, path);
+    drop(referenceByPath, path);
+    drop(disposableByPath, path);
   };
 
   const cleanup = async (directory: string | undefined, valid: Set<string>) => {
@@ -184,16 +184,16 @@
 
   let editor: CodeEditor | undefined;
   let futureEditor: Promise<CodeEditor> | undefined;
-  let element: HTMLElement;
+  let element = $state<HTMLDivElement>();
 
-  let version = 0;
+  let version = Number.MIN_SAFE_INTEGER;
 
-  const setEditor = async (promise: Promise<CodeEditor>) => {
+  const awaitEditor = async (promise: Promise<CodeEditor>) => {
     const current = ++version;
     futureEditor = promise;
-    const update = await promise;
-    if (current !== version) return;
-    editor = update;
+    const instance = await promise;
+    if (current !== version) return instance.dispose();
+    editor = instance;
     if (futureEditor === promise) futureEditor = undefined;
   };
 
@@ -201,7 +201,7 @@
 
   api?.onDidVisibilityChange((visible) => {
     if (!visible || !element || editor) return;
-    setEditor(createAndAttachEditor(element, params));
+    awaitEditor(createAndAttachEditor(element, params));
   });
 
   onDestroy(() => editor?.dispose());
@@ -215,17 +215,17 @@
     editor.dispose();
     editor = undefined;
     remove(previous);
+    const value = model.getValue();
     if (api?.isVisible)
-      setEditor(createAndAttachEditor(element, params, model.getValue()));
-    else createFileReference(params.fs, path, model.getValue());
+      awaitEditor(createAndAttachEditor(element, params, value));
+    else createFileReference(params.fs, path, value);
   });
 </script>
 
 <MountedDiv
   class="h-full w-full pt-1"
-  onMount={async (_element) => {
-    element = _element;
-
+  bind:element
+  onMount={async (element) => {
     await initializeOnce(initializer);
 
     createAllInProgress ??= createAllReferences(params.fs);

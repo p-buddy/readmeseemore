@@ -4,13 +4,18 @@
   type Props = {
     class?: string;
     style?: string;
-    onMount: (root: HTMLDivElement) => void;
+    onMount?: (element: HTMLDivElement) => void;
+    element?: HTMLDivElement;
   };
 
-  let { class: _class, style, onMount: _onMount }: Props = $props();
-  let root: HTMLDivElement;
+  let {
+    class: _class,
+    style,
+    onMount: mount,
+    element = $bindable(),
+  }: Props = $props();
 
-  onMount(() => _onMount(root));
+  if (mount) onMount(() => mount(element!));
 </script>
 
-<div bind:this={root} class={_class ?? ""} style={style ?? ""}></div>
+<div bind:this={element} class={_class ?? ""} style={style ?? ""}></div>
