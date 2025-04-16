@@ -37,7 +37,7 @@
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "./utils/FilePanelTracker.js";
   import "@xterm/xterm/css/xterm.css";
-  import { takeAction } from "./editor/actions.js";
+  import { killSpawnedLanguageServer, takeAction } from "./editor/actions.js";
   import { tryGetLanguageByFile } from "./editor/index.js";
 
   type Props = {
@@ -282,6 +282,12 @@
             actionOnFile(path);
           case "addDir":
             if (!tree.exports.find(path)) tree.exports.add(path, type);
+            if (path.endsWith("xx")) {
+              console.log("killing svelte");
+              killSpawnedLanguageServer("svelte").then((result) =>
+                console.log("killed", result),
+              );
+            }
             break;
           case "unlink":
             tree.exports.remove(path);

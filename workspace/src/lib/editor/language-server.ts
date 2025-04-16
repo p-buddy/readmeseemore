@@ -9,8 +9,13 @@ const createReader = (process: WebContainerProcess, log = false): MessageReader 
   let onData: DataCallback;
   const stream = new WritableStream<string>({
     write: (chunk) => {
+      const stripped = stripAnsi(chunk);
       try {
-        const parsed = JSON.parse(stripAnsi(chunk));
+        if (stripped.startsWith("Content-Length:")) {
+          console.log("content-length msg", stripped);
+          return;
+        }
+        const parsed = JSON.parse(stripped);
         if (parsed.jsonrpc) {
           onData?.(parsed);
           if (log) console.log("received jsonrpc message", parsed);
@@ -18,12 +23,13 @@ const createReader = (process: WebContainerProcess, log = false): MessageReader 
           console.log("received non-jsonrpc message", parsed);
       }
       catch (e) {
-        if (log && chunk.startsWith("(LS)")) console.log("Msg from Language Server", chunk);
-        else console.error("Unable to parse chunk", chunk, e);
+        if (log && stripped.startsWith("(LS)")) console.log("[FROM LANGUAGE SERVER]", stripped);
+        else console.error("Unable to parse chunk", stripped, e);
       }
     }
   });
-  process.output.pipeTo(stream);
+  const controller = new AbortController();
+  process.output.pipeTo(stream, { signal: controller.signal });
   return {
     onError: () => ({ dispose: () => { } }),
     onClose: () => ({ dispose: () => { } }),
@@ -33,7 +39,7 @@ const createReader = (process: WebContainerProcess, log = false): MessageReader 
       return { dispose: () => { } }
     },
     dispose: () => {
-      stream.close();
+      controller.abort("dispose");
     }
   }
 }
@@ -41,7 +47,6 @@ const createReader = (process: WebContainerProcess, log = false): MessageReader 
 const createWriter = (process: WebContainerProcess, log = false): MessageWriter => {
   const writer = process.input.getWriter();
   const end = () => {
-    writer.close();
     writer.releaseLock();
   }
   return {

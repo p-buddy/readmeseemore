@@ -9,13 +9,20 @@
   } from "@codingame/monaco-vscode-files-service-override";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
+  type Props = {
+    fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
+    file: Pick<TFile, "name" | "path">;
+    onSave: (path: Pick<TFile, "name" | "path">) => void;
+  };
+
   type Editor = typeof monaco.editor;
   export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
   const join = (...paths: (string | undefined)[]) =>
     paths.filter(Boolean).join("/");
 
-  const urify = (path?: string) => monaco.Uri.parse(`file:///${path ?? ""}`);
+  const urify = (path?: string) =>
+    monaco.Uri.parse(`file:///home/workspace/${path ?? ""}`);
 
   const registeredLanguages = new Set<string>();
 
@@ -33,8 +40,9 @@
     registeredLanguages.add(id);
   };
 
-  const tryRegisterLanguageByFile = (name: string) => {
-    const extension = name.split(".").pop();
+  const tryRegisterLanguageByFile = (path: string) => {
+    const index = path.lastIndexOf(".");
+    const extension = index > 0 ? path.slice(index + 1) : undefined;
     const language = tryGetLanguageByFileExtension(extension);
     if (extension && language) registerLanguage(language, extension);
   };
@@ -63,18 +71,17 @@
   };
 
   const createFileReference = async (
-    path: string,
-    name: string,
     fs: WithLimitFs<"readFile">,
-  ): Promise<Reference | undefined> => {
-    if (referenceByPath.has(path)) return referenceByPath.get(path);
+    path: string,
+    content?: string,
+  ): Promise<Reference> => {
+    if (referenceByPath.has(path)) return referenceByPath.get(path)!;
     const uri = urify(path);
-    const content = await fs.readFile(path, "utf-8");
-    tryRegisterLanguageByFile(name);
+    content ??= await fs.readFile(path, "utf-8");
+    tryRegisterLanguageByFile(path);
     const file = new RegisteredMemoryFile(uri, content);
     disposableByPath.set(path, fileSystemProvider.registerFile(file));
     const reference = await monaco.editor.createModelReference(uri);
-    reference.object.setLanguageId("typescript");
     referenceByPath.set(path, reference);
     return reference;
   };
@@ -97,10 +104,10 @@
         promises.push(
           entry.isDirectory()
             ? createAllReferences(fs, path)
-            : createFileReference(path, entry.name, fs),
+            : createFileReference(fs, path),
         );
       }
-      promises.push(cleanup(directory, existing));
+      if (referenceByPath.size > 0) promises.push(cleanup(directory, existing));
       await Promise.all(promises);
       resolve();
     });
@@ -137,6 +144,33 @@
         registerFileSystemOverlay(1, fileSystemProvider);
         wrapper.getEditorApp()?.dispose();
       });
+
+  const createAndAttachEditor = async (
+    element: HTMLElement,
+    { fs, file, onSave }: Props,
+    content?: string,
+  ) => {
+    const { path } = file;
+    const { object } = await createFileReference(fs, path, content);
+
+    const editor = monaco.editor.create(element, {
+      model: object.textEditorModel,
+    });
+
+    editor.onDidChangeModelContent(() => {
+      fs.writeFile(path, editor!.getValue() || "", "utf-8");
+      object.save();
+    });
+
+    editor.onKeyDown((e) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
+        e.preventDefault();
+        onSave(file);
+      }
+    });
+
+    return editor;
+  };
 </script>
 
 <script lang="ts">
@@ -146,72 +180,58 @@
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
   import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
 
-  type Props = {
-    fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
-    file: Pick<TFile, "name" | "path">;
-    onSave: (path: Pick<TFile, "name" | "path">) => void;
-  };
-
   let { params, api }: PanelProps<"dock", Props> = $props();
 
-  const { fs, onSave } = params;
+  let editor: CodeEditor | undefined;
+  let futureEditor: Promise<CodeEditor> | undefined;
+  let element: HTMLElement;
 
-  let editor = $state<CodeEditor>();
-  let reference = $state<ReturnType<typeof referenceByPath.get>>();
+  let version = 0;
+
+  const setEditor = async (promise: Promise<CodeEditor>) => {
+    const current = ++version;
+    futureEditor = promise;
+    const update = await promise;
+    if (current !== version) return;
+    editor = update;
+    if (futureEditor === promise) futureEditor = undefined;
+  };
+
+  $effect(() => api?.setTitle(params.file.name));
+
+  api?.onDidVisibilityChange((visible) => {
+    if (!visible || !element || editor) return;
+    setEditor(createAndAttachEditor(element, params));
+  });
+
+  onDestroy(() => editor?.dispose());
 
   $effect(() => {
-    const { name } = params.file;
-    api?.setTitle(name);
-  });
-
-  onDestroy(() => {
-    editor?.dispose();
-  });
-
-  const path = $derived.by(() => {
     const { path } = params.file;
-    if (!editor) return path;
+    if (!editor || !element) return;
     const model = editor.getModel()!;
-    const previous = model.uri.path.split("/").pop()!;
-    if (previous === path) return path;
-    editor!.updateOptions({ readOnly: true });
-    createFileReference(path, params.file.name, fs).then((updated) => {
-      editor!.setModel(updated?.object.textEditorModel ?? null);
-      editor!.updateOptions({ readOnly: false });
-      remove(previous);
-    });
-    return path;
+    const previous = model.uri.path;
+    if (previous === path) return;
+    editor.dispose();
+    editor = undefined;
+    remove(previous);
+    if (api?.isVisible)
+      setEditor(createAndAttachEditor(element, params, model.getValue()));
+    else createFileReference(params.fs, path, model.getValue());
   });
 </script>
 
 <MountedDiv
   class="h-full w-full pt-1"
-  onMount={async (element) => {
+  onMount={async (_element) => {
+    element = _element;
+
     await initializeOnce(initializer);
 
-    createAllInProgress ??= createAllReferences(fs);
+    createAllInProgress ??= createAllReferences(params.fs);
     await createAllInProgress;
     createAllInProgress = undefined;
 
-    reference = await createFileReference(path, params.file.name, fs);
-
-    if (!reference)
-      throw new Error(`Could not create reference for file: ${path}`);
-
-    editor = monaco.editor.create(element, {
-      model: reference.object.textEditorModel,
-    });
-
-    editor.onDidChangeModelContent(() => {
-      fs.writeFile(path, editor!.getValue() || "", "utf-8");
-      referenceByPath.get(path)?.object.save();
-    });
-
-    editor.onKeyDown((e) => {
-      if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
-        e.preventDefault();
-        onSave(params.file);
-      }
-    });
+    editor = await createAndAttachEditor(element, params);
   }}
 />
