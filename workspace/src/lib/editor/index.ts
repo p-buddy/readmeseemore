@@ -1,3 +1,5 @@
+import type { WithLimitFs } from "$lib/utils/fs-helper.js";
+
 let initializing: Promise<void> | undefined;
 let initialized = false;
 
@@ -34,6 +36,74 @@ export const tryGetLanguageByFileExtension = (extension?: string) => {
 };
 
 export const tryGetLanguageByFile = (path?: string) => {
-  const extension = path?.split(".").pop();
+  if (!path) return;
+  const index = path.lastIndexOf(".");
+  if (index < 0) return;
+  const extension = path.slice(index + 1);
   return tryGetLanguageByFileExtension(extension);
 };
+
+const fileRoot = "file:///";
+
+const esmImportRegex = () => /^\s*import\s+(?:{[^{}]+}|.*?)\s*(?:from)?\s*['"](.*?)['"]|import\(.*?\)/g;
+
+// can assume that any node_modules file, once scanned, does not need to be scanned again
+
+const resolvedImports = new Map<string, Set<string>>();
+
+const getDirectory = (path: string) => {
+  const index = path.lastIndexOf("/");
+  if (index < 0) return "";
+  return path.slice(0, index);
+}
+
+const getPackageMap = async (path: string, fs: WithLimitFs<"readFile" | "readdir">) => {
+  let search = path;
+  let pkg: Partial<Record<"dependencies" | "devDependencies", Record<string, string>>> | undefined;
+  let modulePaths: string | undefined;
+  while (search !== "") {
+    search = getDirectory(search);
+    for (const file of await fs.readdir(search)) {
+      if (file === "package.json")
+        pkg = JSON.parse(await fs.readFile(search + "/package.json", "utf-8"));
+      else if (file === "node_modules")
+        modulePaths = search + "/node_modules";
+    }
+  }
+  if (!pkg || !modulePaths) return;
+  const modules = await fs.readdir(modulePaths, { withFileTypes: true });
+  for (const module of modules) {
+    const modulePath = modulePaths + "/" + module.name;
+    const modulePkg = await getPackageMap(modulePath, fs);
+  }
+}
+
+export const getImportedPaths = (path: string, content: string) => {
+  let regex: RegExp | undefined;
+  switch (tryGetLanguageByFile(path)) {
+    case "typescript":
+    case "javascript":
+    case "svelte":
+      regex = esmImportRegex();
+      break;
+  }
+  if (!regex) return;
+  let paths: string[] | undefined;
+  let match: RegExpExecArray | null;
+  const index = path.lastIndexOf("/");
+  const directory = (index >= 0 ? path.slice(0, index) : "") + "/";
+  while ((match = regex.exec(content)) !== null) {
+    const path = match![1];
+    if (path.startsWith("./") || path.startsWith("../")) {
+      const { pathname } = new URL(path, fileRoot + directory);
+      (paths ??= []).push(pathname);
+    }
+    else {
+      (paths ??= []).push(path);
+    }
+  }
+  console.log(paths);
+  return paths;
+};
+
+

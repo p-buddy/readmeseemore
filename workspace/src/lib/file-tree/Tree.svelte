@@ -238,13 +238,14 @@
     let searchFolder: TFolder = root;
     let partIndex = 0;
 
-    while (partIndex < parts.length)
-      for (const child of searchFolder.children)
-        if (child.type === "folder" && child.name === parts[partIndex]) {
-          searchFolder = child;
-          partIndex++;
-          break;
-        }
+    if (parts.length > 0)
+      while (partIndex < parts.length)
+        for (const child of searchFolder.children)
+          if (child.type === "folder" && child.name === parts[partIndex]) {
+            searchFolder = child;
+            partIndex++;
+            break;
+          }
 
     return searchFolder.children.find((child) => child.name === name);
   };

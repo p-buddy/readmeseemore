@@ -2,7 +2,7 @@ import type { WebContainer, FileSystemTree, WebContainerProcess } from "@webcont
 import { file } from "./utils/fs-helper.js";
 import type { ITheme, Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
-import { boot, teardown } from "./utils/webcontainer.js";
+import { boot, root, teardown } from "./utils/webcontainer.js";
 import { defer, removeFirstInstance, removeLastInstance } from "./utils/index.js";
 import stripAnsi from "strip-ansi";
 
@@ -239,7 +239,7 @@ export default class OperatingSystem {
     const watchConfig = {
       command: "chokidar-cli",
       directory: ".",
-      ignore: '"(**/(node_modules|.git|_tmp_)**)"'
+      ignore: '"(**/(_tmp_)**)"'
     } as const;
 
     const watch = await container.spawn('npx', [
@@ -262,7 +262,9 @@ export default class OperatingSystem {
           }
 
           const action: string = data.split(':').at(0) || '';
-          const path = data.split(':').at(1)?.trim() || '';
+          let path = data.split(':').at(1)?.trim() || '';
+
+          if (path.startsWith(root)) path = path.slice(root.length);
 
           switch (action) {
             case 'add':

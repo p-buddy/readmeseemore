@@ -18,11 +18,8 @@
   type Editor = typeof monaco.editor;
   export type CodeEditor = monaco.editor.IStandaloneCodeEditor;
 
-  const join = (...paths: (string | undefined)[]) =>
-    paths.filter(Boolean).join("/");
-
   const urify = (path?: string) =>
-    monaco.Uri.parse(`file:///home/workspace/${path ?? ""}`);
+    monaco.Uri.parse("file://" + root + (path ?? ""));
 
   const registeredLanguages = new Set<string>();
 
@@ -49,71 +46,63 @@
 
   const fileSystemProvider = new RegisteredFileSystemProvider(false);
 
-  type Reference = Awaited<ReturnType<Editor["createModelReference"]>>;
-  const referenceByPath = new Map<string, Reference>();
-
-  type Disposable = ReturnType<RegisteredFileSystemProvider["registerFile"]>;
-  const disposableByPath = new Map<string, Disposable>();
-
-  const drop = (map: Map<string, Disposable>, key: string) => {
-    map.get(key)?.dispose();
-    map.delete(key);
+  type VirtualFile = {
+    reference: Awaited<ReturnType<Editor["createModelReference"]>>;
+    handle: ReturnType<RegisteredFileSystemProvider["registerFile"]>;
+    count?: number;
   };
 
-  const remove = (path: string) => {
-    drop(referenceByPath, path);
-    drop(disposableByPath, path);
+  const fileByPath = new Map<string, VirtualFile>();
+  const pendingByPath = new Map<string, Promise<VirtualFile>>();
+
+  const store = (path: string, file: VirtualFile) => {
+    file.count ??= 1;
+    fileByPath.set(path, file);
   };
 
-  const cleanup = async (directory: string | undefined, valid: Set<string>) => {
-    for (const [name] of await fileSystemProvider.readdir(urify(directory)))
-      if (!valid.has(name)) remove(join(directory, name));
+  const access = (path: string) => {
+    const file = fileByPath.get(path);
+    if (!file) return;
+    file.count ??= 0;
+    file.count++;
+    return file;
+  };
+
+  const release = (path: string) => {
+    const file = fileByPath.get(path);
+    if (!file) return;
+    file.count ??= 0;
+    file.count--;
+    if (file.count > 0) return;
+    file.reference.dispose();
+    file.handle.dispose();
+    fileByPath.delete(path);
   };
 
   const createFileReference = async (
     fs: WithLimitFs<"readFile">,
     path: string,
     content?: string,
-  ): Promise<Reference> => {
-    if (referenceByPath.has(path)) return referenceByPath.get(path)!;
-    const uri = urify(path);
-    content ??= await fs.readFile(path, "utf-8");
-    tryRegisterLanguageByFile(path);
-    const file = new RegisteredMemoryFile(uri, content);
-    disposableByPath.set(path, fileSystemProvider.registerFile(file));
-    const reference = await monaco.editor.createModelReference(uri);
-    referenceByPath.set(path, reference);
-    return reference;
-  };
-
-  /**
-   * @todo determine the performance impact of scanning whole filesystem (including node_modules)
-   */
-  const createAllReferences = (
-    fs: WithLimitFs<"readdir" | "readFile">,
-    directory?: string,
-  ) => {
-    return new Promise<void>(async (resolve) => {
-      const entries = await fs.readdir(directory ?? "/", {
-        withFileTypes: true,
-      });
-      const existing = new Set<string>(entries.map((entry) => entry.name));
-      const promises = new Array<Promise<any>>();
-      for (const entry of entries) {
-        const path = join(directory, entry.name);
-        promises.push(
-          entry.isDirectory()
-            ? createAllReferences(fs, path)
-            : createFileReference(fs, path),
-        );
-      }
-      if (referenceByPath.size > 0) promises.push(cleanup(directory, existing));
-      await Promise.all(promises);
-      resolve();
+  ): Promise<VirtualFile["reference"]> => {
+    const stored = access(path);
+    if (stored) return stored.reference;
+    const pending = pendingByPath.get(path);
+    if (pending) return (await pending).reference;
+    const promise = new Promise<VirtualFile>(async (resolve) => {
+      const uri = urify(path);
+      content ??= await fs.readFile(path, "utf-8");
+      tryRegisterLanguageByFile(path);
+      const file = new RegisteredMemoryFile(uri, content);
+      const handle = fileSystemProvider.registerFile(file);
+      const reference = await monaco.editor.createModelReference(uri);
+      resolve({ reference, handle });
     });
+    pendingByPath.set(path, promise);
+    const file = await promise;
+    store(path, file);
+    pendingByPath.delete(path);
+    return file.reference;
   };
-
-  let createAllInProgress: ReturnType<typeof createAllReferences> | undefined;
 
   const wrapper = new MonacoEditorLanguageClientWrapper();
 
@@ -178,7 +167,12 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
+  import {
+    getImportedPaths,
+    initializeOnce,
+    tryGetLanguageByFileExtension,
+  } from "./index.js";
+  import { root } from "$lib/utils/webcontainer.js";
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 
@@ -204,7 +198,13 @@
     awaitEditor(createAndAttachEditor(element, params));
   });
 
-  onDestroy(() => editor?.dispose());
+  onDestroy(() => {
+    editor?.dispose();
+    const value = editor?.getModel()?.getValue();
+    if (!value) return;
+    const imports = getImportedPaths(params.file.path, value);
+    if (imports) for (const path of imports) release(path);
+  });
 
   $effect(() => {
     const { path } = params.file;
@@ -214,7 +214,7 @@
     if (previous === path) return;
     editor.dispose();
     editor = undefined;
-    remove(previous);
+    release(previous);
     const value = model.getValue();
     if (api?.isVisible)
       awaitEditor(createAndAttachEditor(element, params, value));
@@ -228,10 +228,12 @@
   onMount={async (element) => {
     await initializeOnce(initializer);
 
-    createAllInProgress ??= createAllReferences(params.fs);
-    await createAllInProgress;
-    createAllInProgress = undefined;
+    const { file, fs } = params;
 
-    editor = await createAndAttachEditor(element, params);
+    const content = await fs.readFile(file.path, "utf-8");
+    const imports = getImportedPaths(file.path, content);
+    if (imports) for (const _path of imports) createFileReference(fs, _path);
+
+    editor = await createAndAttachEditor(element, params, content);
   }}
 />

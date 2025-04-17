@@ -3,6 +3,7 @@ import { WebContainer, type WebContainerProcess } from "@webcontainer/api";
 let webcontainer: WebContainer | null = null;
 
 export const workdirName = "workspace";
+export const root = `/home/${workdirName}/`;
 
 export const boot = async () => {
   webcontainer ??= await WebContainer.boot({ workdirName });

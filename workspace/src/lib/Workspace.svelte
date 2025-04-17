@@ -39,6 +39,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { killSpawnedLanguageServer, takeAction } from "./editor/actions.js";
   import { tryGetLanguageByFile } from "./editor/index.js";
+  import { root } from "./utils/webcontainer.js";
 
   type Props = {
     filesystem?: FileSystemTree;
