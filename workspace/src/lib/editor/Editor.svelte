@@ -1,4 +1,8 @@
 <script lang="ts" module>
+  import {
+    IFileService,
+    StandaloneServices,
+  } from "@codingame/monaco-vscode-api";
   import * as monaco from "@codingame/monaco-vscode-editor-api";
   import { MonacoEditorLanguageClientWrapper } from "monaco-editor-wrapper";
   import { configureDefaultWorkerFactory } from "monaco-editor-wrapper/workers/workerLoaders";
@@ -7,6 +11,7 @@
     RegisteredMemoryFile,
     registerFileSystemOverlay,
   } from "@codingame/monaco-vscode-files-service-override";
+  import { AutoTypings } from "monaco-editor-auto-typings";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
   type Props = {
@@ -132,6 +137,13 @@
       .then(() => {
         registerFileSystemOverlay(1, fileSystemProvider);
         wrapper.getEditorApp()?.dispose();
+
+        const service = StandaloneServices.get(IFileService);
+        const { readFile, exists, getProvider } = service;
+        service.readFile = (uri) => {
+          console.log("readFile!!!", { uri });
+          return readFile.call(service, uri);
+        };
       });
 
   const createAndAttachEditor = async (
@@ -157,6 +169,27 @@
         onSave(file);
       }
     });
+
+    /*     AutoTypings.create(editor, {
+      sourceCache: {
+        storeFile: async (uri: string, content: string) => {
+          console.log("storeFile", { uri, content });
+        },
+        getFile: async (uri: string) => {
+          console.log("getFile", { uri });
+          return undefined;
+        },
+        clear: async () => {
+          console.log("clear");
+        },
+      },
+      monaco: new Proxy(monaco, {
+        get(target, prop, receiver) {
+          console.log("monaco", { prop });
+          return Reflect.get(target, prop, receiver);
+        },
+      }),
+    }).then((typings) => editor.onDidDispose(() => typings.dispose())); */
 
     return editor;
   };
@@ -202,7 +235,7 @@
     editor?.dispose();
     const value = editor?.getModel()?.getValue();
     if (!value) return;
-    const imports = getImportedPaths(params.file.path, value);
+    const imports = getImportedPaths(params.fs, params.file.path, value);
     if (imports) for (const path of imports) release(path);
   });
 
@@ -231,7 +264,7 @@
     const { file, fs } = params;
 
     const content = await fs.readFile(file.path, "utf-8");
-    const imports = getImportedPaths(file.path, content);
+    const imports = getImportedPaths(fs, file.path, content);
     if (imports) for (const _path of imports) createFileReference(fs, _path);
 
     editor = await createAndAttachEditor(element, params, content);

@@ -170,6 +170,9 @@ importers:
 
   workspace:
     dependencies:
+      '@codingame/monaco-vscode-api':
+        specifier: 15.0.3
+        version: 15.0.3
       '@codingame/monaco-vscode-editor-api':
         specifier: 15.0.3
         version: 15.0.3
@@ -191,6 +194,9 @@ importers:
       '@xterm/xterm':
         specifier: ^5.5.0
         version: 5.5.0
+      enhanced-resolve:
+        specifier: ^5.18.1
+        version: 5.18.1
       monaco-editor:
         specifier: npm:@codingame/monaco-vscode-editor-api@15.0.3
         version: '@codingame/monaco-vscode-editor-api@15.0.3'

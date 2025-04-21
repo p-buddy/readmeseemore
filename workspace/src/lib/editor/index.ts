@@ -1,4 +1,9 @@
 import type { WithLimitFs } from "$lib/utils/fs-helper.js";
+import { reset, resolveImportsInFile } from "./auto-typings.js";
+import * as path from "path";
+import { type Resolver, ResolverFactory } from "enhanced-resolve";
+import { root } from "$lib/utils/webcontainer.js";
+import { getResolver } from "./file-resolve/index.js";
 
 let initializing: Promise<void> | undefined;
 let initialized = false;
@@ -45,7 +50,7 @@ export const tryGetLanguageByFile = (path?: string) => {
 
 const fileRoot = "file:///";
 
-const esmImportRegex = () => /^\s*import\s+(?:{[^{}]+}|.*?)\s*(?:from)?\s*['"](.*?)['"]|import\(.*?\)/g;
+const esmImportRegex = () => /\n*\s*import\s+(?:{[^{}]+}|.*?)\s*(?:from)?\s*['"](.*?)['"]|import\(.*?\)/g;
 
 // can assume that any node_modules file, once scanned, does not need to be scanned again
 
@@ -78,7 +83,9 @@ const getPackageMap = async (path: string, fs: WithLimitFs<"readFile" | "readdir
   }
 }
 
-export const getImportedPaths = (path: string, content: string) => {
+export const getImportedPaths = (fs: WithLimitFs<"readFile" | "readdir">, path: string, content: string): string[] | undefined => {
+  const resolver = getResolver(fs);
+
   let regex: RegExp | undefined;
   switch (tryGetLanguageByFile(path)) {
     case "typescript":
@@ -93,17 +100,19 @@ export const getImportedPaths = (path: string, content: string) => {
   const index = path.lastIndexOf("/");
   const directory = (index >= 0 ? path.slice(0, index) : "") + "/";
   while ((match = regex.exec(content)) !== null) {
-    const path = match![1];
-    if (path.startsWith("./") || path.startsWith("../")) {
-      const { pathname } = new URL(path, fileRoot + directory);
+    const imported = match![1];
+    resolver.resolve({} as any, directory, imported, {}, (err, result) => {
+      console.log("resolve", { err, result });
+    })
+    if (imported.startsWith("./") || imported.startsWith("../")) {
+      const { pathname } = new URL(imported, fileRoot + directory);
       (paths ??= []).push(pathname);
     }
     else {
-      (paths ??= []).push(path);
+      (paths ??= []).push(imported);
     }
   }
-  console.log(paths);
-  return paths;
+  return undefined;
+  //console.log(paths);
+  //return paths;
 };
-
-

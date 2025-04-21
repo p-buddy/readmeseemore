@@ -256,6 +256,7 @@ export default class OperatingSystem {
       watch.output.pipeTo(new WritableStream({
         async write(data) {
           if (!ready) {
+            console.log("watch", { data });
             ready = data.includes(`Watching "${watchConfig.directory}"`);
             if (!ready) return;
             resolve(watch);
