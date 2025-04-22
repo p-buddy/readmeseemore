@@ -40,6 +40,7 @@
   import { killSpawnedLanguageServer, takeAction } from "./editor/actions.js";
   import { tryGetLanguageByFile } from "./editor/index.js";
   import { root } from "./utils/webcontainer.js";
+  import { createFileSystemProvider } from "./editor/file-system-provider.js";
 
   type Props = {
     filesystem?: FileSystemTree;
@@ -215,6 +216,7 @@
       };
 
       status?.("Adding initial file tree");
+      const fsProvider = createFileSystemProvider(os);
       const tree = await paneAPI!.addComponentPanel(
         "Tree",
         {
@@ -229,6 +231,7 @@
                   {
                     fs,
                     file,
+                    fsProvider,
                     onSave: ({ path }) => {
                       if (path.endsWith(".ts")) {
                         const command = `npx --yes tsx ${path}`;

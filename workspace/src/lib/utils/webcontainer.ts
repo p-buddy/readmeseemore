@@ -6,7 +6,7 @@ export const workdirName = "workspace";
 export const root = `/home/${workdirName}/`;
 
 export const boot = async () => {
-  webcontainer ??= await WebContainer.boot({ workdirName });
+  webcontainer ??= await WebContainer.boot({ workdirName, coep: 'require-corp' });
 
   return webcontainer;
 };

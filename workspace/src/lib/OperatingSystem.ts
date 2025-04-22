@@ -33,12 +33,13 @@ const cli = {
 } as const;
 
 type FsChange = {
-  action: "add" | "unlink" | "addDir" | "unlinkDir",
+  action: "add" | "unlink" | "addDir" | "unlinkDir" | "change",
   type: "file" | "folder",
   path: string,
 }
 
 type FsChangeCallback = (change: FsChange) => any;
+type Deferred<T = void> = ReturnType<typeof defer<T>>;
 
 export type CreateOptions = {
   terminalTheme?: ITheme,
@@ -54,7 +55,7 @@ class CommandQueue {
   private readonly commands: string[] = [];
   private readonly callbacks: (CaptureCommandOutput | undefined)[] = [];
 
-  private defferedOnEmpty?: ReturnType<typeof defer<void>>;
+  private defferedOnEmpty?: Deferred;
 
   public get onEmpty() {
     if (this.defferedOnEmpty)
@@ -84,11 +85,19 @@ type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
 
 export default class OperatingSystem {
   private executing: boolean = false;
+  private receiving: boolean = false;
   private forceClear: boolean = false;
+  private _inputReady?: Deferred;
 
   public readonly commandQueue: LimitedCommandQueue = new CommandQueue();
 
   private onCapture?: CaptureCommandOutput;
+
+  public get inputReady() {
+    if (this.receiving) return Promise.resolve();
+    this._inputReady ??= defer<void>();
+    return this._inputReady.promise;
+  }
 
   public get userInput() {
     if (this.executing) return undefined;
@@ -125,6 +134,8 @@ export default class OperatingSystem {
   private static instance: OperatingSystem | null = null;
 
   private onJshOutput(data: string) {
+    if (!this.receiving) this._inputReady?.resolve();
+    this.receiving = true;
     let callback: (() => void) | undefined;
     switch (data) {
       case cli.input.prompt.default:
@@ -187,7 +198,7 @@ export default class OperatingSystem {
       };
     }
 
-    if (this.executing)
+    if (this.executing || !this.receiving)
       (commandQueue as CommandQueue).enqueue(command, onCapture);
     else {
       const current = this.getAndClearUserInput();
@@ -256,7 +267,6 @@ export default class OperatingSystem {
       watch.output.pipeTo(new WritableStream({
         async write(data) {
           if (!ready) {
-            console.log("watch", { data });
             ready = data.includes(`Watching "${watchConfig.directory}"`);
             if (!ready) return;
             resolve(watch);
@@ -270,6 +280,7 @@ export default class OperatingSystem {
           switch (action) {
             case 'add':
             case 'unlink':
+            case 'change':
               const file = { action, path, type: "file" } as const;
               onChange.forEach(cb => cb(file));
               break;

@@ -18,6 +18,7 @@
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
     file: Pick<TFile, "name" | "path">;
     onSave: (path: Pick<TFile, "name" | "path">) => void;
+    fsProvider: FileSystemProvider;
   };
 
   type Editor = typeof monaco.editor;
@@ -109,6 +110,7 @@
     return file.reference;
   };
 
+  let fsProvider: FileSystemProvider;
   const wrapper = new MonacoEditorLanguageClientWrapper();
 
   const initializer = () =>
@@ -135,15 +137,7 @@
         },
       })
       .then(() => {
-        registerFileSystemOverlay(1, fileSystemProvider);
         wrapper.getEditorApp()?.dispose();
-
-        const service = StandaloneServices.get(IFileService);
-        const { readFile, exists, getProvider } = service;
-        service.readFile = (uri) => {
-          console.log("readFile!!!", { uri });
-          return readFile.call(service, uri);
-        };
       });
 
   const createAndAttachEditor = async (
@@ -200,12 +194,9 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import {
-    getImportedPaths,
-    initializeOnce,
-    tryGetLanguageByFileExtension,
-  } from "./index.js";
+  import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
   import { root } from "$lib/utils/webcontainer.js";
+  import { type FileSystemProvider } from "./file-system-provider.js";
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 
@@ -235,8 +226,8 @@
     editor?.dispose();
     const value = editor?.getModel()?.getValue();
     if (!value) return;
-    const imports = getImportedPaths(params.fs, params.file.path, value);
-    if (imports) for (const path of imports) release(path);
+    //const imports = getImportedPaths(params.fs, params.file.path, value);
+    // if (imports) for (const path of imports) release(path);
   });
 
   $effect(() => {
@@ -259,13 +250,13 @@
   class="h-full w-full pt-1"
   bind:element
   onMount={async (element) => {
-    await initializeOnce(initializer);
+    const { file, fs, fsProvider } = params;
 
-    const { file, fs } = params;
+    await initializeOnce(initializer, fsProvider);
 
     const content = await fs.readFile(file.path, "utf-8");
-    const imports = getImportedPaths(fs, file.path, content);
-    if (imports) for (const _path of imports) createFileReference(fs, _path);
+    //const imports = getImportedPaths(fs, file.path, content);
+    //if (imports) for (const _path of imports) createFileReference(fs, _path);
 
     editor = await createAndAttachEditor(element, params, content);
   }}
