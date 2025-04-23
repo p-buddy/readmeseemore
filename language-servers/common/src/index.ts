@@ -55,12 +55,10 @@ const create = async ({ identifier, script }: Args, log = false) => {
   ready();
 }
 
-type PackageJSON = { version: string };
-
-export const cli = (args: Args & { pkg: PackageJSON }) => {
+export const cli = (args: Args & { version: string }) => {
   starting();
 
-  const { pkg: { version }, identifier } = args;
+  const { version, identifier } = args;
   const program = new Command()
     .version(version)
     .option('-d, --debug')
