@@ -31,7 +31,6 @@ type LanguageServer = {
 const spawnedLanguageServers = new Map<string, Promise<LanguageServer>>();
 
 const spawnLanguageServerClient = async (id: string, params: Parameters<typeof spawnLanguageServer>, log = true) => {
-  console.log("spawnLanguageServerClient", id, params);
   if (spawnedLanguageServers.has(id)) return spawnedLanguageServers.get(id)!;
   const promise = new Promise<LanguageServer>(async (resolve) => {
     const process = await spawnLanguageServer(...params);
@@ -59,11 +58,14 @@ export const killSpawnedLanguageServer = async (id: string) => {
   }
 }
 
+const pkg = <T extends string>(suffix: T) =>
+  `@readmeseemore/language-servers-${suffix}` as const;
+
 export const actionsByLanguage = {
   "javascript": typescript,
   typescript,
   svelte: async ({ container }) => {
-    await spawnLanguageServerClient("svelte", [container, "svelte-language-server", { flags: ["verbose"] }]);
+    await spawnLanguageServerClient("svelte", [container, pkg("svelte"), { flags: ["verbose"] }]);
   }
 } satisfies Partial<Record<SupportedLanguage, Action>>;
 
