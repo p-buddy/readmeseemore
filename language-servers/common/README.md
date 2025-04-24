@@ -1,1 +1,1 @@
-# @readmeseemore/svelte-language-server
+# @readmeseemore/language-servers-common
