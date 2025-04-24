@@ -19,6 +19,7 @@ const sanitize = (path: string) => {
   if (path === "/") return ".";
   if (path.startsWith(root)) return "./" + path.slice(root.length);
   if (path.startsWith("/")) return "./" + path.slice(1);
+  if (!path.startsWith(".")) return "./" + path;
   return path;
 }
 

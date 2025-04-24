@@ -1,17 +1,7 @@
 <script lang="ts" module>
-  import {
-    IFileService,
-    StandaloneServices,
-  } from "@codingame/monaco-vscode-api";
   import * as monaco from "@codingame/monaco-vscode-editor-api";
   import { MonacoEditorLanguageClientWrapper } from "monaco-editor-wrapper";
   import { configureDefaultWorkerFactory } from "monaco-editor-wrapper/workers/workerLoaders";
-  import {
-    RegisteredFileSystemProvider,
-    RegisteredMemoryFile,
-    registerFileSystemOverlay,
-  } from "@codingame/monaco-vscode-files-service-override";
-  import { AutoTypings } from "monaco-editor-auto-typings";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
   type Props = {
@@ -50,67 +40,18 @@
     if (extension && language) registerLanguage(language, extension);
   };
 
-  const fileSystemProvider = new RegisteredFileSystemProvider(false);
+  type Reference = ReturnType<Editor["createModelReference"]>;
 
-  type VirtualFile = {
-    reference: Awaited<ReturnType<Editor["createModelReference"]>>;
-    handle: ReturnType<RegisteredFileSystemProvider["registerFile"]>;
-    count?: number;
+  const fileReferences = new Map<string, Reference>();
+
+  const createFileReference = async (path: string): Promise<Reference> => {
+    if (fileReferences.has(path)) return fileReferences.get(path)!;
+    tryRegisterLanguageByFile(path);
+    const reference = monaco.editor.createModelReference(urify(path));
+    fileReferences.set(path, reference);
+    return reference;
   };
 
-  const fileByPath = new Map<string, VirtualFile>();
-  const pendingByPath = new Map<string, Promise<VirtualFile>>();
-
-  const store = (path: string, file: VirtualFile) => {
-    file.count ??= 1;
-    fileByPath.set(path, file);
-  };
-
-  const access = (path: string) => {
-    const file = fileByPath.get(path);
-    if (!file) return;
-    file.count ??= 0;
-    file.count++;
-    return file;
-  };
-
-  const release = (path: string) => {
-    const file = fileByPath.get(path);
-    if (!file) return;
-    file.count ??= 0;
-    file.count--;
-    if (file.count > 0) return;
-    file.reference.dispose();
-    file.handle.dispose();
-    fileByPath.delete(path);
-  };
-
-  const createFileReference = async (
-    fs: WithLimitFs<"readFile">,
-    path: string,
-    content?: string,
-  ): Promise<VirtualFile["reference"]> => {
-    const stored = access(path);
-    if (stored) return stored.reference;
-    const pending = pendingByPath.get(path);
-    if (pending) return (await pending).reference;
-    const promise = new Promise<VirtualFile>(async (resolve) => {
-      const uri = urify(path);
-      content ??= await fs.readFile(path, "utf-8");
-      tryRegisterLanguageByFile(path);
-      const file = new RegisteredMemoryFile(uri, content);
-      const handle = fileSystemProvider.registerFile(file);
-      const reference = await monaco.editor.createModelReference(uri);
-      resolve({ reference, handle });
-    });
-    pendingByPath.set(path, promise);
-    const file = await promise;
-    store(path, file);
-    pendingByPath.delete(path);
-    return file.reference;
-  };
-
-  let fsProvider: FileSystemProvider;
   const wrapper = new MonacoEditorLanguageClientWrapper();
 
   const initializer = () =>
@@ -143,10 +84,9 @@
   const createAndAttachEditor = async (
     element: HTMLElement,
     { fs, file, onSave }: Props,
-    content?: string,
   ) => {
     const { path } = file;
-    const { object } = await createFileReference(fs, path, content);
+    const { object } = await createFileReference(path);
 
     const editor = monaco.editor.create(element, {
       model: object.textEditorModel,
@@ -163,27 +103,6 @@
         onSave(file);
       }
     });
-
-    /*     AutoTypings.create(editor, {
-      sourceCache: {
-        storeFile: async (uri: string, content: string) => {
-          console.log("storeFile", { uri, content });
-        },
-        getFile: async (uri: string) => {
-          console.log("getFile", { uri });
-          return undefined;
-        },
-        clear: async () => {
-          console.log("clear");
-        },
-      },
-      monaco: new Proxy(monaco, {
-        get(target, prop, receiver) {
-          console.log("monaco", { prop });
-          return Reflect.get(target, prop, receiver);
-        },
-      }),
-    }).then((typings) => editor.onDidDispose(() => typings.dispose())); */
 
     return editor;
   };
@@ -222,13 +141,7 @@
     awaitEditor(createAndAttachEditor(element, params));
   });
 
-  onDestroy(() => {
-    editor?.dispose();
-    const value = editor?.getModel()?.getValue();
-    if (!value) return;
-    //const imports = getImportedPaths(params.fs, params.file.path, value);
-    // if (imports) for (const path of imports) release(path);
-  });
+  onDestroy(() => editor?.dispose());
 
   $effect(() => {
     const { path } = params.file;
@@ -236,13 +149,13 @@
     const model = editor.getModel()!;
     const previous = model.uri.path;
     if (previous === path) return;
+    const reference = fileReferences.get(previous);
+    fileReferences.delete(previous);
+    if (reference) reference.then((ref) => ref.dispose());
     editor.dispose();
     editor = undefined;
-    release(previous);
-    const value = model.getValue();
-    if (api?.isVisible)
-      awaitEditor(createAndAttachEditor(element, params, value));
-    else createFileReference(params.fs, path, value);
+    if (api?.isVisible) awaitEditor(createAndAttachEditor(element, params));
+    else createFileReference(path);
   });
 </script>
 
@@ -250,14 +163,7 @@
   class="h-full w-full pt-1"
   bind:element
   onMount={async (element) => {
-    const { file, fs, fsProvider } = params;
-
-    await initializeOnce(initializer, fsProvider);
-
-    const content = await fs.readFile(file.path, "utf-8");
-    //const imports = getImportedPaths(fs, file.path, content);
-    //if (imports) for (const _path of imports) createFileReference(fs, _path);
-
-    editor = await createAndAttachEditor(element, params, content);
+    await initializeOnce(initializer, params.fsProvider);
+    editor = await createAndAttachEditor(element, params);
   }}
 />

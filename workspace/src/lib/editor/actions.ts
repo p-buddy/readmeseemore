@@ -69,11 +69,20 @@ const highlight = {
     () => import("@codingame/monaco-vscode-typescript-basics-default-extension"))
 };
 
+const ensureTypescriptExists = async ({ os }: Payload) => {
+  const { container: { fs } } = os;
+  if ((await exists(fs, "package.json", true))) {
+    const pkg = await fs.readFile("package.json", "utf-8");
+    const { dependencies, devDependencies } = JSON.parse(pkg);
+    if (dependencies["typescript"] || devDependencies["typescript"])
+      if (await exists(fs, "node_modules/typescript")) return;
+  }
+  await os.enqueueCommand("npm install typescript", true);
+}
+
 const typescript = async (payload: Payload) => {
   highlight.typescript(payload);
-  const { os } = payload;
-  if (!(await exists(os.container.fs, "./node_modules/typescript")))
-    await os.enqueueCommand("npm install typescript", true);
+  await ensureTypescriptExists(payload);
   standardLanguageClient("typescript", payload);
 };
 
