@@ -58,7 +58,6 @@
 		"vitest": "^3.0.7"
 	},
 	"dependencies": {
-		"@codingame/monaco-vscode-api": "15.0.3",
 		"@codingame/monaco-vscode-editor-api": "15.0.3",
 		"@codingame/monaco-vscode-files-service-override": "15.0.3",
 		"@codingame/monaco-vscode-typescript-basics-default-extension": "15.0.3",
