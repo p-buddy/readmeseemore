@@ -301,12 +301,12 @@ export default class Reporter extends TestsAsDocumentationConstants implements I
     /** File locations are cached (per testFile) to avoid multiple filesystem searches 
      * (**but** file contents are not cached to enable dynamic content changes to be reflected) 
      * */
-    private readonly cache = {
+    readonly cache = {
       fileByTarget: new Map<string | undefined, string | undefined>(),
       packageJsonPath: undefined as string | undefined,
     }
 
-    constructor(private readonly srcFileDir: string, private readonly error: ErrorCallback) { }
+    constructor(readonly srcFileDir: string, readonly error: ErrorCallback) { }
 
     findFilePath({ file }: TestAsDocumentationTarget) {
       const { README_FILENAMES } = TargetLocator;
@@ -357,7 +357,7 @@ export default class Reporter extends TestsAsDocumentationConstants implements I
       return matchingNodes;
     }
 
-    private static readonly README_FILENAMES = ["README.md", "README", "README.txt"];
-    private static readonly PACKAGE_JSON_FILENAMES = ["package.json"];
+    static readonly README_FILENAMES = ["README.md", "README", "README.txt"];
+    static readonly PACKAGE_JSON_FILENAMES = ["package.json"];
   }
 }

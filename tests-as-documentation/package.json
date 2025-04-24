@@ -1,6 +1,7 @@
 {
   "name": "@readmeseemore/tests-as-documentation",
   "version": "0.0.0",
+  "type": "module",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
@@ -8,7 +9,6 @@
     "./.test-harness": "./src/.test-harness/index.ts",
     "./.test-harness/auxiliary": "./src/.test-harness/auxiliary/index.ts"
   },
-  "type": "module",
   "publishConfig": {
     "main": "dist/index.js",
     "typings": "dist/index.d.ts",
@@ -25,17 +25,19 @@
       }
     }
   },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "type-fest": "^4.32.0",
     "typescript": "^5.2.2",
     "vite": "^5.0.8",
+    "vite-plugin-dts": "^4.5.3",
+    "vite-plugin-externalize-deps": "^0.9.0",
     "vitest": "^1.0.0"
-  },
-  "scripts": {
-    "build": "vite build",
-    "test": "vitest",
-    "test:run": "vitest run"
   },
   "dependencies": {
     "mdast-util-from-markdown": "^2.0.2",

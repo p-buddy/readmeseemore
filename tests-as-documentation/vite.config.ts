@@ -1,12 +1,16 @@
-import { resolve } from 'path';
+import { resolve, join } from 'path';
 import { defineConfig } from 'vitest/config';
-import pkg from './package.json';
-import { testPattern, externalizePackageDependencies, generateSrcTypeDeclarationsPlugin } from '../globals';
+import dts from 'vite-plugin-dts';
+import { externalizeDeps } from 'vite-plugin-externalize-deps';
+
+const src = resolve(__dirname, 'src');
 
 const files = {
-    index: resolve(__dirname, 'src/index.ts'),
-    Reporter: resolve(__dirname, 'src/Reporter.ts'),
+    index: join(src, 'index.ts'),
+    Reporter: join(src, 'Reporter.ts'),
 }
+
+const testPattern = "src/**/*.{test,spec}.{js,ts}";
 
 export default defineConfig({
     build: {
@@ -14,12 +18,12 @@ export default defineConfig({
             entry: files,
             name: 'TestsAsDocumentation',
             fileName: (format, entryName) => `${entryName}.${format === 'es' ? 'js' : 'cjs'}`,
-        },
-        rollupOptions: {
-            external: [...externalizePackageDependencies(pkg), "fs", "path"]
         }
     },
-    plugins: [generateSrcTypeDeclarationsPlugin()],
+    plugins: [
+        dts({ exclude: [testPattern] }),
+        externalizeDeps({ nodeBuiltins: true })
+    ],
     test: {
         include: [testPattern],
         reporters: ["verbose", files.Reporter],

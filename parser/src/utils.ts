@@ -143,7 +143,8 @@ export const tryInsertCodeAsFile = (fs: FileSystemTree, code: CodeBlock, path: s
     fs[part] ??= { directory: {} };
     if (is.file(fs[part]))
       throw new Error(`${dirs.slice(0, i + 1).join("/")} has already been defined as a file, but is being treated as a directory`);
-    fs = fs[part].directory;
+    else if (is.directory(fs[part])) fs = fs[part].directory;
+    else throw new Error(`Unexpected filesystem node type (for ${path}/${part}): ${JSON.stringify(fs[part])}`);
   }
   fs[basename] = { file: { contents: code.value } };
 }
@@ -202,9 +203,10 @@ export const mergeFilesystems = (
       else
         if (is.file(target[key]))
           errors?.push(`Conflict: ${path}/${key} is a file in one filesystem but a directory in another`);
-        else
+        else if (is.directory(target[key]))
           mergeFilesystems(
             { target: target[key].directory, source: value.directory, errors },
             `${path}/${key}`
           );
+        else throw new Error(`Unexpected filesystem node type (for ${path}/${key}): ${JSON.stringify(target[key])}`);
 };

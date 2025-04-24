@@ -34,6 +34,7 @@
 		"svelte": "^5.0.0"
 	},
 	"devDependencies": {
+		"@codingame/esbuild-import-meta-url-plugin": "^1.0.3",
 		"@playwright/test": "^1.50.1",
 		"@storybook/test": "^8.6.3",
 		"@sveltejs/adapter-auto": "^4.0.0",
@@ -44,6 +45,7 @@
 		"@testing-library/svelte": "^5.2.7",
 		"@types/node": "^20.17.23",
 		"@types/react": "^18.3.18",
+		"@types/vscode": "^1.99.1",
 		"@webcontainer/api": "^1.5.1",
 		"publint": "^0.3.8",
 		"svelte": "^5.21.0",
@@ -56,15 +58,19 @@
 		"vitest": "^3.0.7"
 	},
 	"dependencies": {
-		"@monaco-editor/react": "^4.7.0",
+		"@codingame/monaco-vscode-editor-api": "15.0.3",
+		"@codingame/monaco-vscode-files-service-override": "15.0.3",
+		"@codingame/monaco-vscode-typescript-basics-default-extension": "15.0.3",
 		"@p-buddy/dockview-svelte": "^0.0.6",
+		"@readmeseemore/language-servers-interop": "workspace:^",
 		"@xterm/addon-fit": "^0.10.0",
 		"@xterm/xterm": "^5.5.0",
-		"monaco-editor": "^0.39.0",
-		"monaco-editor-auto-typings": "^0.4.6",
-		"react": "^18.2.0",
-		"react-dom": "^18.2.0",
+		"monaco-editor-wrapper": "6.7.0-next.0",
+		"monaco-languageclient": "9.6.0-next.0",
 		"strip-ansi": "^7.1.0",
-		"svelte-preprocess-react": "^2.1.0"
+		"vscode-jsonrpc": "^8.2.1",
+		"vscode-languageserver": "~9.0.1",
+		"vscode-oniguruma": "1.7.0",
+		"vscode-textmate": "9.2.0"
 	}
 }

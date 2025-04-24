@@ -1,0 +1,32 @@
+{
+	"name": "@readmeseemore/language-servers-svelte",
+	"type": "module",
+	"private": false,
+	"license": "MIT",
+	"version": "0.0.1",
+	"bin": "src/cli.ts",
+	"publishConfig": {
+		"access": "public",
+		"bin": "./dist/cli.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "vite build",
+		"cli": "npx tsx src/cli.ts",
+		"prepublishOnly": "pnpm up \"@readmeseemore/*\" && pnpm build && npm version patch --git-tag-version false && pnpm build",
+		"postpublish": "git add ./package.json && git commit -m \"bump version: $(basename $(pwd))\" && git push"
+	},
+	"devDependencies": {
+		"@types/node": "^22.14.0",
+		"typescript": "^5.8.2",
+		"vite": "^6.2.1",
+		"vite-plugin-externalize-deps": "^0.9.0"
+	},
+	"dependencies": {
+		"@readmeseemore/language-servers-common": "^0.0.3",
+		"svelte-language-server": "^0.17.11"
+	}
+}

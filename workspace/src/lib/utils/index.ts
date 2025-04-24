@@ -77,3 +77,60 @@ export const removeLastInstance = (str: string, instance: string) => {
   return str.slice(0, index) + str.slice(index + instance.length).trimStart();
 }
 
+export type Expand<T> = T extends (...args: infer A) => infer R
+  ? (...args: Expand<A>) => Expand<R>
+  : T extends infer O
+  ? { [K in keyof O]: O[K] }
+  : never;
+
+export type ExpandRecursively<T> = T extends (...args: infer A) => infer R
+  ? (...args: ExpandRecursively<A>) => ExpandRecursively<R>
+  : T extends object
+  ? T extends infer O
+  ? { [K in keyof O]: ExpandRecursively<O[K]> }
+  : never
+  : T;
+
+/**
+ * Logs all calls to the target object.
+ * @param target - The object to log calls to.
+ * @returns A proxy object that logs all calls to the target object.
+ */
+export const loxy = <T extends object>(target: T) => {
+  const tryLog = (prop: string | symbol, msg: string, ...args: any[]) => {
+    const _prop = typeof prop === "symbol" ? prop.toString() : prop;
+    if (_prop.startsWith("_")) return;
+    console.trace(msg, _prop, ...args);
+  }
+  return new Proxy(target, {
+    get: function (target, prop) {
+      const original = target[prop as keyof typeof target];
+      if (typeof original === "function") {
+        return function (...args: any[]) {
+          //tryLog(prop, "invoking", ...args);
+          try {
+            const result = original.apply(target, args);
+            if (result instanceof Promise)
+              result
+                .then(result => tryLog(prop, "result of", { result, args }))
+                .catch(error => tryLog(prop, "error", { error, args }));
+            else tryLog(prop, "result of", { result, args });
+            return result;
+          }
+          catch (error) {
+            tryLog(prop, "error", { error, args });
+            throw error;
+          }
+        };
+      } else {
+        tryLog(prop, "getting");
+        return original;
+      }
+    },
+    set: function (target, prop, value) {
+      tryLog(prop, "setting", value);
+      target[prop as keyof typeof target] = value;
+      return true;
+    },
+  });
+}

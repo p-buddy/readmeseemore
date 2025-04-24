@@ -54,6 +54,7 @@
     await added.promise;
     expect(addedFiles).toEqual(filesToAdd);
     for (const file of addedFiles) expect(tree.find(file)).toBeDefined();
+    console.log(await os.container.fs.readdir(".", { withFileTypes: true }));
     console.log("done");
   }}
 >

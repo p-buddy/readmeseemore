@@ -33,7 +33,7 @@
     beforeAction,
   }: Props = $props();
 
-  let contextMenu: ContextMenu;
+  let contextMenu: ContextMenu | undefined;
   let tempTarget: HTMLElement | undefined;
 
   const createCursorTarget = (event: MouseEvent) => {
@@ -59,7 +59,8 @@
 
   const close = () => {
     nameUI?.highlight(false);
-    unmount(contextMenu);
+    if (contextMenu) unmount(contextMenu);
+    contextMenu = undefined;
     tempTarget?.remove();
     closeCurrent = undefined;
   };
