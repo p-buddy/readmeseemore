@@ -6,7 +6,7 @@ let initialized = false;
 
 const onInitCallbacks = new Set<() => void>();
 
-export const onInit = (callback: () => void) => {
+export const onEditorInit = (callback: () => void) => {
   if (initialized) return callback();
   onInitCallbacks.add(callback);
 }

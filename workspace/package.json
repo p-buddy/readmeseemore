@@ -62,7 +62,6 @@
 		"@codingame/monaco-vscode-editor-api": "15.0.3",
 		"@codingame/monaco-vscode-files-service-override": "15.0.3",
 		"@codingame/monaco-vscode-typescript-basics-default-extension": "15.0.3",
-		"@codingame/monaco-vscode-typescript-language-features-default-extension": "15.0.3",
 		"@p-buddy/dockview-svelte": "^0.0.6",
 		"@readmeseemore/language-servers-interop": "workspace:^",
 		"@xterm/addon-fit": "^0.10.0",

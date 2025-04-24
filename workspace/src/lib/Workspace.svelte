@@ -190,7 +190,7 @@
 
       const actionOnFile = (path: string) =>
         takeAction(tryGetLanguageByFile(path), {
-          container,
+          os: os!,
         });
 
       if (filesystem) iterateFilesystem(filesystem, actionOnFile);

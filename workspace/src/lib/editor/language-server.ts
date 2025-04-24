@@ -118,7 +118,7 @@ export const spawnLanguageServer = async (
     fn?.(msg);
   }
 
-  while (!starting.is(msg)) await loop(console.log);
+  while (!starting.is(msg)) await loop();
   console.log(`Language server process for ${dependency} has started...`);
   while (!ready.is(msg)) await loop(console.log);
   reader.releaseLock();
