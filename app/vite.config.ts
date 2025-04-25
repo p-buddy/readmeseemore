@@ -1,11 +1,4 @@
-import tailwindcss from '@tailwindcss/vite';
-import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import workspace from "@readmeseemore/workspace/config/vite.config";
 
-export default defineConfig({
-	server: {
-		host: "0.0.0.0"
-	},
-	plugins: [nodePolyfills(), tailwindcss(), sveltekit()]
-});
+export default defineConfig(workspace);
