@@ -116,6 +116,7 @@
   import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
   import { root } from "$lib/utils/webcontainer.js";
   import { type FileSystemProvider } from "./file-system-provider.js";
+  import { exists } from "./utils.js";
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 
@@ -143,6 +144,14 @@
 
   onDestroy(() => editor?.dispose());
 
+  const attachNewFile = async (path: string) => {
+    while (!(await exists(params.fs, path)))
+      await new Promise(requestAnimationFrame);
+    if (params.file.path !== path || !element) return;
+    if (api?.isVisible) awaitEditor(createAndAttachEditor(element, params));
+    else createFileReference(path);
+  };
+
   $effect(() => {
     const { path } = params.file;
     if (!editor || !element) return;
@@ -154,8 +163,7 @@
     if (reference) reference.then((ref) => ref.dispose());
     editor.dispose();
     editor = undefined;
-    if (api?.isVisible) awaitEditor(createAndAttachEditor(element, params));
-    else createFileReference(path);
+    attachNewFile(path);
   });
 </script>
 

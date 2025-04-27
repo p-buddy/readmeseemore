@@ -65,6 +65,7 @@
 {/if}
 
 <style>
+  .highlighted,
   input:focus {
     outline-color: #007fd4;
   }

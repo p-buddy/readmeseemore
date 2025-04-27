@@ -27,6 +27,16 @@ export const languageByExtension = {
   ts: "typescript",
   js: "javascript",
   svelte: "svelte",
+  html: "html",
+  css: "css",
+  md: "markdown",
+  json: "json",
+  xml: "xml",
+  svg: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+  jsx: "react",
+  tsx: "react",
 } as const;
 
 export type Extension = keyof typeof languageByExtension;

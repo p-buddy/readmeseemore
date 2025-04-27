@@ -1,7 +1,7 @@
 import type { WebContainerProcess } from "@webcontainer/api";
 import { type SupportedLanguage, onEditorInit } from "./index.js";
 import { createLanguageClient, spawnLanguageServer } from "$lib/editor/language-server.js";
-import type OperatingSystem from "$lib/OperatingSystem.js";
+import type { OperatingSystem } from "$lib/operating-system/index.js";
 import { exists } from "./utils.js";
 
 type Payload = { os: OperatingSystem };
@@ -69,27 +69,68 @@ const highlight = {
     () => import("@codingame/monaco-vscode-typescript-basics-default-extension"))
 };
 
-const ensureTypescriptExists = async ({ os }: Payload) => {
-  const { container: { fs } } = os;
-  if ((await exists(fs, "package.json", true))) {
-    const pkg = await fs.readFile("package.json", "utf-8");
-    const { dependencies, devDependencies } = JSON.parse(pkg);
-    if (dependencies["typescript"] || devDependencies["typescript"])
-      if (await exists(fs, "node_modules/typescript")) return;
-  }
-  await os.enqueueCommand("npm install typescript", true);
+const inprogress = new Map<string, Promise<void>>();
+
+const ensurePackageExists = async ({ os }: Payload, pkg: string, dev = false) => {
+  if (inprogress.has(pkg)) return;
+  const check = new Promise<void>(async (resolve) => {
+    const { container: { fs } } = os;
+    if ((await exists(fs, "package.json", true))) {
+      const { dependencies, devDependencies } = JSON.parse(
+        await fs.readFile("package.json", "utf-8")
+      );
+      if (dependencies?.[pkg] || devDependencies?.[pkg])
+        if (await exists(fs, `node_modules/${pkg}`)) return;
+    }
+    const cmd = "npm install" + (dev ? " --save-dev " : " ") + pkg;
+    await os.terminal.enqueueCommand(cmd, true);
+    resolve();
+  });
+  inprogress.set(pkg, check);
+  await check;
+  inprogress.delete(pkg);
 }
+
 
 const typescript = async (payload: Payload) => {
   highlight.typescript(payload);
-  await ensureTypescriptExists(payload);
+  await ensurePackageExists(payload, "typescript");
   standardLanguageClient("typescript", payload);
 };
 
 export const actionsByLanguage = {
-  "javascript": typescript,
-  typescript: typescript,
-  svelte: (payload) => standardLanguageClient("svelte", payload)
+  typescript,
+  javascript: (payload) => {
+    typescript(payload);
+    import("@codingame/monaco-vscode-javascript-default-extension");
+  },
+  svelte: (payload) => standardLanguageClient("svelte", payload),
+  json: () => {
+    import("@codingame/monaco-vscode-json-default-extension");
+    import("@codingame/monaco-vscode-json-language-features-default-extension");
+  },
+  html: () => {
+    import("@codingame/monaco-vscode-html-default-extension");
+    import("@codingame/monaco-vscode-html-language-features-default-extension");
+  },
+  yaml: () => {
+    import("@codingame/monaco-vscode-yaml-default-extension");
+  },
+  markdown: () => {
+    import("@codingame/monaco-vscode-markdown-basics-default-extension");
+    import("@codingame/monaco-vscode-markdown-language-features-default-extension");
+  },
+  xml: () => {
+    import("@codingame/monaco-vscode-xml-default-extension");
+  },
+  css: () => {
+    import("@codingame/monaco-vscode-css-default-extension");
+    import("@codingame/monaco-vscode-css-language-features-default-extension");
+  },
+  react: async (payload) => {
+    await typescript(payload);
+    await ensurePackageExists(payload, "@types/react", true);
+  }
 } satisfies Partial<Record<SupportedLanguage, Action>>;
 
 

@@ -24,7 +24,10 @@
   import VsCodeWatermark from "./VSCodeWatermark.svelte";
   import { type FileSystemTree, type BufferEncoding } from "@webcontainer/api";
   import MountedDiv from "./utils/MountedDiv.svelte";
-  import OperatingSystem, { type CreateOptions } from "$lib/OperatingSystem.js";
+  import {
+    OperatingSystem,
+    type CreateOptions,
+  } from "$lib/operating-system/index.js";
   import { defer } from "./utils/index.js";
   import {
     type WithViewOnReady,
@@ -33,7 +36,6 @@
     DockView,
     PaneView,
     GridView,
-    Orientation,
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "./utils/FilePanelTracker.js";
   import "@xterm/xterm/css/xterm.css";
@@ -52,11 +54,18 @@
 
   $effect(() => {
     if (!os) return;
-    const { xterm } = os;
-    xterm.options.theme = isDark.current
-      ? { background: "#181818" }
-      : { background: "#f3f3f3", foreground: "#000", cursor: "#666" };
-    xterm.refresh(0, xterm.rows - 1);
+    const dark = isDark.current;
+    os.terminals.forEach((terminal) => {
+      const { xterm } = terminal;
+      xterm.options.theme ??= {};
+      if (dark) xterm.options.theme.background = "#181818";
+      else {
+        xterm.options.theme.background = "#f3f3f3";
+        xterm.options.theme.foreground = "#000";
+        xterm.options.theme.cursor = "#666";
+      }
+      xterm.refresh(0, xterm.rows - 1);
+    });
   });
 
   const sanitize = (path: string) => {
@@ -85,13 +94,7 @@
 
 {#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}
   {/* @ts-ignore */ null}
-  <iframe
-    src={url}
-    allow="cross-origin-isolated"
-    credentialless
-    title="preview"
-  >
-  </iframe>
+  <iframe src={url} title="preview" class="w-full h-full"> </iframe>
 {/snippet}
 
 {#snippet dock({
@@ -118,17 +121,23 @@
   <MountedDiv {...props.params} />
 {/snippet}
 
+{#snippet terminals({
+  params,
+}: PanelProps<"grid", WithViewOnReady<"grid", { terminal: typeof terminal }>>)}
+  <GridView {...params} snippets={{ terminal }} orientation={"HORIZONTAL"} />
+{/snippet}
+
 <section class="w-full h-full">
   <GridView
-    orientation={Orientation.HORIZONTAL}
+    orientation={"HORIZONTAL"}
     className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
-    snippets={{ pane, dock, terminal }}
+    snippets={{ pane, dock, terminals }}
     proportionalLayout={false}
     onReady={async ({ api }) => {
       status?.("Creating operating system");
       os = await OperatingSystem.Create({ filesystem, status, watch: true });
 
-      const { container, xterm } = os;
+      const { container } = os;
       const { fs } = container;
 
       if (!os) throw new Error("Operating system not initialized");
@@ -150,7 +159,7 @@
       ]);
 
       status?.("Adding terminal and left pane views");
-      const [paneAPI, _, terminal] = await Promise.all([
+      const [paneAPI, _, terminals] = await Promise.all([
         deferredAPI.pane.promise,
         api.addSnippetPanel(
           "pane",
@@ -165,13 +174,22 @@
           },
         ),
         api.addSnippetPanel(
-          "terminal",
+          "terminals",
           {
-            onMount(root) {
-              xterm.open(root);
-              os?.fitXterm();
+            onReady: async ({ api }) => {
+              const { terminal } = os!;
+              const { panel } = await api.addSnippetPanel("terminal", {
+                onMount(element) {
+                  terminal.mount(element);
+                  element.addEventListener("contextmenu", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  });
+                },
+                style: "height: 100%; padding: 10px;",
+              });
+              panel.api.onDidDimensionsChange(() => terminal.fit());
             },
-            style: "height: 100%; padding: 10px;",
           },
           {
             minimumHeight: 100,
@@ -184,8 +202,40 @@
         ),
       ]);
 
-      terminal.panel.api.onDidDimensionsChange(() => os?.fitXterm());
-      container.on("server-ready", async (port, url) => {});
+      terminals.panel.api.onDidDimensionsChange(() =>
+        os!.terminals.forEach((t) => t.fit()),
+      );
+
+      const addPreview = (url: string, title: string) =>
+        dockAPI!.addSnippetPanel(
+          "preview",
+          {
+            url,
+          },
+          {
+            title,
+            position: {
+              direction: "right",
+            },
+          },
+        );
+
+      let _preview: ReturnType<typeof addPreview>;
+
+      container.on("error", (error) => {
+        console.error(error);
+      });
+
+      container.on("server-ready", async (port, url) => {
+        url = `${url}?${Date.now()}`;
+        const title = `Port: ${port}`;
+        if (_preview) (await _preview).panel.update({ params: { url, title } });
+        else _preview = addPreview(url, title);
+      });
+
+      container.on("port", (port) => {
+        console.log({ port });
+      });
 
       const actionOnFile = (path: string) =>
         takeAction(tryGetLanguageByFile(path), {
@@ -234,7 +284,7 @@
                     onSave: ({ path }) => {
                       if (path.endsWith(".ts")) {
                         const command = `npx --yes tsx ${path}`;
-                        os!.enqueueCommand(command);
+                        os!.terminal.enqueueCommand(command);
                       }
                     },
                   },

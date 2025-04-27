@@ -1,5 +1,5 @@
 <script lang="ts">
-  import OperatingSystem from "$lib/OperatingSystem.js";
+  import { OperatingSystem } from "$lib/operating-system/index.js";
   import { Sweater } from "sweater-vest";
   import "@xterm/xterm/css/xterm.css";
 </script>
@@ -18,22 +18,25 @@
       force: true,
     });
 
-    const { xterm, jsh } = os;
+    const { terminal } = os;
 
     const { container } = await harness.given("container");
 
-    xterm.open(container);
-    os.fitXterm();
+    terminal.xterm.open(container);
+    terminal.fit();
     fn = () => {
-      const first = os.enqueueCommand("curl https://httpbin.org/delay/1", true);
-      const second = os.enqueueCommand("echo 'hello'", true);
+      const first = terminal.enqueueCommand(
+        "curl https://httpbin.org/delay/1",
+        true,
+      );
+      const second = terminal.enqueueCommand("echo 'hello'", true);
       first.then((result) => {
         console.log(result);
       });
       second.then((result) => {
         console.log(result);
       });
-      os.commandQueue.onEmpty.then(() => {
+      terminal.commandQueue.onEmpty.then(() => {
         console.log("queue empty");
       });
     };

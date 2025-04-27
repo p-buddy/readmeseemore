@@ -1,5 +1,5 @@
 <script lang="ts">
-  import OperatingSystem from "$lib/OperatingSystem.js";
+  import { OperatingSystem } from "$lib/operating-system/index.js";
   import Tree from "$lib/file-tree/Tree.svelte";
   import { Sweater } from "sweater-vest";
   import { defer } from "$lib/utils/index.js";

@@ -46,6 +46,8 @@ export const defer = <T>() => {
   return { promise, resolve: resolve!, reject: reject! };
 }
 
+export type Deferred<T = void> = ReturnType<typeof defer<T>>;
+
 export const retry = <T>(fn: () => Promise<T>, delay = 100) =>
   new Promise<T>((resolve, reject) => {
     fn().then(resolve).catch(() => setTimeout(() => retry(fn, delay), delay));

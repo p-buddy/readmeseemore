@@ -2,7 +2,7 @@ import { Uri } from "@codingame/monaco-vscode-editor-api";
 import type { FileSystemProviderCapabilities, FileType, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
 import { dirname, exists, safelyGetFileContent, safelyStatFile, prependRoot, trySanitize } from "./utils.js";
-import type OperatingSystem from "$lib/OperatingSystem.js";
+import type { OperatingSystem } from "$lib/operating-system/index.js";
 
 export type FileSystemProvider = IFileSystemProviderWithFileReadWriteCapability;
 
