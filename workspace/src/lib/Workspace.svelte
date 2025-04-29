@@ -1,21 +1,3 @@
-<script lang="ts" module>
-  const iterateFilesystem = async (
-    filesystem: FileSystemTree,
-    callback: (path: string, content: string) => Promise<void> | void,
-    path = "",
-  ) => {
-    for (const [key, value] of Object.entries(filesystem))
-      if ("directory" in value)
-        await iterateFilesystem(value.directory, callback, `${path}/${key}`);
-      else if (
-        "file" in value &&
-        "contents" in value.file &&
-        typeof value.file.contents === "string"
-      )
-        await callback(`${path}/${key}`, value.file.contents);
-  };
-</script>
-
 <script lang="ts">
   import { isDark } from "./mode.js";
   import Tree from "./file-tree/Tree.svelte";
@@ -26,6 +8,7 @@
   import MountedDiv from "./utils/MountedDiv.svelte";
   import {
     OperatingSystem,
+    Terminal,
     type CreateOptions,
   } from "$lib/operating-system/index.js";
   import { defer } from "./utils/index.js";
@@ -42,6 +25,9 @@
   import { takeAction } from "./editor/actions.js";
   import { tryGetLanguageByFile } from "./editor/index.js";
   import { createFileSystemProvider } from "./editor/file-system-provider.js";
+  import { iterateFilesystem } from "./utils/fs-helper.js";
+  import { register } from "./context-menu/index.js";
+  import { getItems } from "./operating-system/TerminalContext.svelte";
 
   type Props = {
     filesystem?: FileSystemTree;
@@ -51,22 +37,6 @@
   let { filesystem, status, onReady }: Props = $props();
 
   let os = $state<OperatingSystem>();
-
-  $effect(() => {
-    if (!os) return;
-    const dark = isDark.current;
-    os.terminals.forEach((terminal) => {
-      const { xterm } = terminal;
-      xterm.options.theme ??= {};
-      if (dark) xterm.options.theme.background = "#181818";
-      else {
-        xterm.options.theme.background = "#f3f3f3";
-        xterm.options.theme.foreground = "#000";
-        xterm.options.theme.cursor = "#666";
-      }
-      xterm.refresh(0, xterm.rows - 1);
-    });
-  });
 
   const sanitize = (path: string) => {
     while (path.startsWith("/")) path = path.slice(1);
@@ -84,7 +54,7 @@
     path = "",
   ) => iterateFilesystem(filesystem, writeFile, path);
 
-  export const OS = <TRequire extends boolean = true>(
+  export const system = <TRequire extends boolean = true>(
     require = true as TRequire,
   ): TRequire extends true ? OperatingSystem : OperatingSystem | undefined => {
     if (!os && require) throw new Error("Operating system not initialized");
@@ -177,18 +147,36 @@
           "terminals",
           {
             onReady: async ({ api }) => {
-              const { terminal } = os!;
-              const { panel } = await api.addSnippetPanel("terminal", {
-                onMount(element) {
-                  terminal.mount(element);
-                  element.addEventListener("contextmenu", (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  });
-                },
-                style: "height: 100%; padding: 10px;",
-              });
-              panel.api.onDidDimensionsChange(() => terminal.fit());
+              const mountTerminal = async (terminal: Terminal) => {
+                const { panel } = await api.addSnippetPanel(
+                  "terminal",
+                  {
+                    onMount(element) {
+                      terminal.mount(element);
+                      register(element, {
+                        props: () => ({
+                          items: getItems(os!, terminal, mountTerminal, () => {
+                            const panel = api.getPanel(terminal.id);
+                            if (panel) api.removePanel(panel);
+                            terminal.dispose();
+                          }),
+                        }),
+                      });
+                    },
+                    style: "height: 100%; padding: 10px;",
+                  },
+                  {
+                    id: terminal.id,
+                  },
+                );
+                panel.api.onDidFocusChange((e) => {
+                  if (!e.isFocused) return;
+                  os!.terminalIndex = os!.terminals.indexOf(terminal);
+                });
+                panel.api.onDidDimensionsChange(() => terminal.fit());
+              };
+
+              mountTerminal(os!.terminal);
             },
           },
           {
@@ -306,7 +294,8 @@
                 fs.writeFile(current, await fs.readFile(previous));
                 await fs.rm(previous);
 
-                const parent = previous.split("/").slice(0, -1).join("/");
+                const index = previous.lastIndexOf("/");
+                const parent = index > 0 ? previous.slice(0, index) : "/";
                 if (pending.rm.has(parent)) dir.tryRemoveEmpty(parent);
 
                 if (!filePanelTracker.has("path", previous)) return;

@@ -1,22 +1,41 @@
-<script lang="ts">
-  import { type Snippet } from "svelte";
+<script lang="ts" module>
+  import { onMount, type Snippet } from "svelte";
   import type { MouseEventHandler } from "svelte/elements";
 
-  type Props = {
+  export type Props = {
     items: {
       content: Snippet;
       onclick: MouseEventHandler<HTMLButtonElement>;
     }[];
+    close: () => void;
   };
-
-  let { items }: Props = $props();
 </script>
 
+<script lang="ts">
+  let { items, close }: Props = $props();
+
+  let visible = $state(false);
+
+  let element: HTMLElement;
+
+  onMount(() => {
+    const { top, height } = element.getBoundingClientRect();
+    const { innerHeight } = window;
+    if (top + height > innerHeight)
+      element.style.top = `${innerHeight - top - height}px`;
+    visible = true;
+  });
+</script>
+
+<svelte:window onclick={close} />
+
 <div
-  class="absolute overflow-visible visible clear-both z-10000 top-full left-0 shadow-md rounded-lg bg-neutral-800 border border-neutral-700"
+  class="absolute overflow-visible visible clear-both z-10000 top-full left-0 shadow-md rounded-lg bg-neutral-800 border border-neutral-700 transition-opacity opacity-0 duration-50"
+  class:opacity-100={visible}
   role="menu"
   aria-orientation="vertical"
   aria-labelledby="hs-default"
+  bind:this={element}
 >
   <ul class="p-1 space-y-0.5 border-b border-neutral-800">
     {#each items as { onclick, content }}

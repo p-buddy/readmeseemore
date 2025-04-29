@@ -1,4 +1,4 @@
-import type { FileNode, FileSystemAPI } from "@webcontainer/api";
+import type { FileNode, FileSystemAPI, FileSystemTree } from "@webcontainer/api";
 
 type FsWith<T extends keyof FileSystemAPI> = Pick<FileSystemAPI, T>;
 
@@ -55,4 +55,21 @@ export const file = <Name extends string>(
       contents: Array.isArray(content) ? content.join("\n") : content
     }
   } satisfies FileNode
-} as { [name in Name]: FileNode })
+} as { [name in Name]: FileNode });
+
+
+export const iterateFilesystem = async (
+  filesystem: FileSystemTree,
+  callback: (path: string, content: string) => Promise<void> | void,
+  path = "",
+) => {
+  for (const [key, value] of Object.entries(filesystem))
+    if ("directory" in value)
+      await iterateFilesystem(value.directory, callback, `${path}/${key}`);
+    else if (
+      "file" in value &&
+      "contents" in value.file &&
+      typeof value.file.contents === "string"
+    )
+      await callback(`${path}/${key}`, value.file.contents);
+};

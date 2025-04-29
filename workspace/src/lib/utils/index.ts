@@ -67,6 +67,17 @@ export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLEle
   return (parent ?? document.body).appendChild(element);
 }
 
+export const fixToBottom = (element: HTMLElement) => {
+  const { top, left, width, height } = element.getBoundingClientRect();
+  const fixed = document.createElement("div");
+  fixed.style.position = "fixed";
+  fixed.style.top = `${top}px`;
+  fixed.style.left = `${left}px`;
+  fixed.style.width = `${width}px`;
+  fixed.style.height = `${height}px`;
+  return document.body.appendChild(fixed);
+}
+
 export const removeFirstInstance = (str: string, instance: string) => {
   const index = str.indexOf(instance);
   if (index === -1) return str;

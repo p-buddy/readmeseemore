@@ -1,16 +1,8 @@
-<script lang="ts" module>
-  let closeCurrent: (() => void) | undefined;
-</script>
-
 <script lang="ts">
-  import ContextMenu from "$lib/ContextMenu.svelte";
-  import { createAtEvent, type OnClick } from "$lib/utils/index.js";
-  import type { Props as ComponentProps } from "$lib/utils/ui-framework.js";
+  import { close, register, type Items } from "$lib/context-menu/index.js";
+  import { type OnClick } from "$lib/utils/index.js";
   import type EditableName from "./EditableName.svelte";
-  import { mount, unmount } from "svelte";
   import type { TTreeItem } from "./Tree.svelte";
-
-  type Items = ComponentProps<typeof ContextMenu>["items"];
 
   type Props = {
     nameUI?: EditableName;
@@ -32,38 +24,6 @@
     atCursor,
     beforeAction,
   }: Props = $props();
-
-  let contextMenu: ContextMenu | undefined;
-  let tempTarget: HTMLElement | undefined;
-
-  const createCursorTarget = (event: MouseEvent) => {
-    tempTarget = createAtEvent(event);
-    tempTarget.style.zIndex = "10000";
-    return tempTarget;
-  };
-
-  const createFixedTarget = (target: HTMLElement) => {
-    const { top, left, width, height } = target.getBoundingClientRect();
-    const fixed = document.createElement("div");
-    fixed.style.position = "fixed";
-    fixed.style.zIndex = "10000";
-    fixed.style.top = `${top}px`;
-    fixed.style.left = `${left}px`;
-    fixed.style.width = `${width}px`;
-    fixed.style.height = `${height}px`;
-    fixed.style.backgroundColor = "transparent";
-    document.body.appendChild(fixed);
-    tempTarget = fixed;
-    return fixed;
-  };
-
-  const close = () => {
-    nameUI?.highlight(false);
-    if (contextMenu) unmount(contextMenu);
-    contextMenu = undefined;
-    tempTarget?.remove();
-    closeCurrent = undefined;
-  };
 
   const onMenuClick =
     (fn: OnClick): OnClick =>
@@ -100,29 +60,21 @@
 
   $effect(() => {
     if (!target) return;
-    target.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      nameUI?.highlight(true);
-      closeCurrent?.();
-      contextMenu = mount(ContextMenu, {
-        target: atCursor
-          ? createCursorTarget(event)
-          : createFixedTarget(target),
-        props: { items },
-      });
-      closeCurrent = close;
-    });
+    register(
+      target,
+      {
+        props: () => ({ items }),
+        notAtCursor: () => !atCursor,
+      },
+      {
+        onMount: () => nameUI?.highlight(true),
+        onClose: () => nameUI?.highlight(false),
+      },
+    );
   });
-
-  const hide = () => {
-    if (contextMenu) close();
-  };
 
   let strokeWidth = 1.5;
 </script>
-
-<svelte:window onclick={hide} />
 
 {#snippet renamer()}
   <svg

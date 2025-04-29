@@ -1,7 +1,7 @@
 import type { WebContainer, FileSystemTree, WebContainerProcess } from "@webcontainer/api";
 import { file } from "../utils/fs-helper.js";
 import type { ITheme } from "@xterm/xterm";
-import { boot, root, teardown } from "./webcontainer.js";
+import { boot, root, teardown } from "./common.js";
 import Terminal from "./terminal.js";
 import { cli } from "./common.js";
 

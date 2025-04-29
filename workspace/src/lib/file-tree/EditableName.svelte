@@ -21,7 +21,10 @@
     editing = condition;
     editableNameOverride = override;
     if (condition) caretIndex = detail as number;
-    else rename(detail as string);
+    else {
+      highlight(false);
+      rename(detail as string);
+    }
   };
 
   export const highlight = (setting?: boolean) => {

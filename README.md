@@ -15,7 +15,7 @@ export const hi = () => {
 };
 ```
 
-## Special Thanks
+## Thanks / Credits
 
 - [vslite](https://github.com/kat-tax/vslite): the original inspiration for this project, as well as the source of the initial codebase (this project used to be a fork)
 - [WebContainers]()

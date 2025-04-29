@@ -48,7 +48,11 @@ class CommandQueue {
 
 type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
 
+let count = 0;
+
 export default class {
+  public readonly id: string;
+
   private executing: boolean = false;
   private receiving: boolean = false;
   private forceClear: boolean = false;
@@ -78,6 +82,10 @@ export default class {
     return content.length > 0 ? content : undefined;
   }
 
+  public get isExecuting() {
+    return this.executing;
+  }
+
   private constructor(
     public readonly container: WebContainer,
     public readonly jsh: WebContainerProcess,
@@ -86,10 +94,13 @@ export default class {
     private readonly fitAddon: FitAddon,
     terminalTheme?: ITheme,
   ) {
-    xterm.options.theme = terminalTheme;
+    xterm.options.theme = terminalTheme ?? {
+      background: "#181818",
+    };
     xterm.onData(this.onInput.bind(this));
     jsh.output.pipeTo(new WritableStream({ write: this.onOutput.bind(this) }));
     xterm.clear();
+    this.id = `${count++}`;
   }
 
   public static async New(container: WebContainer, status?: Status) {
