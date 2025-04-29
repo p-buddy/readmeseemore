@@ -22,11 +22,15 @@ export type CreateOptions = {
 }
 
 export default class OperatingSystem {
-  public terminalIndex = 0;
   public readonly terminals: Terminal[] = [];
 
   public get terminal() {
-    return this.terminals[this.terminalIndex];
+    const notExecuting = this.terminals.filter(t => !t.isExecuting);
+    if (notExecuting.length === 0) return this.terminals[0];
+    if (notExecuting.length === 1) return notExecuting[0];
+    const noInput = notExecuting.filter(t => !t.userInput);
+    if (noInput.length === 0) return notExecuting[0];
+    return noInput[0];
   }
 
   private constructor(
@@ -47,10 +51,9 @@ export default class OperatingSystem {
     await this._watch;
   }
 
-  public async addTerminal(updateIndex: boolean = false) {
+  public async addTerminal() {
     const terminal = await Terminal.New(this.container);
-    const length = this.terminals.push(terminal);
-    if (updateIndex) this.terminalIndex = length - 1;
+    this.terminals.push(terminal);
     return terminal;
   }
 

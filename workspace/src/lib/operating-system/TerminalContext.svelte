@@ -12,7 +12,7 @@
       {
         content: add,
         onclick: async () => {
-          mount(await os.addTerminal(true));
+          mount(await os.addTerminal());
           close();
         },
       },

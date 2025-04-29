@@ -18,7 +18,7 @@
       force: true,
     });
 
-    const { terminal } = os;
+    const terminal = os.terminals[0];
 
     const { container } = await harness.given("container");
 

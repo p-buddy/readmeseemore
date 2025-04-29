@@ -169,10 +169,6 @@
                     id: terminal.id,
                   },
                 );
-                panel.api.onDidFocusChange((e) => {
-                  if (!e.isFocused) return;
-                  os!.terminalIndex = os!.terminals.indexOf(terminal);
-                });
                 panel.api.onDidDimensionsChange(() => terminal.fit());
               };
 
