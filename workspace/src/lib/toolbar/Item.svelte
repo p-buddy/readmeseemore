@@ -48,7 +48,7 @@
   {#if "children" in item && (item.children?.length ?? 0) > 0}
     {@render right()}
     <div
-      class="border-1 border-neutral-600 bg-neutral-800 rounded-sm absolute left-full invisible"
+      class="border-1 px-1 border-neutral-600 bg-neutral-800 rounded-sm absolute left-full invisible"
       style:top={"0"}
       style:left={"calc(100% - 0.5rem)"}
       class:visible={open}

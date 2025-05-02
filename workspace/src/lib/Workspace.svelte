@@ -24,7 +24,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { takeAction } from "./editor/actions.js";
   import { tryGetLanguageByFile } from "./editor/index.js";
-  import { createFileSystemProvider } from "./editor/file-system-provider.js";
+  import { createAndRegisterFileSystemProvider } from "./editor/file-system-provider.js";
   import { iterateFilesystem } from "./utils/fs-helper.js";
   import { register } from "./context-menu/index.js";
   import { getItems } from "./operating-system/TerminalContext.svelte";
@@ -268,7 +268,7 @@
         };
 
         status?.("Adding initial file tree");
-        const fsProvider = createFileSystemProvider(os);
+        const fsProvider = createAndRegisterFileSystemProvider(os);
         const tree = await paneAPI!.addComponentPanel(
           "Tree",
           {
@@ -283,7 +283,6 @@
                     {
                       fs,
                       file,
-                      fsProvider,
                       onSave: ({ path }) => {
                         if (path.endsWith(".ts")) {
                           const command = `npx --yes tsx ${path}`;

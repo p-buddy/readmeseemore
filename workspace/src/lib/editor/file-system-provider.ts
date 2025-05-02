@@ -3,6 +3,8 @@ import type { FileSystemProviderCapabilities, FileType, FileChangeType, IFileCha
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
 import { dirname, exists, safelyGetFileContent, safelyStatFile, prependRoot, trySanitize } from "./utils.js";
 import type { OperatingSystem } from "$lib/operating-system/index.js";
+import { registerFileSystemOverlay } from "@codingame/monaco-vscode-files-service-override";
+import { onEditorInit } from "./index.js";
 
 export type FileSystemProvider = IFileSystemProviderWithFileReadWriteCapability;
 
@@ -123,4 +125,10 @@ export const createFileSystemProvider = (os: OperatingSystem): FileSystemProvide
     ...notImplemented("delete"),
     ...notImplemented("rename"),
   }
+}
+
+export const createAndRegisterFileSystemProvider = (os: OperatingSystem) => {
+  const provider = createFileSystemProvider(os);
+  onEditorInit(() => registerFileSystemOverlay(1, provider));
+  return provider;
 }

@@ -1,14 +1,11 @@
 <script lang="ts" module>
   import * as monaco from "@codingame/monaco-vscode-editor-api";
-  import { MonacoEditorLanguageClientWrapper } from "monaco-editor-wrapper";
-  import { configureDefaultWorkerFactory } from "monaco-editor-wrapper/workers/workerLoaders";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
   type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
     file: Pick<TFile, "name" | "path">;
     onSave: (path: Pick<TFile, "name" | "path">) => void;
-    fsProvider: FileSystemProvider;
   };
 
   type Editor = typeof monaco.editor;
@@ -57,36 +54,6 @@
     }
   };
 
-  const wrapper = new MonacoEditorLanguageClientWrapper();
-
-  const initializer = () =>
-    wrapper
-      .init({
-        $type: "extended",
-        vscodeApiConfig: {
-          enableExtHostWorker: true,
-          userConfiguration: {
-            json: JSON.stringify({
-              "workbench.colorTheme": "Default Dark Modern",
-              "typescript.tsserver.web.projectWideIntellisense.enabled": true,
-              "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": false,
-              "diffEditor.renderSideBySide": false,
-              "editor.lightbulb.enabled": "on",
-              "editor.glyphMargin": true,
-              "editor.guides.bracketPairsHorizontal": true,
-              "editor.experimental.asyncTokenization": true,
-              "editor.automaticLayout": true,
-            }),
-          },
-        },
-        editorAppConfig: {
-          monacoWorkerFactory: configureDefaultWorkerFactory,
-        },
-      })
-      .then(() => {
-        wrapper.getEditorApp()?.dispose();
-      });
-
   const createAndAttachEditor = async (
     element: HTMLElement,
     { fs, file, onSave }: Props,
@@ -119,9 +86,8 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import { initializeOnce, tryGetLanguageByFileExtension } from "./index.js";
+  import { initialization, tryGetLanguageByFileExtension } from "./index.js";
   import { root } from "$lib/utils/webcontainer.js";
-  import { type FileSystemProvider } from "./file-system-provider.js";
   import { exists } from "./utils.js";
 
   let { params, api }: PanelProps<"dock", Props> = $props();
@@ -177,7 +143,7 @@
   class="h-full w-full pt-1"
   bind:element
   onMount={async (element) => {
-    await initializeOnce(initializer, params.fsProvider);
+    await initialization;
     editor = await createAndAttachEditor(element, params);
   }}
 />

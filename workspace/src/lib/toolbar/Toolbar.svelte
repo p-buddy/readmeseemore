@@ -145,7 +145,7 @@
       >
         {menu.name}
         <div
-          class="px-1 absolute top-full z-100 left-0 p-1 space-y-0.5 border-1 rounded-sm border-neutral-600 bg-neutral-800"
+          class="absolute top-full z-100 left-0 p-1 space-y-0.5 border-1 rounded-sm border-neutral-600 bg-neutral-800"
           style:min-width={`220px`}
         >
           {#each menu.items as item}
