@@ -46,10 +46,15 @@
 
   const createFileReference = async (path: string): Promise<Reference> => {
     if (fileReferences.has(path)) return fileReferences.get(path)!;
-    tryRegisterLanguageByFile(path);
-    const reference = monaco.editor.createModelReference(urify(path));
-    fileReferences.set(path, reference);
-    return reference;
+    try {
+      tryRegisterLanguageByFile(path);
+      const reference = monaco.editor.createModelReference(urify(path));
+      fileReferences.set(path, reference);
+      return reference;
+    } catch (e) {
+      console.error(`Failed to create file reference for ${path}`, e);
+      throw e;
+    }
   };
 
   const wrapper = new MonacoEditorLanguageClientWrapper();
@@ -70,6 +75,7 @@
               "editor.glyphMargin": true,
               "editor.guides.bracketPairsHorizontal": true,
               "editor.experimental.asyncTokenization": true,
+              "editor.automaticLayout": true,
             }),
           },
         },

@@ -1,3 +1,4 @@
 packages:
   - "./*"
   - "language-servers/*"
+  - "vscode-extension-stubs/*"

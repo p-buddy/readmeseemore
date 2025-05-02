@@ -5,14 +5,14 @@
   export const getItems = (
     os: OperatingSystem,
     terminal: Terminal,
-    mount: (terminal: Terminal) => any,
+    mount: (terminal: Terminal, reference: string) => any,
     drop: () => void,
   ) => {
     const base: Items = [
       {
         content: add,
         onclick: async () => {
-          mount(await os.addTerminal());
+          mount(await os.addTerminal(), terminal.id);
           close();
         },
       },
@@ -22,6 +22,8 @@
         content: remove,
         onclick: () => {
           drop();
+          os.terminals.splice(os.terminals.indexOf(terminal), 1);
+          terminal.dispose();
           close();
         },
       });

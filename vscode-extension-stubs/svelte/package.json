@@ -1,0 +1,33 @@
+{
+	"name": "@readmeseemore/vscode-extension-stubs-svelte",
+	"type": "module",
+	"private": false,
+	"version": "0.0.0",
+	"access": "public",
+	"main": "./dist/index.js",
+	"typings": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "npx tsx scripts/index.ts",
+		"prepublishOnly": "pnpm build && npm version patch --git-tag-version false",
+		"postpublish": "git add ./package.json && git commit -m \"bump version: $(basename $(pwd))\" && git push"
+	},
+	"devDependencies": {
+		"@readmeseemore/vscode-extension-stubs-common": "workspace:^",
+		"@types/node": "^22.13.10",
+		"typescript": "^5.8.2"
+	},
+	"dependencies": {
+		"@codingame/monaco-vscode-api": "15.0.3"
+	}
+}

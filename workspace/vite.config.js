@@ -1,7 +1,8 @@
 /// <reference types="vitest/config" />
+import { join } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import importMetaUrlPlugin from '@codingame/esbuild-import-meta-url-plugin'
 
 export default defineConfig({
@@ -11,6 +12,11 @@ export default defineConfig({
         headers: {
             'Cross-Origin-Embedder-Policy': 'require-corp',
             'Cross-Origin-Opener-Policy': 'same-origin',
+        },
+        fs: {
+            allow: [
+                join(searchForWorkspaceRoot(process.cwd()), "vscode-extension-stubs"),
+            ]
         }
     },
     optimizeDeps: {
@@ -25,7 +31,10 @@ export default defineConfig({
                     setup(args) {
                         importMetaUrlPlugin.setup({
                             ...args, onLoad: (options, callback) => {
-                                args.onLoad({ ...options, filter: /.*(@codingame|monaco-).*\.js$/ }, callback);
+                                args.onLoad({
+                                    ...options,
+                                    filter: /.*(@codingame|monaco-|@readmeseemore\/vscode-extension-stub).*\.js$/
+                                }, callback);
                             }
                         })
                     }

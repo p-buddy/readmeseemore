@@ -64,9 +64,15 @@ const standardLanguageClient = (lang: string, payload: Payload, verbose = false)
   else spawnLanguageServerClient(lang, [container, pkg, { flags: ["verbose"] }], true);
 }
 
+const programmaticCommandComment = (lang: string, space = true) =>
+  (space ? " " : "") +
+  `# NOTE: This command was issued programmatically so ${lang} language features work correctly ツ`;
+
 const highlight = {
   typescript: takeActionOnlyOnce(
-    () => import("@codingame/monaco-vscode-typescript-basics-default-extension"))
+    () => import("@codingame/monaco-vscode-typescript-basics-default-extension")),
+  svelte: takeActionOnlyOnce(
+    () => import("@readmeseemore/vscode-extension-stubs-svelte"))
 };
 
 const inprogress = new Map<string, Promise<void>>();
@@ -82,7 +88,11 @@ const ensurePackageExists = async ({ os }: Payload, pkg: string, dev = false) =>
       if (dependencies?.[pkg] || devDependencies?.[pkg])
         if (await exists(fs, `node_modules/${pkg}`)) return;
     }
-    const cmd = "npm install" + (dev ? " --save-dev " : " ") + pkg;
+    const cmd =
+      "npm install" +
+      (dev ? " --save-dev " : " ") +
+      pkg +
+      programmaticCommandComment(pkg.replace("@types/", ""));
     await os.terminal.enqueueCommand(cmd, true);
     resolve();
   });
@@ -90,7 +100,6 @@ const ensurePackageExists = async ({ os }: Payload, pkg: string, dev = false) =>
   await check;
   inprogress.delete(pkg);
 }
-
 
 const typescript = async (payload: Payload) => {
   highlight.typescript(payload);
@@ -104,7 +113,11 @@ export const actionsByLanguage = {
     typescript(payload);
     import("@codingame/monaco-vscode-javascript-default-extension");
   },
-  svelte: (payload) => standardLanguageClient("svelte", payload),
+  svelte: async (payload) => {
+    highlight.svelte(payload);
+    await typescript(payload);
+    standardLanguageClient("svelte", payload);
+  },
   json: () => {
     import("@codingame/monaco-vscode-json-default-extension");
     import("@codingame/monaco-vscode-json-language-features-default-extension");

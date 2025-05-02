@@ -1,0 +1,1 @@
+# @readmeseemore/vscode-extension-stubs-common

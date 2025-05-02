@@ -9,9 +9,7 @@
   },
   "author": "",
   "license": "ISC",
-  "devDependencies": {
-    "vite-plugin-dts": "^4.5.3"
-  },
+  "devDependencies": {},
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
