@@ -239,13 +239,18 @@
     let partIndex = 0;
 
     if (parts.length > 0)
-      while (partIndex < parts.length)
+      while (partIndex < parts.length) {
+        const target = parts[partIndex];
+        let found = false;
         for (const child of searchFolder.children)
-          if (child.type === "folder" && child.name === parts[partIndex]) {
+          if (child.type === "folder" && child.name === target) {
             searchFolder = child;
             partIndex++;
+            found = true;
             break;
           }
+        if (!found) return undefined;
+      }
 
     return searchFolder.children.find((child) => child.name === name);
   };

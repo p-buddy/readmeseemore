@@ -32,7 +32,7 @@
     open = false;
   }}
   onclick={(e) => {
-    if ("onClick" in item) item.onClick?.();
+    if ("onclick" in item) item.onclick?.();
     else {
       e.stopPropagation();
     }
@@ -45,7 +45,7 @@
       {@render item.content()}
     {/if}
   </span>
-  {#if "children" in item && (item.children?.length ?? 0) > 0}
+  {#if "items" in item && (item.items?.length ?? 0) > 0}
     {@render right()}
     <div
       class="border-1 px-1 border-neutral-600 bg-neutral-800 rounded-sm absolute left-full invisible"
@@ -55,7 +55,7 @@
       style:z-index={depth + 1000}
     >
       {#if open}
-        {#each item.children as child}
+        {#each item.items as child}
           <Item item={child} depth={depth + 1} />
         {/each}
       {/if}

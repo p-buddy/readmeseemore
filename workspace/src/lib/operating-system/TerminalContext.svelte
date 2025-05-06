@@ -6,7 +6,7 @@
     os: OperatingSystem,
     terminal: Terminal,
     mount: (terminal: Terminal, reference: string) => any,
-    drop: () => void,
+    drop: (onDropped: () => void) => void,
   ) => {
     const base: Items = [
       {
@@ -21,9 +21,8 @@
       base.push({
         content: remove,
         onclick: () => {
-          drop();
-          os.terminals.splice(os.terminals.indexOf(terminal), 1);
-          terminal.dispose();
+          os.removeTerminal(terminal);
+          drop(() => terminal.dispose());
           close();
         },
       });

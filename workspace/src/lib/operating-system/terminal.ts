@@ -59,6 +59,12 @@ export default class {
   private _inputReady?: Deferred;
   private readonly queue = new CommandQueue();
   private onCapture?: CaptureCommandOutput;
+  private element?: HTMLElement;
+
+  public fade(direction: "in" | "out", duration: number) {
+    this.element!.style.opacity = direction === "in" ? "1" : "0";
+    this.element!.style.transition = `opacity ${duration}ms ease-in-out`;
+  }
 
   public get commandQueue(): LimitedCommandQueue {
     return this.queue;
@@ -130,7 +136,12 @@ export default class {
     return new this(container, jsh, input, xterm, addon);
   }
 
-  public mount(parent: HTMLElement) {
+  public mount(parent: HTMLElement, fade?: number) {
+    this.element = parent;
+    if (fade) {
+      this.element!.style.opacity = "0";
+      requestAnimationFrame(() => this.fade("in", fade));
+    }
     this.xterm.open(parent);
     this.fit();
   }

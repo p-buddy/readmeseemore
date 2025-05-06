@@ -1,4 +1,4 @@
-import type { WebContainer, FileSystemTree, WebContainerProcess } from "@webcontainer/api";
+import type { WebContainer, FileSystemTree, WebContainerProcess, SpawnOptions } from "@webcontainer/api";
 import { file } from "../utils/fs-helper.js";
 import type { ITheme } from "@xterm/xterm";
 import { boot, root, teardown } from "./common.js";
@@ -55,6 +55,10 @@ export default class OperatingSystem {
     const terminal = await Terminal.New(this.container);
     this.terminals.push(terminal);
     return terminal;
+  }
+
+  public removeTerminal(terminal: Terminal) {
+    this.terminals.splice(this.terminals.indexOf(terminal), 1);
   }
 
   public static async Create(options?: CreateOptions) {
