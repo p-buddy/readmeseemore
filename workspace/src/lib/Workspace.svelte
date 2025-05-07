@@ -18,6 +18,13 @@
   let os = $state<OS>();
   let elements = $state<Elements>();
 
+  const onSave: GridProps["onSave"] = ({ path }) => {
+    if (path.endsWith(".ts")) {
+      const command = `npx --yes tsx ${path}`;
+      os!.terminal.enqueueCommand(command);
+    }
+  };
+
   const sanitize = (path: string) => {
     while (path.startsWith("/")) path = path.slice(1);
     return path;
@@ -47,7 +54,7 @@
     <Toolbar {elements} {os} />
   </div>
   <div class="w-full flex-1">
-    <Grid {filesystem} {status} {onReady} bind:os bind:elements />
+    <Grid {filesystem} {status} {onReady} {onSave} bind:os bind:elements />
   </div>
 </section>
 

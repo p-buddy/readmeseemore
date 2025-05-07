@@ -2,7 +2,7 @@
   import * as monaco from "@codingame/monaco-vscode-editor-api";
   import { type WithLimitFs } from "../utils/fs-helper.js";
 
-  type Props = {
+  export type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
     file: Pick<TFile, "name" | "path">;
     onSave: (path: Pick<TFile, "name" | "path">) => void;

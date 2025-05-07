@@ -1,12 +1,14 @@
 <script lang="ts" module>
   import type { FileSystemTree } from "@webcontainer/api";
   import type { WithElements, WithOperatingSystem } from "./index.js";
+  import type { Props as EditorProps } from "../editor/Editor.svelte";
 
   export type Props = {
     filesystem?: FileSystemTree;
     onReady?: () => void;
     os?: OperatingSystem;
   } & Pick<CreateOptions, "status"> &
+    Pick<EditorProps, "onSave"> &
     Partial<WithElements & WithOperatingSystem>;
 </script>
 
@@ -45,11 +47,13 @@
     defaultDuration,
   } from "$lib/utils/dockview.js";
   import type { IDisposable } from "@xterm/xterm";
+  import PortTab from "../ports/Tab.svelte";
 
   let {
     filesystem,
     status,
     onReady,
+    onSave,
     os = $bindable(),
     elements = $bindable(),
   }: Props = $props();
@@ -60,6 +64,12 @@
 {#snippet preview({ params: { url } }: PanelProps<"dock", { url: string }>)}
   {/* @ts-ignore */ null}
   <iframe src={url} title="preview" class="w-full h-full"> </iframe>
+{/snippet}
+
+{#snippet sup()}
+  <div>
+    <h1>SupSupSupSupSupSupSupSupSupSupSupSupSup</h1>
+  </div>
 {/snippet}
 
 {#snippet dock({
@@ -73,6 +83,7 @@
       {...params}
       snippets={{ preview }}
       components={{ Editor }}
+      tabs={{ components: { PortTab } }}
       watermark={{ component: VsCodeWatermark }}
     />
   </div>
@@ -222,6 +233,7 @@
         },
         {
           title,
+          tabComponent: "PortTab",
           position: {
             direction: "right",
           },
@@ -288,14 +300,9 @@
                 {
                   fs,
                   file,
-                  onSave: ({ path }) => {
-                    if (path.endsWith(".ts")) {
-                      const command = `npx --yes tsx ${path}`;
-                      os!.terminal.enqueueCommand(command);
-                    }
-                  },
+                  onSave,
                 },
-                { id, title: file.name },
+                { id, title: file.name, tabComponent: "PortTab" },
               )
             ).panel
           ).api.setActive();
@@ -370,12 +377,3 @@
     onReady?.();
   }}
 />
-
-<style>
-  :global(.my-dockview-theme .dv-groupview, .my-dockview-theme .dv-paneview) {
-    /* animate both dimension changes */
-    transition:
-      width 0.3s ease-in-out,
-      height 0.3s ease-in-out;
-  }
-</style>

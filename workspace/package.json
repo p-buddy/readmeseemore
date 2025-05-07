@@ -78,7 +78,7 @@
 		"@codingame/monaco-vscode-typescript-basics-default-extension": "15.0.3",
 		"@codingame/monaco-vscode-xml-default-extension": "15.0.3",
 		"@codingame/monaco-vscode-yaml-default-extension": "15.0.3",
-		"@p-buddy/dockview-svelte": "^0.0.6",
+		"@p-buddy/dockview-svelte": "^0.0.7",
 		"@readmeseemore/language-servers-interop": "workspace:^",
 		"@readmeseemore/vscode-extension-stubs-svelte": "workspace:^",
 		"@xterm/addon-fit": "^0.10.0",
