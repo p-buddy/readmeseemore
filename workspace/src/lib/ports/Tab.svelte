@@ -4,6 +4,8 @@
     type DefaultDockTabProps,
   } from "@p-buddy/dockview-svelte";
   import { untrack } from "svelte";
+  import { getPort, unique } from "./utils.js";
+  import type { Props as PreviewProps } from "./Preview.svelte";
 
   let props: Omit<DefaultDockTabProps, "content"> = $props();
 
@@ -11,37 +13,146 @@
   let value = $state<string>();
   let input = $state<HTMLInputElement>();
 
-  const setIfNotEditing = (title: string) => {
-    if (editing) return;
-    untrack(() => (value = title));
+  const setValueIfNotEditing = (update: string) => {
+    if (!editing) untrack(() => (value = update));
+  };
+
+  const pathFromPort = (title: string, port?: string) =>
+    port ? title.split(port)[1] : "";
+
+  const updateParameters = (params: Partial<PreviewProps>) =>
+    props.api.updateParameters(params);
+
+  const update = (updated: string) => {
+    props.api.setTitle(updated);
+    updateParameters({ url: unique(updated) });
   };
 </script>
 
+{#snippet icon(type: "browser" | "refresh")}
+  {#if type === "browser"}
+    <span class="size-4 text-neutral-500">
+      <svg viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="none">
+        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+        <g
+          id="SVGRepo_tracerCarrier"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+        </g>
+        <g id="SVGRepo_iconCarrier">
+          <circle
+            cx="96"
+            cy="96"
+            r="74"
+            stroke="currentColor"
+            stroke-width="12"
+          >
+          </circle>
+          <ellipse
+            cx="96"
+            cy="96"
+            stroke="currentColor"
+            stroke-width="12"
+            rx="30"
+            ry="74"
+          ></ellipse>
+          <path
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="12"
+            d="M28 72h136M28 120h136"
+          >
+          </path>
+        </g>
+      </svg>
+    </span>
+  {:else if type === "refresh"}
+    <span class="h-full w-full">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+        <g
+          id="SVGRepo_tracerCarrier"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+        </g>
+        <g id="SVGRepo_iconCarrier">
+          <path
+            d="M21 3V8M21 8H16M21 8L18 5.29168C16.4077 3.86656 14.3051 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21C16.2832 21 19.8675 18.008 20.777 14"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+          </path>
+        </g>
+      </svg>
+    </span>
+  {/if}
+{/snippet}
+
 {#snippet content(title: string)}
-  {setIfNotEditing(title)}
-  <input
-    bind:this={input}
-    bind:value
-    type="text"
-    class="outline-1 outline-neutral-600 rounded-xl pr-2 pl-3 cursor-text"
-    onclick={() => (editing = true)}
-    size={Math.max(value?.length ?? 0, 1)}
-    onkeydown={(e) => {
-      if (e.key !== "Enter") return;
-      editing = false;
-      input?.blur();
-    }}
-    onblur={() => {
-      editing = false;
-      value = title;
-    }}
-  />
+  {@const port = getPort(title)}
+  {@const path = pathFromPort(title, port)}
+  {setValueIfNotEditing(path)}
+  <div class="flex flex-row items-center h-full">
+    <div
+      class="h-full w-3 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 mr-2 ml-0 rounded-md transform active:scale-75 transition-transform"
+    >
+      {@render icon("refresh")}
+    </div>
+    <div
+      class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1 pr-1 cursor-text"
+      class:focus={editing}
+    >
+      {@render icon("browser")}
+      <div class="ml-1">
+        <button
+          class="align-bottom pb-0 mb-0 h-full mx-auto"
+          onclick={() => {
+            if (editing) return;
+            if (!value) value = "/";
+            editing = true;
+            input?.focus();
+          }}
+        >
+          {port}
+        </button><!--force no space between--><input
+          class="outline-0"
+          bind:this={input}
+          bind:value
+          type="text"
+          onclick={() => {
+            if (editing) return;
+            if (!value) value = "/";
+            editing = true;
+          }}
+          size={Math.max(value?.length ?? 0, 1)}
+          onkeydown={(e) => {
+            if (e.key === "Enter") {
+              editing = false;
+              update(port + (value ?? path));
+              input?.blur();
+            } else if (e.key === "Backspace") {
+            } else if (value && !value.startsWith("/")) value = "/" + value;
+            else if (!value && e.key !== "/") value = "/";
+          }}
+          onblur={() => {
+            editing = false;
+            value = path;
+          }}
+        />
+      </div>
+    </div>
+  </div>
 {/snippet}
 
 <DefaultDockTab {...props} {content} />
 
 <style>
-  input:focus {
+  .focus {
     outline-color: #007fd4;
   }
 </style>

@@ -8,7 +8,7 @@
     mount: (terminal: Terminal, reference: string) => any,
     drop: (onDropped: () => void) => void,
   ) => {
-    const base: Items = [
+    const items: Items = [
       {
         content: add,
         onclick: async () => {
@@ -18,7 +18,7 @@
       },
     ];
     if (os.terminals.length > 1 && !terminal.isExecuting) {
-      base.push({
+      items.push({
         content: remove,
         onclick: () => {
           os.removeTerminal(terminal);
@@ -27,7 +27,7 @@
         },
       });
     }
-    return base;
+    return { items };
   };
 </script>
 

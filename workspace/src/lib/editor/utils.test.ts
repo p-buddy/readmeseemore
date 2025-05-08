@@ -5,7 +5,7 @@ import type { WithLimitFs } from "$lib/utils/fs-helper.js";
 import type { FileSystemTree, DirEnt, FileNode, DirectoryNode } from "@webcontainer/api"
 
 describe(prependRoot.name, () => {
-  test("basic", (x) => {
+  test(prependRoot.name + 1, (x) => {
     expect(prependRoot("/test.txt")).toBe(root + "test.txt");
     expect(prependRoot("test.txt")).toBe(root + "test.txt");
     expect(prependRoot("/")).toBe(root);
@@ -14,18 +14,18 @@ describe(prependRoot.name, () => {
 });
 
 describe(parts.name, () => {
-  test("basic", (x) => {
-    expect(parts(prependRoot("test"))).toEqual({ directory: removeTrailing(root, "/"), name: "test" });
-    expect(parts("/x/y/z/")).toEqual({ directory: "/x/y", name: "z" });
+  test(parts.name + 1, (x) => {
+    expect(parts(prependRoot("test"))).toEqual({ directory: ".", name: "test" });
+    expect(parts("/x/y/z/")).toEqual({ directory: "./x/y", name: "z" });
   })
 });
 
 describe(dirname.name, () => {
-  test("basic", (x) => {
-    expect(dirname("/x/y/z/")).toBe("/x/y");
-    expect(dirname("/x/y/z")).toBe("/x/y");
-    expect(dirname("/x/y/")).toBe("/x");
-    expect(dirname("/x/y")).toBe("/x");
+  test(dirname.name + 1, (x) => {
+    expect(dirname("/x/y/z/")).toBe("./x/y");
+    expect(dirname("/x/y/z")).toBe("./x/y");
+    expect(dirname("/x/y/")).toBe("./x");
+    expect(dirname("/x/y")).toBe("./x");
   })
 });
 
@@ -50,7 +50,8 @@ const fs = {
     readdir: async (path: string) => {
       let curr = tree;
       for (const part of trimSlash(path).split("/"))
-        if (!curr[part]) throw new Error(`Not found (${part} of ${path})`);
+        if (part === ".") continue;
+        else if (!curr[part]) throw new Error(`Not found (${part} of ${path})`);
         else if ("directory" in curr[part]) curr = curr[part].directory;
         else throw new Error(`Not a directory (${part} of ${path})`)
 
@@ -82,11 +83,12 @@ const testTree = () => {
         file("a"),
         file("b"),
         directory("c", file("d"))));
+
   return tree;
 }
 
 describe(fs.mock.name, () => {
-  test("basic", async () => {
+  test(fs.mock.name + 1, async () => {
     const tree = testTree();
     const _fs = fs.mock(tree);
     let dir = await _fs.readdir("/x");
@@ -104,27 +106,22 @@ describe(fs.mock.name, () => {
   })
 })
 
-const testFs = () => {
-  const tree = trimSlash(root).split("/").reverse().reduce((acc, part) => {
-    return fs.directory(part, acc);
-  }, testTree());
-  return fs.mock(tree) as unknown as WithLimitFs<"readdir">;
-}
+const testFs = () => fs.mock(testTree()) as unknown as WithLimitFs<"readdir">
 
 describe(exists.name, () => {
-  test("basic", async () => {
+  test(exists.name + 1, async () => {
     const fs = testFs();
 
     const expectFile = async (path: string) => {
-      expect(await exists(fs, path)).toBe(true);
-      expect(await exists(fs, path, true)).toBe(true);
-      expect(await exists(fs, path, false)).toBe(false);
+      expect(await exists(fs, path), `exists(${path})`).toBe(true);
+      expect(await exists(fs, path, true), `exists(${path}, true)`).toBe(true);
+      expect(await exists(fs, path, false), `exists(${path}, false)`).toBe(false);
     }
 
     const expectDirectory = async (path: string) => {
-      expect(await exists(fs, path)).toBe(true);
-      expect(await exists(fs, path, true)).toBe(false);
-      expect(await exists(fs, path, false)).toBe(true);
+      expect(await exists(fs, path), `exists(${path})`).toBe(true);
+      expect(await exists(fs, path, true), `exists(${path}, true)`).toBe(false);
+      expect(await exists(fs, path, false), `exists(${path}, false)`).toBe(true);
     }
 
     await expectFile("/x/y");

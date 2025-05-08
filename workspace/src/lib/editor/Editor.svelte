@@ -86,7 +86,8 @@
   import type { TFile } from "../file-tree/Tree.svelte";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
-  import { initialization, tryGetLanguageByFileExtension } from "./index.js";
+  import { tryGetLanguageByFileExtension } from "./languages.js";
+  import { initialization } from "./initialization.js";
   import { root } from "$lib/utils/webcontainer.js";
   import { exists } from "./utils.js";
 

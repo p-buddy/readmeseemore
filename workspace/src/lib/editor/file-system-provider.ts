@@ -4,7 +4,7 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode } from "@cod
 import { dirname, exists, safelyGetFileContent, safelyStatFile, prependRoot, trySanitize } from "./utils.js";
 import type { OperatingSystem } from "$lib/operating-system/index.js";
 import { registerFileSystemOverlay } from "@codingame/monaco-vscode-files-service-override";
-import { onEditorInit } from "./index.js";
+import { onInitialization } from "./initialization.js";
 
 export type FileSystemProvider = IFileSystemProviderWithFileReadWriteCapability;
 
@@ -129,6 +129,6 @@ export const createFileSystemProvider = (os: OperatingSystem): FileSystemProvide
 
 export const createAndRegisterFileSystemProvider = (os: OperatingSystem) => {
   const provider = createFileSystemProvider(os);
-  onEditorInit(() => registerFileSystemOverlay(1, provider));
+  onInitialization(() => registerFileSystemOverlay(1, provider));
   return provider;
 }

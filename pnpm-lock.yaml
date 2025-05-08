@@ -331,8 +331,8 @@ importers:
         specifier: 15.0.3
         version: 15.0.3
       '@p-buddy/dockview-svelte':
-        specifier: ^0.0.7
-        version: 0.0.7(react@19.1.0)(svelte@5.27.1)
+        specifier: latest
+        version: 0.0.9(react@19.1.0)(svelte@5.27.1)
       '@readmeseemore/language-servers-interop':
         specifier: workspace:^
         version: link:../language-servers/interop
@@ -1527,8 +1527,8 @@ packages:
     peerDependencies:
       svelte: ^5.0.0
 
-  '@p-buddy/dockview-svelte@0.0.7':
-    resolution: {integrity: sha512-2Ovmlc5rbkp0nGm3DrMPzQC0TwyD2afad2FHVgYpdFHIk1J0hSz7/Ei6/0ejNG309N/z54dtY67jNaaTQwdOWQ==}
+  '@p-buddy/dockview-svelte@0.0.9':
+    resolution: {integrity: sha512-WluxipZgTJv4UtrH10DCVWi10dSmRCtcM9OVZ3cYzWjKop2WaSSIFMk2rToaGCYVaRqf/2fzq5VqQFSX56nesw==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -5254,7 +5254,7 @@ snapshots:
     transitivePeerDependencies:
       - react
 
-  '@p-buddy/dockview-svelte@0.0.7(react@19.1.0)(svelte@5.27.1)':
+  '@p-buddy/dockview-svelte@0.0.9(react@19.1.0)(svelte@5.27.1)':
     dependencies:
       dockview: 3.2.0(react@19.1.0)
       dockview-core: 3.2.0

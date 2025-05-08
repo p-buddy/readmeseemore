@@ -1,5 +1,6 @@
 import type { WebContainerProcess } from "@webcontainer/api";
-import { type SupportedLanguage, onEditorInit } from "./index.js";
+import { type SupportedLanguage } from "./languages.js";
+import { onInitialization } from "./initialization.js";
 import { createLanguageClient, spawnLanguageServer } from "$lib/editor/language-server.js";
 import type { OperatingSystem } from "$lib/operating-system/index.js";
 import { exists } from "./utils.js";
@@ -34,7 +35,7 @@ const spawnLanguageServerClient = async (
   if (spawnedLanguageServers.has(id)) return spawnedLanguageServers.get(id)!;
   const promise = new Promise<LanguageServer>(async (resolve) => {
     const process = await spawnLanguageServer(...params);
-    onEditorInit(async () => {
+    onInitialization(async () => {
       resolve({ process, client: await createLanguageClient(process, id, log) })
     });
   });
