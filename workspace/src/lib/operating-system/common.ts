@@ -9,6 +9,7 @@ export const cli = {
     },
     chokidar: {
       ignore: "-i",
+      followSymlinks: "-s",
     }
   },
   input: {

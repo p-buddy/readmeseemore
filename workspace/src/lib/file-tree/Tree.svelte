@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import type { WithLimitFsReturn } from "$lib/utils/fs-helper.js";
 
-  type FsItemType = "file" | "folder";
+  type FsItemType = "file" | "folder" | "symlink";
 
   type ForceRename = { dirnameOverride: string };
 
@@ -15,14 +15,17 @@
   };
 
   export type TFile = TBase<"file">;
+  export type TSymlink = TBase<"symlink">;
   export type TFolder = TBase<"folder"> & {
-    children: (TFile | TFolder)[];
+    children: (TFile | TFolder | TSymlink)[];
     expanded?: boolean;
     drop(item: TTreeItem, callback?: OnRemove): boolean;
   };
-  export type TTreeItem = TFile | TFolder;
+  export type TTreeItem = TFile | TFolder | TSymlink;
 
-  export type WithOnFileClick = { onFileClick: (file: TFile) => void };
+  export type WithOnFileClick = {
+    onFileClick: (file: TFile | TSymlink) => void;
+  };
 
   type OnPathUpdate = (update: {
     current: string;
@@ -134,7 +137,7 @@
 
   type LimitedFs = WithLimitFsReturn<
     "readdir",
-    "isDirectory" | "name",
+    "isDirectory" | "name" | "isFile",
     { Await: true; Singular: true },
     { Promise: true; Array: true }
   >;
@@ -148,12 +151,15 @@
     for (const entry of await fs.readdir(parent.path, {
       withFileTypes: true,
     })) {
-      const item = make(entry.isDirectory() ? "folder" : "file", {
-        name: entry.name,
-        dirname: () => parent.path,
-        onPathUpdate,
-        remove: () => parent.drop(item, onRemove),
-      });
+      const item = make(
+        entry.isDirectory() ? "folder" : entry.isFile() ? "file" : "symlink",
+        {
+          name: entry.name,
+          dirname: () => parent.path,
+          onPathUpdate,
+          remove: () => parent.drop(item, onRemove),
+        },
+      );
       if (item.type === "folder") await populate(fs, item, callbacks);
       parent.children.push(item);
     }
@@ -205,6 +211,7 @@
   import { onMount } from "svelte";
   import type { OnlyRequire } from "$lib/utils/index.js";
   import FsContextMenu from "./FsContextMenu.svelte";
+  import { slide } from "svelte/transition";
 
   type Props = WithFs &
     WithOnFileClick &
@@ -327,25 +334,27 @@
   {#each root.children as child, index}
     {@const rename: Rename = (...args) => tryRenameAt(root.children, index, ...args)}
     {@const editing = editingTarget === child.path}
-    {#if child.type === "folder"}
-      <FolderComponent
-        {...child}
-        {rename}
-        {onFileClick}
-        {write}
-        {editing}
-        bind:name={child.name}
-      />
-    {:else}
-      {@const onclick = () => onFileClick(child)}
-      <FileComponent
-        {...child}
-        {rename}
-        {onclick}
-        {editing}
-        bind:name={child.name}
-      />
-    {/if}
+    <div transition:slide={{ duration: 300 }}>
+      {#if child.type === "folder"}
+        <FolderComponent
+          {...child}
+          {rename}
+          {onFileClick}
+          {write}
+          {editing}
+          bind:name={child.name}
+        />
+      {:else}
+        {@const onclick = () => onFileClick(child)}
+        <FileComponent
+          {...child}
+          {rename}
+          {onclick}
+          {editing}
+          bind:name={child.name}
+        />
+      {/if}
+    </div>
   {/each}
 </div>
 

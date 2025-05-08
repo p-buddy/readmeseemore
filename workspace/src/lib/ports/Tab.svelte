@@ -96,21 +96,23 @@
 {#snippet content(title: string)}
   {@const port = getPort(title)}
   {@const path = pathFromPort(title, port)}
+  {@const size = Math.max(value?.length ?? 0, 1)}
   {setValueIfNotEditing(path)}
   <div class="flex flex-row items-center h-full">
-    <div
+    <button
       class="h-full w-3 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 mr-2 ml-0 rounded-md transform active:scale-75 transition-transform"
+      onclick={() => updateParameters({ url: unique(title) })}
     >
       {@render icon("refresh")}
-    </div>
+    </button>
     <div
-      class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1 pr-1 cursor-text"
+      class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
       class:focus={editing}
     >
       {@render icon("browser")}
       <div class="ml-1">
         <button
-          class="align-bottom pb-0 mb-0 h-full mx-auto"
+          class="align-bottom pb-0 mb-0 h-full mx-auto cursor-text"
           onclick={() => {
             if (editing) return;
             if (!value) value = "/";
@@ -120,7 +122,9 @@
         >
           {port}
         </button><!--force no space between--><input
+          {size}
           class="outline-0"
+          class:w-2={(value ?? "") === ""}
           bind:this={input}
           bind:value
           type="text"
@@ -129,13 +133,18 @@
             if (!value) value = "/";
             editing = true;
           }}
-          size={Math.max(value?.length ?? 0, 1)}
           onkeydown={(e) => {
             if (e.key === "Enter") {
               editing = false;
               update(port + (value ?? path));
               input?.blur();
-            } else if (e.key === "Backspace") {
+            } else if (
+              e.key === "Backspace" &&
+              (value?.length ?? 0) > 1 &&
+              input?.selectionStart === 1
+            ) {
+              e.preventDefault();
+              value = (value?.slice(0, 1) ?? "") + (value?.slice(2) ?? "");
             } else if (value && !value.startsWith("/")) value = "/" + value;
             else if (!value && e.key !== "/") value = "/";
           }}

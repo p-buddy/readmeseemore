@@ -20,7 +20,7 @@
     takeAction,
     tryGetLanguageByFile,
     createAndRegisterFileSystemProvider,
-  } from "../editor/index.js";
+  } from "../code-editor/index.js";
   import { type Props as PropsOf } from "../utils/ui-framework.js";
   import VsCodeWatermark from "../VSCodeWatermark.svelte";
   import MountedDiv from "../utils/MountedDiv.svelte";
@@ -51,6 +51,7 @@
   } from "$lib/utils/dockview.js";
   import type { IDisposable } from "@xterm/xterm";
   import { Tab as PortTab, Preview } from "$lib/ports/index.js";
+  import { entry, isSymlink } from "$lib/code-editor/utils.js";
 
   let {
     filesystem,
@@ -253,10 +254,7 @@
                   file,
                   onSave,
                 },
-                panelConfig<"dock">()
-                  .id(id)
-                  .title(file.name)
-                  .tabComponent("PortTab").options,
+                panelConfig<"dock">().id(id).title(file.name).options,
               )
             ).panel
           ).api.setActive();
@@ -293,14 +291,19 @@
     tree.panel.headerVisible = false;
 
     status?.("Creating file system watcher");
-    await os.watch((change) => {
+    await os.watch(async (change) => {
       const { path, action, type } = change;
+
+      let symlink = false;
 
       switch (action) {
         case "add":
+          const _entry = await entry(fs, path);
+          symlink = Boolean(_entry && isSymlink(_entry));
           actionOnFile(path);
         case "addDir":
-          if (!tree.exports.find(path)) tree.exports.add(path, type);
+          if (!tree.exports.find(path))
+            tree.exports.add(path, symlink ? "symlink" : type);
           break;
         case "unlink":
           tree.exports.remove(path);

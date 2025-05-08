@@ -53,7 +53,7 @@
   <div class="w-full">
     <Toolbar {elements} {os} />
   </div>
-  <div class="w-full flex-1">
+  <div class="w-full flex-1 overflow-hidden">
     <Grid {filesystem} {status} {onReady} {onSave} bind:os bind:elements />
   </div>
 </section>

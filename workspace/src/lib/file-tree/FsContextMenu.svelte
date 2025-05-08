@@ -1,8 +1,14 @@
 <script lang="ts">
+  import {
+    tryGetLanguageByFile,
+    type SupportedLanguage,
+  } from "$lib/code-editor/languages.js";
   import { close, register, type Items } from "$lib/context-menu/index.js";
   import { type OnClick } from "$lib/utils/index.js";
   import type EditableName from "./EditableName.svelte";
   import type { TTreeItem } from "./Tree.svelte";
+
+  type TryGetOnClick = (language?: SupportedLanguage) => OnClick;
 
   type Props = {
     nameUI?: EditableName;
@@ -34,6 +40,8 @@
       fn(event);
       close();
     };
+
+  const language = $derived(tryGetLanguageByFile(name));
 
   const items: Items = $derived(
     (
