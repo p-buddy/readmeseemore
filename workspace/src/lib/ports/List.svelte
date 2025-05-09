@@ -1,18 +1,24 @@
+<script lang="ts" module>
+  type Props = {
+    open: (port: number) => void;
+  };
+</script>
+
 <script lang="ts">
+  import type { OnlyRequire } from "$lib/utils/index.js";
+  import type { PanelProps } from "@p-buddy/dockview-svelte";
   import { SvelteSet } from "svelte/reactivity";
 
-  let props: {
-    open: (port: string) => void;
-  } = $props();
+  let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
-  let selected = $state<string>();
+  const ports = new SvelteSet<number>();
 
-  const ports = new SvelteSet<string>();
+  export const addPort = (port: number) => ports.add(port);
+  export const removePort = (port: number) => ports.delete(port);
 
-  export const addPort = (port: string) => ports.add(port);
-  export const removePort = (port: string) => ports.delete(port);
+  let selected = $state<number>();
 
-  export const select = (port: string) => {
+  export const select = (port: number) => {
     if (ports.has(port)) {
       if (selected === port) return;
       selected = port;
@@ -25,6 +31,6 @@
 
 <div>
   {#each ports as port}
-    <button onclick={() => props.open(port)}>{port}</button>
+    <button onclick={() => params.open(port)}>{port}</button>
   {/each}
 </div>

@@ -5,7 +5,7 @@
   } from "@p-buddy/dockview-svelte";
   import { untrack } from "svelte";
   import { getPort, unique } from "./utils.js";
-  import type { Props as PreviewProps } from "./Preview.svelte";
+  import type { PortPath, Props as PreviewProps } from "./Preview.svelte";
 
   let props: Omit<DefaultDockTabProps, "content"> = $props();
 
@@ -17,15 +17,15 @@
     if (!editing) untrack(() => (value = update));
   };
 
-  const pathFromPort = (title: string, port?: string) =>
-    port ? title.split(port)[1] : "";
+  const pathFromPort = (title: string, port?: number) =>
+    port ? title.split(`${port}`)[1] : "";
 
   const updateParameters = (params: Partial<PreviewProps>) =>
     props.api.updateParameters(params);
 
-  const update = (updated: string) => {
+  const update = (updated: PortPath) => {
     props.api.setTitle(updated);
-    updateParameters({ url: unique(updated) });
+    updateParameters({ path: unique(updated) });
   };
 </script>
 
@@ -94,68 +94,70 @@
 {/snippet}
 
 {#snippet content(title: string)}
-  {@const port = getPort(title)}
-  {@const path = pathFromPort(title, port)}
-  {@const size = Math.max(value?.length ?? 0, 1)}
-  {setValueIfNotEditing(path)}
-  <div class="flex flex-row items-center h-full">
-    <button
-      class="h-full w-3 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 mr-2 ml-0 rounded-md transform active:scale-75 transition-transform"
-      onclick={() => updateParameters({ url: unique(title) })}
-    >
-      {@render icon("refresh")}
-    </button>
-    <div
-      class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
-      class:focus={editing}
-    >
-      {@render icon("browser")}
-      <div class="ml-1">
-        <button
-          class="align-bottom pb-0 mb-0 h-full mx-auto cursor-text"
-          onclick={() => {
-            if (editing) return;
-            if (!value) value = "/";
-            editing = true;
-            input?.focus();
-          }}
-        >
-          {port}
-        </button><!--force no space between--><input
-          {size}
-          class="outline-0"
-          class:w-2={(value ?? "") === ""}
-          bind:this={input}
-          bind:value
-          type="text"
-          onclick={() => {
-            if (editing) return;
-            if (!value) value = "/";
-            editing = true;
-          }}
-          onkeydown={(e) => {
-            if (e.key === "Enter") {
+  {#if Boolean(title)}
+    {@const port = getPort(title)}
+    {@const path = pathFromPort(title, port)}
+    {@const size = Math.max(value?.length ?? 0, 1)}
+    {setValueIfNotEditing(path)}
+    <div class="flex flex-row items-center h-full">
+      <button
+        class="h-full w-3 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 mr-2 ml-0 rounded-md transform active:scale-75 transition-transform"
+        onclick={() => updateParameters({ path: unique(title as PortPath) })}
+      >
+        {@render icon("refresh")}
+      </button>
+      <div
+        class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
+        class:focus={editing}
+      >
+        {@render icon("browser")}
+        <div class="ml-1">
+          <button
+            class="align-bottom pb-0 mb-0 h-full mx-auto cursor-text"
+            onclick={() => {
+              if (editing) return;
+              if (!value) value = "/";
+              editing = true;
+              input?.focus();
+            }}
+          >
+            {port}
+          </button><!--force no space between--><input
+            {size}
+            class="outline-0"
+            class:w-2={(value ?? "") === ""}
+            bind:this={input}
+            bind:value
+            type="text"
+            onclick={() => {
+              if (editing) return;
+              if (!value) value = "/";
+              editing = true;
+            }}
+            onkeydown={(e) => {
+              if (e.key === "Enter") {
+                editing = false;
+                update(`${port}${(value ?? path) as `/${string}`}`);
+                input?.blur();
+              } else if (
+                e.key === "Backspace" &&
+                (value?.length ?? 0) > 1 &&
+                input?.selectionStart === 1
+              ) {
+                e.preventDefault();
+                value = (value?.slice(0, 1) ?? "") + (value?.slice(2) ?? "");
+              } else if (value && !value.startsWith("/")) value = "/" + value;
+              else if (!value && e.key !== "/") value = "/";
+            }}
+            onblur={() => {
               editing = false;
-              update(port + (value ?? path));
-              input?.blur();
-            } else if (
-              e.key === "Backspace" &&
-              (value?.length ?? 0) > 1 &&
-              input?.selectionStart === 1
-            ) {
-              e.preventDefault();
-              value = (value?.slice(0, 1) ?? "") + (value?.slice(2) ?? "");
-            } else if (value && !value.startsWith("/")) value = "/" + value;
-            else if (!value && e.key !== "/") value = "/";
-          }}
-          onblur={() => {
-            editing = false;
-            value = path;
-          }}
-        />
+              value = path;
+            }}
+          />
+        </div>
       </div>
     </div>
-  </div>
+  {/if}
 {/snippet}
 
 <DefaultDockTab {...props} {content} />

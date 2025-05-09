@@ -1,26 +1,66 @@
 <script lang="ts" module>
+  type Port = number;
+  export type PortPath =
+    | `${Port}`
+    | `${Port}/${string}`
+    | `${Port}?${string}`
+    | `${Port}?${string}&${string}`;
+
   export type Props = {
-    url: string;
+    initial: {
+      port: number;
+      url: string;
+    };
+    path?: PortPath;
   };
+  let tracker = Number.MIN_SAFE_INTEGER;
 </script>
 
 <script lang="ts">
+  import MountedDiv from "$lib/utils/MountedDiv.svelte";
   import type { PanelProps } from "@p-buddy/dockview-svelte";
+  import { onDestroy, onMount, untrack } from "svelte";
 
-  let { params }: PanelProps<"dock", Props> = $props();
+  let { params, api, containerApi }: PanelProps<"dock", Props> = $props();
+
+  const { port, url } = params.initial;
+
+  const id = `preview-frame-${++tracker}`;
 
   const src = $derived.by(() => {
-    if (!params.url) return;
-    if (params.url.startsWith("http")) return params.url;
-    if (params.url.startsWith("/")) return "http://localhost" + params.url;
-    return "http://localhost/" + params.url;
+    console.log("derive");
+    if (!params.path) return url;
+    const [_, location] = params.path.split(`${port}`);
+    return url + location;
+  });
+
+  let container: HTMLDivElement;
+  let iframe: HTMLIFrameElement;
+
+  window.addEventListener("blur", () => {
+    if (document.activeElement === iframe && !api.isActive) {
+      api.setActive();
+      console.log("set active");
+    }
+  });
+
+  onMount(() => {
+    iframe = document.getElementById(id) as HTMLIFrameElement;
+    console.log({ iframe });
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.id = id;
+      iframe.style.width = "100%";
+      iframe.style.height = "100%";
+      iframe.src = src;
+      container.appendChild(iframe);
+    }
+  });
+
+  onDestroy(() => {
+    console.log(container.children);
   });
 </script>
 
-{#if params.url}
-  <iframe {src} title="preview" class="w-full h-full"> </iframe>
-{:else}
-  <div class="w-full h-full flex items-center justify-center">
-    <p class="text-center text-gray-500">No URL provided</p>
-  </div>
-{/if}
+{"h"}
+<MountedDiv class="w-full h-full" bind:element={container} />

@@ -13,7 +13,7 @@
 
 <script lang="ts">
   import { isDark } from "../mode.js";
-  import Tree from "../file-tree/Tree.svelte";
+  import FileTree from "../file-tree/Tree.svelte";
   import {
     Editor,
     type EditorProps,
@@ -48,10 +48,16 @@
     defaultDuration,
     panelConfig,
     type ViewsHelper,
+    type ViewConfig,
   } from "$lib/utils/dockview.js";
   import type { IDisposable } from "@xterm/xterm";
-  import { Tab as PortTab, Preview } from "$lib/ports/index.js";
+  import {
+    Tab as PortTab,
+    Preview,
+    List as PortsList,
+  } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/code-editor/utils.js";
+  import { unique } from "$lib/ports/utils.js";
 
   let {
     filesystem,
@@ -64,26 +70,30 @@
 
   elements ??= {};
 
-  type Views = ViewsHelper<{
+  type Panels = {
     Full: {
-      type: "grid";
       tabs: typeof tabs;
       sidebar: typeof sidebar;
       terminals: typeof terminals;
     };
     Tabs: {
-      type: "dock";
       Preview: typeof Preview;
       Editor: typeof Editor;
     };
     Sidebar: {
-      type: "pane";
-      Tree: typeof Tree;
+      FileTree: typeof FileTree;
+      PortsList: typeof PortsList;
     };
     Terminals: {
-      type: "grid";
       terminal: typeof terminal;
     };
+  };
+
+  type Views = ViewsHelper<{
+    Full: ViewConfig<"grid", Panels["Full"]>;
+    Tabs: ViewConfig<"dock", Panels["Tabs"]>;
+    Sidebar: ViewConfig<"pane", Panels["Sidebar"]>;
+    Terminals: ViewConfig<"grid", Panels["Terminals"]>;
   }>;
 
   const mountTerminal = async (
@@ -180,33 +190,65 @@
       os!.terminals.forEach((t) => t.fit()),
     );
 
-    const addPreview = (url: string, title: string) =>
-      tabsAPI!.addComponentPanel(
+    let portsList:
+      | ReturnType<typeof sidebarAPI.addComponentPanel<"PortsList">>
+      | undefined;
+
+    const urlByPort = new Map<number, string>();
+
+    const addPreview = (
+      port: number,
+      details?: Partial<Record<"title" | "url", string>>,
+    ) => {
+      const title = details?.title ?? `${port}`;
+      if (details?.url) urlByPort.set(port, details.url);
+      const url = urlByPort.get(port);
+      if (!url) throw new Error(`No url for port ${port}`);
+      return tabsAPI!.addComponentPanel(
         "Preview",
-        { url },
+        { initial: { url: unique(url), port } },
         panelConfig<"dock">()
           .title(title)
           .tabComponent("PortTab")
           .direction("right").options,
       );
+    };
 
-    addPreview("", "Preview");
-
-    let _preview: ReturnType<typeof addPreview>;
+    const getPortsList = () => {
+      portsList ??= sidebarAPI
+        .addComponentPanel(
+          "PortsList",
+          {
+            open: addPreview,
+          },
+          panelConfig<"pane">().title("Ports").options,
+        )
+        .then((list) => {
+          list.panel.api.setExpanded(true);
+          return list;
+        });
+      return portsList;
+    };
 
     container.on("error", (error) => {
-      console.error(error);
+      console.error("error", error);
     });
 
     container.on("server-ready", async (port, url) => {
-      url = `${url}?${Date.now()}`;
-      const title = `Port: ${port}`;
-      if (_preview) (await _preview).panel.update({ params: { url, title } });
-      else _preview = addPreview(url, title);
+      console.log("server-ready", { port, url });
+      const [preview, list] = await Promise.all([
+        addPreview(port, { url }).then((preview) => {
+          requestAnimationFrame(() => preview.panel.api.setActive());
+          return preview;
+        }),
+        getPortsList(),
+      ]);
+      list.exports.addPort(port);
+      if (preview.panel.api.isActive) list.exports.select(port);
     });
 
-    container.on("port", (port) => {
-      console.log({ port });
+    container.on("port", (port, type, url) => {
+      console.log("port", { port, type, url });
     });
 
     const actionOnFile = (path: string) =>
@@ -239,7 +281,7 @@
     status?.("Adding initial file tree");
     createAndRegisterFileSystemProvider(os);
     const tree = await sidebarAPI!.addComponentPanel(
-      "Tree",
+      "FileTree",
       {
         fs,
         onFileClick: async (file) => {
@@ -322,11 +364,12 @@
     status?.("File tree initializing");
     await tree.exports.ready();
 
-    tabsAPI.onDidActivePanelChange((e) =>
+    tabsAPI.onDidActivePanelChange((e) => {
+      console.log("active panel changed", e?.id);
       tree.exports.focus(
         e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
-      ),
-    );
+      );
+    });
 
     onReady?.();
   };
@@ -334,10 +377,7 @@
 
 {#snippet tabs({
   params,
-}: PanelProps<
-  "grid",
-  WithViewOnReady<"dock", { Editor: typeof Editor; Preview: typeof Preview }>
->)}
+}: PanelProps<"grid", WithViewOnReady<"dock", Panels["Tabs"]>>)}
   <div class="w-full h-full" bind:this={elements!.dock}>
     <DockView
       {...params}
@@ -350,9 +390,9 @@
 
 {#snippet sidebar({
   params,
-}: PanelProps<"grid", WithViewOnReady<"pane", { Tree: typeof Tree }>>)}
+}: PanelProps<"grid", WithViewOnReady<"pane", Panels["Sidebar"]>>)}
   <div class="w-full h-full" bind:this={elements!.tree}>
-    <PaneView components={{ Tree }} {...params} />
+    <PaneView components={{ FileTree, PortsList }} {...params} />
   </div>
 {/snippet}
 
@@ -362,7 +402,7 @@
 
 {#snippet terminals({
   params,
-}: PanelProps<"grid", WithViewOnReady<"grid", { terminal: typeof terminal }>>)}
+}: PanelProps<"grid", WithViewOnReady<"grid", Panels["Terminals"]>>)}
   <div class="w-full h-full" bind:this={elements!.terminals}>
     <GridView {...params} snippets={{ terminal }} orientation={"HORIZONTAL"} />
   </div>
@@ -371,7 +411,7 @@
 <GridView
   orientation={"HORIZONTAL"}
   className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
-  snippets={{ sidebar: sidebar, tabs: tabs, terminals }}
+  snippets={{ sidebar, tabs, terminals }}
   proportionalLayout={false}
   onReady={onMainGridReady}
 />

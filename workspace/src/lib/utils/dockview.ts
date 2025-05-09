@@ -4,6 +4,10 @@ export type ViewHelper<Type extends ViewKey, Views extends Renderables<Type>> = 
   api: ViewAPI<Type, Views>;
 } & WithViewOnReady<Type, Views>;
 
+export type ViewConfig<Type extends ViewKey, Views extends Renderables<Type>> = {
+  type: Type;
+} & Views;
+
 export type ViewsHelper<T extends Record<string, { type: ViewKey } | Renderables<ViewKey>>> = {
   [K in keyof T]:
   T[K]["type"] extends ViewKey
