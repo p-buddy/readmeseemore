@@ -9,13 +9,13 @@
   import type { Props } from "$lib/utils/ui-framework.js";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
-  import { slide } from "svelte/transition";
+  import { fade } from "svelte/transition";
   import OpenFolder from "./svgs/OpenFolder.svelte";
   import ClosedFolder from "./svgs/ClosedFolder.svelte";
   import EditableName from "./EditableName.svelte";
   import FsContextMenu from "./FsContextMenu.svelte";
   import { untrack } from "svelte";
-
+  import FolderSlideTransition from "./utils/folder-slide-transition.js";
   let {
     expanded = false,
     name = $bindable(),
@@ -55,6 +55,14 @@
       nameUI?.edit(true, 0, "");
     });
   });
+
+  let childContainer: HTMLElement;
+  let folderSlider: FolderSlideTransition | undefined;
+
+  $effect(() => {
+    folderSlider ??= new FolderSlideTransition(childContainer);
+    folderSlider.fire(expanded);
+  });
 </script>
 
 <FsContextMenu
@@ -74,43 +82,47 @@
   bind:this={topLevel}
 >
   <span class="w-full flex items-center gap-0.5">
-    {#if expanded}
-      <OpenFolder />
-    {:else}
-      <ClosedFolder />
-    {/if}
+    <div class="shrink-0">
+      {#if expanded}
+        <OpenFolder />
+      {:else}
+        <ClosedFolder />
+      {/if}
+    </div>
     <EditableName bind:name {rename} bind:this={nameUI} />
   </span>
 </button>
 
-{#if expanded}
-  <ul transition:slide={{ duration: 300 }}>
-    {#each children as child, index}
-      {@const rename: typeof child.rename = (...args) => tryRenameAt(children, index, ...args)}
-      <li>
-        {#if child.type === "folder"}
-          <Self
-            {...child}
-            {rename}
-            {onFileClick}
-            {write}
-            editing={editingTarget === child.path}
-            bind:name={child.name}
-          />
-        {:else}
-          {@const onclick = () => onFileClick(child)}
-          <File
-            {...child}
-            {rename}
-            bind:name={child.name}
-            {onclick}
-            editing={editingTarget === child.path}
-          />
-        {/if}
-      </li>
-    {/each}
-  </ul>
-{/if}
+<div bind:this={childContainer}>
+  {#if expanded}
+    <ul out:fade={{ duration: FolderSlideTransition.DurationMs + 100 }}>
+      {#each children as child, index}
+        {@const rename: typeof child.rename = (...args) => tryRenameAt(children, index, ...args)}
+        <li>
+          {#if child.type === "folder"}
+            <Self
+              {...child}
+              {rename}
+              {onFileClick}
+              {write}
+              editing={editingTarget === child.path}
+              bind:name={child.name}
+            />
+          {:else}
+            {@const onclick = () => onFileClick(child)}
+            <File
+              {...child}
+              {rename}
+              bind:name={child.name}
+              {onclick}
+              editing={editingTarget === child.path}
+            />
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</div>
 
 <style>
   ul {

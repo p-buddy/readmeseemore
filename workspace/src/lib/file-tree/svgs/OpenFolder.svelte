@@ -17,5 +17,7 @@
     /* margin-bottom: 2px; */
     border: none;
     outline: none;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
   }
 </style>

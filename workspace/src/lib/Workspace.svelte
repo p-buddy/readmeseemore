@@ -8,6 +8,7 @@
     type Elements,
     type OS,
   } from "./main/index.js";
+  import { setCreationContainer } from "./utils/index.js";
 
   let {
     filesystem,
@@ -47,9 +48,15 @@
     if (!os && require) throw new Error("Operating system not initialized");
     return os!;
   };
+
+  let container = $state<HTMLElement>();
+
+  $effect(() => {
+    setCreationContainer(container!);
+  });
 </script>
 
-<section class="w-full h-full flex flex-col">
+<section class="w-full h-full flex flex-col" bind:this={container}>
   <div class="w-full">
     <Toolbar {elements} {os} />
   </div>

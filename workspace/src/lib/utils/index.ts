@@ -34,6 +34,14 @@ export const mouseEventToCaretIndex = <
   return caretIndex > length ? length : caretIndex;
 }
 
+export const isEllipsisActive = ({ scrollWidth, clientWidth }: HTMLElement) =>
+  scrollWidth > clientWidth;
+
+export const isEllipsisActiveOnEvent = <
+  T extends MouseEvent & { currentTarget: Target },
+  Target extends HTMLElement,
+>({ currentTarget }: T) => isEllipsisActive(currentTarget);
+
 export const defer = <T>() => {
   let resolve: (value: T | PromiseLike<T>) => void;
   let reject: (reason?: any) => void;
@@ -59,15 +67,19 @@ export const dirname = (path: string) => path.split("/").slice(0, -1).join("/");
 
 export type OnlyRequire<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;
 
+let creationContainer = document.body;
+
+export const setCreationContainer = (parent: HTMLElement) => creationContainer = parent;
+
 export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLElement) => {
   const element = document.createElement("div");
   element.style.position = "fixed";
   element.style.top = `${clientY}px`;
   element.style.left = `${clientX}px`;
-  return (parent ?? document.body).appendChild(element);
+  return (parent ?? creationContainer).appendChild(element);
 }
 
-export const fixToBottom = (element: HTMLElement) => {
+export const fixToTopLeftCorner = (element: HTMLElement, attributes?: Partial<CSSStyleDeclaration>) => {
   const { top, left, width, height } = element.getBoundingClientRect();
   const fixed = document.createElement("div");
   fixed.style.position = "fixed";
@@ -75,7 +87,20 @@ export const fixToBottom = (element: HTMLElement) => {
   fixed.style.left = `${left}px`;
   fixed.style.width = `${width}px`;
   fixed.style.height = `${height}px`;
-  return document.body.appendChild(fixed);
+  if (attributes) Object.assign(fixed.style, attributes);
+  return creationContainer.appendChild(fixed);
+}
+
+export const fixToBottomLeftCorner = (element: HTMLElement, attributes?: Partial<CSSStyleDeclaration>) => {
+  const { bottom, left, width, height } = element.getBoundingClientRect();
+  const fixed = document.createElement("div");
+  fixed.style.position = "fixed";
+  fixed.style.top = `${bottom}px`;
+  fixed.style.left = `${left}px`;
+  fixed.style.width = `${width}px`;
+  fixed.style.height = `${height}px`;
+  if (attributes) Object.assign(fixed.style, attributes);
+  return creationContainer.appendChild(fixed);
 }
 
 export const removeFirstInstance = (str: string, instance: string) => {
@@ -150,4 +175,4 @@ export const loxy = <T extends object>(target: T) => {
 
 export const unset = <T extends Record<string, any>>(
   value: { [k in keyof T]: undefined extends T[k] ? T[k] : never }
-) => { for (const key in value) value[key] = undefined as any; }
+) => { for (const key in value) value[key] = undefined as any; };

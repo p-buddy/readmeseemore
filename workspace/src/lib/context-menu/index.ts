@@ -1,6 +1,6 @@
 import { mount, unmount } from "svelte";
 import ContextMenu, { type Props } from "./ContextMenu.svelte";
-import { fixToBottom, unset } from "$lib/utils/index.js";
+import { fixToTopLeftCorner, unset } from "$lib/utils/index.js";
 import { createAtEvent } from "$lib/utils/index.js";
 import type { Props as ComponentProps } from "$lib/utils/ui-framework.js";
 
@@ -42,7 +42,7 @@ export const register = (
   event.stopPropagation();
   close();
   const target = getters.notAtCursor?.()
-    ? fixToBottom(element)
+    ? fixToTopLeftCorner(element)
     : createAtEvent(event);
   target.style.zIndex = "10000";
   target.style.backgroundColor = "transparent";
