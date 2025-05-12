@@ -1,25 +1,21 @@
 <script lang="ts" module>
-  type Props = {
-    open: (port: number) => void;
+  import type { Port, WithPorts } from "./common.svelte.js";
+
+  type Props = WithPorts & {
+    open: (port: Port) => void;
   };
 </script>
 
 <script lang="ts">
   import type { OnlyRequire } from "$lib/utils/index.js";
   import type { PanelProps } from "@p-buddy/dockview-svelte";
-  import { SvelteSet } from "svelte/reactivity";
 
   let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
-  const ports = new SvelteSet<number>();
+  let selected = $state<Port>();
 
-  export const addPort = (port: number) => ports.add(port);
-  export const removePort = (port: number) => ports.delete(port);
-
-  let selected = $state<number>();
-
-  export const select = (port: number) => {
-    if (ports.has(port)) {
+  export const select = (port: Port) => {
+    if (params.ports.set.has(port)) {
       if (selected === port) return;
       selected = port;
     } else {
@@ -29,8 +25,14 @@
   };
 </script>
 
-<div>
-  {#each ports as port}
-    <button onclick={() => params.open(port)}>{port}</button>
+<div class="w-full h-full text-sm font-medium">
+  {#each params.ports.set as port}
+    <button
+      onclick={() => params.open(port)}
+      class:bg-neutral-700={selected === port}
+      class="inline-flex items-center w-full justify-center p-1 text-base font-medium text-neutral-400 hover:bg-neutral-700 hover:text-white"
+    >
+      <span class="w-full">{port} </span>
+    </button>
   {/each}
 </div>

@@ -1,18 +1,14 @@
 <script lang="ts" module>
+  import { TooltipSingleton } from "$lib/utils/tooltip.js";
+  import NameOverflowTip from "./NameOverflow.svelte";
+
+  const tooltip = new TooltipSingleton(NameOverflowTip);
+
   const selectedBg = "rgba(255, 255, 255, 0.3)";
   const selectedRGBA = parse.rgba(selectedBg)!;
   const selectedComposite = stringify.rgba(
     blend(selectedRGBA, boost(colors.black, 40)),
   );
-  let destroyCurrentTooltip: (() => void) | undefined;
-  const setCurrentTooltip = (destroy: typeof destroyCurrentTooltip) => {
-    destroyCurrentTooltip?.();
-    destroyCurrentTooltip = destroy;
-  };
-  const tryUnsetCurrentTooltip = (destroy: typeof destroyCurrentTooltip) => {
-    if (destroyCurrentTooltip !== destroy) return;
-    destroyCurrentTooltip = undefined;
-  };
 </script>
 
 <script lang="ts">
@@ -29,9 +25,7 @@
     colors,
     boost,
   } from "$lib/utils/colors.js";
-  import { mount, unmount } from "svelte";
   import type { TBase } from "./Tree.svelte";
-  import Tip from "./Tip.svelte";
 
   let { name = $bindable(), rename }: Pick<TBase, "name" | "rename"> = $props();
 
@@ -93,33 +87,23 @@
     ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
     onmouseenter={({ currentTarget: current }) => {
       if (!isEllipsisActive(current)) return;
-      const target = fixToTopLeftCorner(current, { zIndex: "10000" });
-      let tip: Tip;
-      const destroy = async () => {
-        tryUnsetCurrentTooltip(destroy);
-        await unmount(tip, { outro: true });
-        target.remove();
-      };
-      setCurrentTooltip(destroy);
-      let background = findNearestBackgroundColor(current);
-      if (background === selectedBg) background = selectedComposite;
-      console.log(background);
-      tip = mount(Tip, {
-        target,
-        props: {
+      const bg = findNearestBackgroundColor(current);
+      const { destroy, component } = tooltip.mount(
+        fixToTopLeftCorner(current, { zIndex: "10000" }),
+        {
           name,
-          background,
+          background: bg === selectedBg ? selectedComposite : bg,
           onclick: () => {
             current.click();
-            tip.setBackground(selectedComposite);
+            component.setBackground(selectedComposite);
           },
           ondblclick: async (event) => {
             edit(true, mouseEventToCaretIndex(event, name, false));
             destroy();
           },
-          onmouseleave: destroy,
+          onmouseleave: () => destroy(),
         },
-      });
+      );
     }}
   >
     <span class="w-fit">

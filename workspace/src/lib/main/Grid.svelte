@@ -55,6 +55,7 @@
     Tab as PortTab,
     Preview,
     List as PortsList,
+    Ports,
   } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/code-editor/utils.js";
   import { unique } from "$lib/ports/utils.js";
@@ -195,11 +196,13 @@
       | undefined;
 
     const urlByPort = new Map<number, string>();
+    const ports = Ports.Create();
 
     const addPreview = (
       port: number,
       details?: Partial<Record<"title" | "url", string>>,
     ) => {
+      ports.add(port);
       const title = details?.title ?? `${port}`;
       if (details?.url) urlByPort.set(port, details.url);
       const url = urlByPort.get(port);
@@ -208,8 +211,10 @@
         "Preview",
         { initial: { url: unique(url), port } },
         panelConfig<"dock">()
+          .id(Ports.Instance.getPanelID(port))
           .title(title)
           .tabComponent("PortTab")
+          .renderer("always")
           .direction("right").options,
       );
     };
@@ -220,6 +225,7 @@
           "PortsList",
           {
             open: addPreview,
+            ports,
           },
           panelConfig<"pane">().title("Ports").options,
         )
@@ -234,21 +240,22 @@
       console.error("error", error);
     });
 
-    container.on("server-ready", async (port, url) => {
-      console.log("server-ready", { port, url });
-      const [preview, list] = await Promise.all([
-        addPreview(port, { url }).then((preview) => {
-          requestAnimationFrame(() => preview.panel.api.setActive());
-          return preview;
-        }),
-        getPortsList(),
-      ]);
-      list.exports.addPort(port);
-      if (preview.panel.api.isActive) list.exports.select(port);
-    });
+    container.on("server-ready", async (port, url) => {});
 
-    container.on("port", (port, type, url) => {
-      console.log("port", { port, type, url });
+    container.on("port", async (port, type, url) => {
+      switch (type) {
+        case "open":
+          const [preview, list] = await Promise.all([
+            addPreview(port, { url }),
+            getPortsList(),
+          ]);
+          if (preview.panel.api.isActive) list.exports.select(port);
+          break;
+        case "close":
+          ports.remove(port);
+          urlByPort.delete(port);
+          break;
+      }
     });
 
     const actionOnFile = (path: string) =>
@@ -369,6 +376,7 @@
       tree.exports.focus(
         e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
       );
+      //getPortsList().then(({ exports: e }) => e.select(1234));
     });
 
     onReady?.();

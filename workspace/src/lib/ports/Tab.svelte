@@ -1,3 +1,10 @@
+<script lang="ts" module>
+  import { TooltipSingleton } from "$lib/utils/tooltip.js";
+  import PortClosedTip from "./PortClosedTip.svelte";
+
+  const tooltip = new TooltipSingleton(PortClosedTip);
+</script>
+
 <script lang="ts">
   import {
     DefaultDockTab,
@@ -5,7 +12,9 @@
   } from "@p-buddy/dockview-svelte";
   import { untrack } from "svelte";
   import { getPort, unique } from "./utils.js";
-  import type { PortPath, Props as PreviewProps } from "./Preview.svelte";
+  import type { Props as PreviewProps } from "./Preview.svelte";
+  import { type PortPath, Ports } from "./common.svelte.js";
+  import { fixToBottomLeftCorner } from "$lib/utils/index.js";
 
   let props: Omit<DefaultDockTabProps, "content"> = $props();
 
@@ -27,9 +36,11 @@
     props.api.setTitle(updated);
     updateParameters({ path: unique(updated) });
   };
+
+  let tip: ReturnType<typeof tooltip.mount> | undefined = undefined;
 </script>
 
-{#snippet icon(type: "browser" | "refresh")}
+{#snippet icon(type: "browser" | "refresh" | "error")}
   {#if type === "browser"}
     <span class="size-4 text-neutral-500">
       <svg viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg" fill="none">
@@ -98,20 +109,35 @@
     {@const port = getPort(title)}
     {@const path = pathFromPort(title, port)}
     {@const size = Math.max(value?.length ?? 0, 1)}
+    {@const valid = Ports.Instance.set.has(port)}
     {setValueIfNotEditing(path)}
     <div class="flex flex-row items-center h-full">
-      <button
-        class="h-full w-3 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 mr-2 ml-0 rounded-md transform active:scale-75 transition-transform"
-        onclick={() => updateParameters({ path: unique(title as PortPath) })}
-      >
-        {@render icon("refresh")}
-      </button>
+      {#if valid}
+        <button
+          class="h-full w-3 mr-2 ml-0 text-neutral-50 hover:bg-neutral-700 ring-neutral-700 hover:ring-4 rounded-md transform active:scale-75 transition-transform"
+          onclick={() => updateParameters({ path: unique(title as PortPath) })}
+        >
+          {@render icon("refresh")}
+        </button>
+      {/if}
       <div
-        class="flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
+        class="relative flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
         class:focus={editing}
+        role="tooltip"
+        onmouseenter={({ currentTarget }) => {
+          if (valid) return;
+          tip ??= tooltip.mount(fixToBottomLeftCorner(currentTarget), {});
+          const { top } = currentTarget.getBoundingClientRect();
+          tip.target.style.top = `${top + 30}px`;
+        }}
+        onmouseleave={() => {
+          if (valid) return;
+          tip?.destroy();
+          tip = undefined;
+        }}
       >
         {@render icon("browser")}
-        <div class="ml-1">
+        <div class="ml-1" class:text-red-400={!Ports.Instance.set.has(port)}>
           <button
             class="align-bottom pb-0 mb-0 h-full mx-auto cursor-text"
             onclick={() => {

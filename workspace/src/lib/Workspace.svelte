@@ -80,4 +80,8 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
   }
+
+  :global(*) {
+    --dv-paneview-active-outline-color: transparent;
+  }
 </style>
