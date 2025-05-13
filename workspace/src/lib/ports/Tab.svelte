@@ -124,14 +124,13 @@
         class="relative flex flex-row align-middle items-center outline-1 outline-neutral-600 rounded-xl py-0 pl-1"
         class:focus={editing}
         role="tooltip"
-        onmouseenter={({ currentTarget }) => {
+        onmouseenter={({ currentTarget: current }) => {
           if (valid) return;
-          tip ??= tooltip.mount(fixToBottomLeftCorner(currentTarget), {});
-          const { top } = currentTarget.getBoundingClientRect();
-          tip.target.style.top = `${top + 30}px`;
+          const zIndex = "1000";
+          tip ??= tooltip.mount(fixToBottomLeftCorner(current, { zIndex }));
+          tip.target.style.top = `${current.getBoundingClientRect().top + 30}px`;
         }}
         onmouseleave={() => {
-          if (valid) return;
           tip?.destroy();
           tip = undefined;
         }}

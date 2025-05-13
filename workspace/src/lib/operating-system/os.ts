@@ -111,8 +111,6 @@ export default class OperatingSystem {
 
           if (path.startsWith(root)) path = path.slice(root.length);
 
-          console.log(data);
-
           switch (action) {
             case 'add':
             case 'unlink':

@@ -56,6 +56,7 @@
     Preview,
     List as PortsList,
     Ports,
+    type PreviewProps,
   } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/code-editor/utils.js";
   import { unique } from "$lib/ports/utils.js";
@@ -203,15 +204,15 @@
       details?: Partial<Record<"title" | "url", string>>,
     ) => {
       ports.add(port);
-      const title = details?.title ?? `${port}`;
       if (details?.url) urlByPort.set(port, details.url);
+      const title = details?.title ?? `${port}`;
       const url = urlByPort.get(port);
       if (!url) throw new Error(`No url for port ${port}`);
       return tabsAPI!.addComponentPanel(
         "Preview",
         { initial: { url: unique(url), port } },
         panelConfig<"dock">()
-          .id(Ports.Instance.getPanelID(port))
+          .id(ports.getPanelID(port))
           .title(title)
           .tabComponent("PortTab")
           .renderer("always")
@@ -245,11 +246,28 @@
     container.on("port", async (port, type, url) => {
       switch (type) {
         case "open":
-          const [preview, list] = await Promise.all([
-            addPreview(port, { url }),
-            getPortsList(),
-          ]);
-          if (preview.panel.api.isActive) list.exports.select(port);
+          const existing = tabsAPI.panels.filter(
+            ({ id }) => Ports.PanelIDToPort(id) === port,
+          );
+          if (existing.length > 0) {
+            ports.refresh(existing);
+            urlByPort.set(port, url);
+            url = unique(url);
+            const params: Partial<PreviewProps> = { initial: { url, port } };
+            for (const panel of existing) {
+              panel.api.setTitle(`${port}`);
+              panel.api.updateParameters(params);
+            }
+            const list = await getPortsList();
+            existing[0].api.setActive();
+            list.exports.select(port);
+          } else {
+            const [preview, list] = await Promise.all([
+              addPreview(port, { url }),
+              getPortsList(),
+            ]);
+            if (preview.panel.api.isActive) list.exports.select(port);
+          }
           break;
         case "close":
           ports.remove(port);
@@ -372,11 +390,13 @@
     await tree.exports.ready();
 
     tabsAPI.onDidActivePanelChange((e) => {
-      console.log("active panel changed", e?.id);
       tree.exports.focus(
         e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
       );
-      //getPortsList().then(({ exports: e }) => e.select(1234));
+      if (portsList)
+        getPortsList().then(({ exports: { select } }) =>
+          select(Ports.PanelIDToPort(e?.id)),
+        );
     });
 
     onReady?.();

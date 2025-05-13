@@ -33,9 +33,11 @@ export default class FolderSlideTransition {
     return opening ? height * (1 - t) : height * t;
   }
 
-  fire(opening: boolean) {
-    const version = ++this.version;
+  fire(opening: boolean, recursive = false as never) {
     const { style, children } = this.element;
+    if (!children[0] && !recursive)
+      return requestAnimationFrame(() => this.fire(opening, true as never));
+    const version = ++this.version;
     style.maxHeight = `${this.initialHeight(opening)}px`;
     style.transition = "none";
     const desired = opening ? children[0].getBoundingClientRect().height : 0;

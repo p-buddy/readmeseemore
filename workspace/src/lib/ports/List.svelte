@@ -14,8 +14,8 @@
 
   let selected = $state<Port>();
 
-  export const select = (port: Port) => {
-    if (params.ports.set.has(port)) {
+  export const select = (port?: Port) => {
+    if (port !== undefined && params.ports.set.has(port)) {
       if (selected === port) return;
       selected = port;
     } else {

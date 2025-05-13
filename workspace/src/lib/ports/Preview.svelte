@@ -18,20 +18,18 @@
   const { port, url } = params.initial;
 
   const src = $derived.by(() => {
-    console.log("derive");
     if (!params.path) return url;
     const [_, location] = params.path.split(`${port}`);
     return url + location;
   });
 
   let iframe: HTMLIFrameElement;
-
-  window.addEventListener("blur", () => {
-    if (document.activeElement === iframe && !api.isActive) {
-      api.setActive();
-      console.log("set active");
-    }
-  });
 </script>
+
+<svelte:window
+  onblur={() => {
+    if (document.activeElement === iframe && !api.isActive) api.setActive();
+  }}
+/>
 
 <iframe bind:this={iframe} {src} class="w-full h-full" title="Preview"></iframe>
