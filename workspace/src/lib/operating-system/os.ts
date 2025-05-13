@@ -26,21 +26,20 @@ export default class OperatingSystem {
 
   public get terminal() {
     const notExecuting = this.terminals.filter(t => !t.isExecuting);
-    if (notExecuting.length === 0) return this.terminals[0];
-    if (notExecuting.length === 1) return notExecuting[0];
+    if (notExecuting.length === 0) return this.addTerminal();
+    if (notExecuting.length === 1) return Promise.resolve(notExecuting[0]);
     const noInput = notExecuting.filter(t => !t.userInput);
-    if (noInput.length === 0) return notExecuting[0];
-    return noInput[0];
+    if (noInput.length === 0) return Promise.resolve(notExecuting[0]);
+    return Promise.resolve(noInput[0]);
   }
+
+  private onTerminalCallback?: (terminal: Terminal, reference?: Terminal) => Promise<void>;
 
   private constructor(
     public readonly container: WebContainer,
-    terminal: Terminal,
     private _watch?: Promise<WebContainerProcess>,
     private onChange?: Set<FsChangeCallback>,
-  ) {
-    this.terminals.push(terminal);
-  }
+  ) { }
 
   private static instance: OperatingSystem | null = null;
 
@@ -51,10 +50,16 @@ export default class OperatingSystem {
     await this._watch;
   }
 
-  public async addTerminal() {
+  public async addTerminal(reference?: Terminal) {
     const terminal = await Terminal.New(this.container);
-    this.terminals.push(terminal);
+    if (reference) this.terminals.splice(this.terminals.indexOf(reference), 0, terminal);
+    else this.terminals.push(terminal);
+    await this.onTerminalCallback?.(terminal, reference);
     return terminal;
+  }
+
+  public onTerminal(listener: OperatingSystem["onTerminalCallback"]) {
+    this.onTerminalCallback = listener;
   }
 
   public removeTerminal(terminal: Terminal) {
@@ -150,8 +155,6 @@ export default class OperatingSystem {
     await mv.exit;
     mv.kill();
 
-    const terminal = await Terminal.New(container, status)
-
     let onChange: Set<FsChangeCallback> | undefined;
     let watch: Promise<WebContainerProcess> | undefined;
 
@@ -160,6 +163,6 @@ export default class OperatingSystem {
       watch = OperatingSystem.Watch(container, onChange);
     }
 
-    return new OperatingSystem(container, terminal, watch, onChange);
+    return new OperatingSystem(container, watch, onChange);
   }
 }

@@ -22,7 +22,7 @@
   const onSave: GridProps["onSave"] = ({ path }) => {
     if (path.endsWith(".ts")) {
       const command = `npx --yes tsx ${path}`;
-      os!.terminal.enqueueCommand(command);
+      os!.terminal.then((terminal) => terminal.enqueueCommand(command));
     }
   };
 

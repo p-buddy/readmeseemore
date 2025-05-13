@@ -5,14 +5,13 @@
   export const getItems = (
     os: OperatingSystem,
     terminal: Terminal,
-    mount: (terminal: Terminal, reference: string) => any,
     drop: (onDropped: () => void) => void,
   ) => {
     const items: Items = [
       {
         content: add,
         onclick: async () => {
-          mount(await os.addTerminal(), terminal.id);
+          await os.addTerminal(terminal);
           close();
         },
       },

@@ -113,16 +113,11 @@
           terminal.mount(element, defaultDuration + 200);
           register(element, {
             props: () =>
-              getTerminalContextItems(
-                os!,
-                terminal,
-                mountTerminal.bind(null, api),
-                (onDropped) => {
-                  fit.dispose();
-                  terminal.fade("out", defaultDuration - 100);
-                  animateExit(api, panel, onDropped);
-                },
-              ),
+              getTerminalContextItems(os!, terminal, (onDropped) => {
+                fit.dispose();
+                terminal.fade("out", defaultDuration - 100);
+                animateExit(api, panel, onDropped);
+              }),
           });
         },
         style: "height: 100%; padding: 10px;",
@@ -183,7 +178,14 @@
       ),
       api.addSnippetPanel(
         "terminals",
-        { onReady: ({ api }) => mountTerminal(api, os!.terminal) },
+        {
+          onReady: ({ api }) => {
+            os!.onTerminal(async (terminal, reference) =>
+              mountTerminal(api, terminal, reference?.id),
+            );
+            os!.addTerminal();
+          },
+        },
         config.terminals.options,
       ),
     ]);
@@ -303,6 +305,17 @@
       },
     };
 
+    const commands = {
+      rm: (path: string) => {},
+    };
+
+    // commands:
+    // rm
+    // mkdir
+    // touch
+    // mv
+    // cp
+
     status?.("Adding initial file tree");
     createAndRegisterFileSystemProvider(os);
     const tree = await sidebarAPI!.addComponentPanel(
@@ -362,6 +375,8 @@
       const { path, action, type } = change;
 
       let symlink = false;
+
+      console.log({ change });
 
       switch (action) {
         case "add":

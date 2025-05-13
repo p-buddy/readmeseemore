@@ -23,8 +23,8 @@
     const { container } = await harness.given("container");
 
     terminal.xterm.open(container);
-    os.terminal.fit();
-    await os.terminal.inputReady;
+    terminal.fit();
+    await terminal.inputReady;
 
     await new Promise((resolve) => setTimeout(resolve, 4000));
 

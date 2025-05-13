@@ -94,7 +94,8 @@ const ensurePackageExists = async ({ os }: Payload, pkg: string, dev = false) =>
       (dev ? " --save-dev " : " ") +
       pkg +
       programmaticCommandComment(pkg.replace("@types/", ""));
-    await os.terminal.enqueueCommand(cmd, true);
+    const terminal = await os.terminal;
+    await terminal.enqueueCommand(cmd, true);
     resolve();
   });
   inprogress.set(pkg, check);
