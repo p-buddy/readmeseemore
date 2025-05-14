@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import * as monaco from "@codingame/monaco-vscode-editor-api";
-  import { type WithLimitFs } from "../utils/fs-helper.js";
 
+  import { type WithLimitFs } from "$lib/utils/fs.js";
   export type Props = {
     fs: WithLimitFs<"readFile" | "writeFile" | "readdir">;
     file: Pick<TFile, "name" | "path">;
@@ -89,7 +89,7 @@
   import { tryGetLanguageByFileExtension } from "./languages.js";
   import { initialization } from "./initialization.js";
   import { root } from "$lib/utils/webcontainer.js";
-  import { exists } from "./utils.js";
+  import { exists } from "../utils/fs.js";
 
   let { params, api }: PanelProps<"dock", Props> = $props();
 

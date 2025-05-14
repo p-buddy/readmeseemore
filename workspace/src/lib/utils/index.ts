@@ -63,8 +63,6 @@ export const retry = <T>(fn: () => Promise<T>, delay = 100) =>
 
 export type OnClick<T extends HTMLElement = HTMLButtonElement> = MouseEventHandler<T>;
 
-export const dirname = (path: string) => path.split("/").slice(0, -1).join("/");
-
 export type OnlyRequire<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;
 
 let creationContainer = document.body;

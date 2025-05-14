@@ -1,6 +1,5 @@
 <script lang="ts" module>
-  import type { WithLimitFsReturn } from "$lib/utils/fs-helper.js";
-
+  import type { WithLimitFsReturn } from "$lib/utils/fs.js";
   type FsItemType = "file" | "folder" | "symlink";
 
   type ForceRename = { dirnameOverride: string };
@@ -212,12 +211,12 @@
   import type { OnlyRequire } from "$lib/utils/index.js";
   import FsContextMenu from "./FsContextMenu.svelte";
   import { slide } from "svelte/transition";
-
+  import { Commands } from "$lib/operating-system/commands.js";
   type Props = WithFs &
     WithOnFileClick &
     WithOnPathUpdate &
     WithOnRemove &
-    WithWrite;
+    WithWrite & { commands: Commands };
 
   let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
@@ -320,7 +319,8 @@
 </script>
 
 <FsContextMenu
-  addFile={() => (editingTarget = writeChild(root.children, "file", "", write))}
+  addFile={() =>
+    params.commands.touch((editingTarget = validName(root.children, "file")))}
   addFolder={() =>
     (editingTarget = writeChild(root.children, "folder", "", write))}
   target={container}

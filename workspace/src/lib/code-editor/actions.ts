@@ -3,7 +3,7 @@ import { type SupportedLanguage } from "./languages.js";
 import { onInitialization } from "./initialization.js";
 import { createLanguageClient, spawnLanguageServer } from "$lib/code-editor/language-server.js";
 import type { OperatingSystem } from "$lib/operating-system/index.js";
-import { exists } from "./utils.js";
+import { exists } from "../utils/fs.js";
 
 type Payload = { os: OperatingSystem };
 

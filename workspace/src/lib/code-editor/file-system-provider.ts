@@ -1,7 +1,7 @@
 import { Uri } from "@codingame/monaco-vscode-editor-api";
 import type { FileSystemProviderCapabilities, FileType, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from "@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files";
-import { dirname, exists, safelyGetFileContent, safelyStatFile, prependRoot, trySanitize, entry, isSymlink } from "./utils.js";
+import { dirname, exists, safelyGetFileContent, safelyStatFile, prependRoot, trySanitize, entry, isSymlink } from "../utils/fs.js";
 import type { OperatingSystem } from "$lib/operating-system/index.js";
 import { registerFileSystemOverlay } from "@codingame/monaco-vscode-files-service-override";
 import { onInitialization } from "./initialization.js";

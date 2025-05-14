@@ -1,7 +1,7 @@
 import type { WebContainerProcess } from "@webcontainer/api";
 import type { WebContainer } from "@webcontainer/api";
 import { type Status, cli } from "./common.js";
-import type { ITheme, Terminal } from "@xterm/xterm";
+import type { IDecoration, ITheme, Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { defer, removeFirstInstance, removeLastInstance, type Deferred } from "$lib/utils/index.js";
 import stripAnsi from "strip-ansi";
@@ -60,6 +60,7 @@ export default class {
   private readonly queue = new CommandQueue();
   private onCapture?: CaptureCommandOutput;
   private element?: HTMLElement;
+  private suggestion?: IDecoration;
 
   public fade(direction: "in" | "out", duration: number) {
     this.element!.style.opacity = direction === "in" ? "1" : "0";
@@ -116,7 +117,7 @@ export default class {
       import("@xterm/addon-fit"),
     ]);
 
-    const xterm = new Terminal({ convertEol: true });
+    const xterm = new Terminal({ convertEol: true, allowProposedApi: true });
     const addon = new FitAddon();
     const { cols, rows } = xterm;
     xterm.loadAddon(addon);
@@ -144,6 +145,29 @@ export default class {
     }
     this.xterm.open(parent);
     this.fit();
+  }
+
+  public suggest(content: string) {
+    this.suggestion?.dispose();
+    // Register a decoration at this line, at column = input length (so after the user input text)
+    const suggestion = this.xterm.registerDecoration({
+      marker: this.xterm.registerMarker(0), // marker at current cursor line (offset 0 from cursor)
+      x: 1, // column offset where suggestion should start
+      width: content.length, // number of cells to cover (suggestion text length)
+      // (height: 1 by default since suggestion is on one line)
+      layer: "top", // render above text (so it overlays, if needed)
+    });
+    if (suggestion) {
+      this.suggestion = suggestion;
+      suggestion.onRender((el) => {
+        if (this.suggestion !== suggestion) suggestion?.dispose();
+        // This callback fires when the decoration element is attached to DOM
+        el.innerText = content;
+        el.style.color = "gray";
+        el.style.opacity = "0.5"; // make it semi-transparent, or use CSS class
+        el.style.pointerEvents = "none"; // so it doesn't capture mouse
+      });
+    }
   }
 
   public async dispose() {
@@ -195,6 +219,7 @@ export default class {
   }
 
   private onInput(data: string) {
+    this.suggestion?.dispose();
     if (data === cli.input.user.return) this.executing = true;
     this.input.write(data);
   }

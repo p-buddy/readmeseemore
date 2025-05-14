@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
-import { exists, prependRoot, parts, dirname, removeTrailing, trimChar, trimSlash } from "./utils.js";
+import { exists, prependRoot, parts, dirname, removeTrailing, trimChar, trimSlash } from "../utils/fs.js";
 import { root } from "$lib/utils/webcontainer.js";
-import type { WithLimitFs } from "$lib/utils/fs-helper.js";
+import type { WithLimitFs } from "$lib/utils/fs.js";
 import type { FileSystemTree, DirEnt, FileNode, DirectoryNode } from "@webcontainer/api"
 
 describe(prependRoot.name, () => {

@@ -1,5 +1,5 @@
 import type { WebContainer, FileSystemTree, WebContainerProcess, SpawnOptions } from "@webcontainer/api";
-import { file } from "../utils/fs-helper.js";
+import { file } from "$lib/utils/fs.js";
 import type { ITheme } from "@xterm/xterm";
 import { boot, root, teardown } from "./common.js";
 import Terminal from "./terminal.js";

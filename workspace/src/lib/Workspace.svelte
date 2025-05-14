@@ -1,6 +1,6 @@
 <script lang="ts">
   import { type FileSystemTree, type BufferEncoding } from "@webcontainer/api";
-  import { iterateFilesystem } from "./utils/fs-helper.js";
+  import { iterateFilesystem } from "./utils/fs.js";
   import {
     Grid,
     Toolbar,

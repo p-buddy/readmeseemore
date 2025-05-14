@@ -39,7 +39,7 @@
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "../utils/FilePanelTracker.js";
   import "@xterm/xterm/css/xterm.css";
-  import { iterateFilesystem } from "../utils/fs-helper.js";
+  import { iterateFilesystem } from "$lib/utils/fs.js";
   import { register } from "../context-menu/index.js";
   import { getItems as getTerminalContextItems } from "../operating-system/TerminalContext.svelte";
   import {
@@ -58,8 +58,9 @@
     Ports,
     type PreviewProps,
   } from "$lib/ports/index.js";
-  import { entry, isSymlink } from "$lib/code-editor/utils.js";
+  import { entry, isSymlink } from "$lib/utils/fs.js";
   import { unique } from "$lib/ports/utils.js";
+  import { Commands } from "$lib/operating-system/commands.js";
 
   let {
     filesystem,
@@ -243,6 +244,10 @@
       console.error("error", error);
     });
 
+    container.on("xdg-open", async (text) => {
+      console.log("xdg-open", text);
+    });
+
     container.on("server-ready", async (port, url) => {});
 
     container.on("port", async (port, type, url) => {
@@ -305,9 +310,7 @@
       },
     };
 
-    const commands = {
-      rm: (path: string) => {},
-    };
+    const commands = new Commands(os);
 
     // commands:
     // rm
@@ -322,6 +325,7 @@
       "FileTree",
       {
         fs,
+        commands,
         onFileClick: async (file) => {
           const id = `${filePanelTracker.add(file.path)}`;
           (
@@ -376,7 +380,7 @@
 
       let symlink = false;
 
-      console.log({ change });
+      //console.log({ change });
 
       switch (action) {
         case "add":

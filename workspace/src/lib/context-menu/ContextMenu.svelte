@@ -2,13 +2,26 @@
   import { onMount, type Snippet } from "svelte";
   import type { MouseEventHandler } from "svelte/elements";
 
+  type OnHover = {
+    onmouseenter: MouseEventHandler<HTMLButtonElement>;
+    onmouseleave: MouseEventHandler<HTMLButtonElement>;
+  };
+
   export type Props = {
     items: {
       content: Snippet;
       onclick: MouseEventHandler<HTMLButtonElement>;
+      onhover?: () => OnHover;
     }[];
     close: () => void;
   };
+
+  const noop = () => {};
+
+  const defaultOnHover = {
+    onmouseenter: noop,
+    onmouseleave: noop,
+  } satisfies OnHover;
 </script>
 
 <script lang="ts">
@@ -38,11 +51,14 @@
   bind:this={element}
 >
   <ul class="p-1 space-y-0.5 border-b border-neutral-800">
-    {#each items as { onclick, content }}
+    {#each items as { onclick, content, onhover }}
+      {@const { onmouseenter, onmouseleave } = onhover?.() ?? defaultOnHover}
       <li class="whitespace-nowrap">
         <button
           type="button"
           {onclick}
+          {onmouseenter}
+          {onmouseleave}
           class="w-full flex items-center gap-x-3 py-1.5 px-3 rounded-lg text-sm text-neutral-300 hover:bg-neutral-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:bg-neutral-700"
         >
           {@render content()}
