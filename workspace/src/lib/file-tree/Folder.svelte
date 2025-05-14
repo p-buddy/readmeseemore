@@ -6,16 +6,15 @@
     writeChild,
     type WithWrite,
   } from "./Tree.svelte";
-  import type { Props } from "$lib/utils/ui-framework.js";
+  import type { Props } from "$lib/utils/svelte.js";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
   import { fade } from "svelte/transition";
-  import OpenFolder from "./svgs/OpenFolder.svelte";
-  import ClosedFolder from "./svgs/ClosedFolder.svelte";
+  import { folderExpanded, folderCollapsed } from "./icons.svelte";
   import EditableName from "./EditableName.svelte";
   import FsContextMenu from "./FsContextMenu.svelte";
   import { untrack } from "svelte";
-  import FolderSlideTransition from "./utils/folder-slide-transition.js";
+  import FolderSlideTransition from "./folder-slide-transition.js";
   let {
     expanded = false,
     name = $bindable(),
@@ -84,9 +83,9 @@
   <span class="w-full flex items-center gap-0.5">
     <div class="shrink-0">
       {#if expanded}
-        <OpenFolder />
+        {@render folderExpanded()}
       {:else}
-        <ClosedFolder />
+        {@render folderCollapsed()}
       {/if}
     </div>
     <EditableName bind:name {rename} bind:this={nameUI} />

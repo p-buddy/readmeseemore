@@ -1,27 +1,19 @@
 <script lang="ts" module>
+  import { noop } from "$lib/utils/index.js";
   import { onMount, type Snippet } from "svelte";
   import type { MouseEventHandler } from "svelte/elements";
 
-  type OnHover = {
-    onmouseenter: MouseEventHandler<HTMLButtonElement>;
-    onmouseleave: MouseEventHandler<HTMLButtonElement>;
-  };
+  type OnButton = MouseEventHandler<HTMLButtonElement>;
 
   export type Props = {
     items: {
       content: Snippet;
-      onclick: MouseEventHandler<HTMLButtonElement>;
-      onhover?: () => OnHover;
+      onclick: OnButton;
+      onmouseenter?: OnButton;
+      onmouseleave?: OnButton;
     }[];
     close: () => void;
   };
-
-  const noop = () => {};
-
-  const defaultOnHover = {
-    onmouseenter: noop,
-    onmouseleave: noop,
-  } satisfies OnHover;
 </script>
 
 <script lang="ts">
@@ -51,8 +43,7 @@
   bind:this={element}
 >
   <ul class="p-1 space-y-0.5 border-b border-neutral-800">
-    {#each items as { onclick, content, onhover }}
-      {@const { onmouseenter, onmouseleave } = onhover?.() ?? defaultOnHover}
+    {#each items as { onclick, content, onmouseenter = noop, onmouseleave = noop }}
       <li class="whitespace-nowrap">
         <button
           type="button"

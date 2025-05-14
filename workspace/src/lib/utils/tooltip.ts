@@ -1,5 +1,5 @@
 import { type Component, mount, unmount } from "svelte";
-import type { Props, Exports } from "./ui-framework.js";
+import type { Props, Exports } from "./svelte.js";
 
 type MountReturn<T extends Component<any, any, any>> = {
   component: Exports<T>,

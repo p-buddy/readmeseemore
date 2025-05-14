@@ -2,7 +2,7 @@ import { mount, unmount } from "svelte";
 import ContextMenu, { type Props } from "./ContextMenu.svelte";
 import { fixToTopLeftCorner, unset } from "$lib/utils/index.js";
 import { createAtEvent } from "$lib/utils/index.js";
-import type { Props as ComponentProps } from "$lib/utils/ui-framework.js";
+import type { Props as ComponentProps } from "$lib/utils/svelte.js";
 
 export type Items = ComponentProps<typeof ContextMenu>["items"];
 

@@ -176,3 +176,5 @@ export const loxy = <T extends object>(target: T) => {
 export const unset = <T extends Record<string, any>>(
   value: { [k in keyof T]: undefined extends T[k] ? T[k] : never }
 ) => { for (const key in value) value[key] = undefined as any; };
+
+export const noop = () => { };

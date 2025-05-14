@@ -21,7 +21,7 @@
     tryGetLanguageByFile,
     createAndRegisterFileSystemProvider,
   } from "../code-editor/index.js";
-  import { type Props as PropsOf } from "../utils/ui-framework.js";
+  import { type Props as PropsOf } from "../utils/svelte.js";
   import VsCodeWatermark from "../VSCodeWatermark.svelte";
   import MountedDiv from "../utils/MountedDiv.svelte";
   import {
