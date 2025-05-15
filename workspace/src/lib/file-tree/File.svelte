@@ -1,71 +1,57 @@
 <script lang="ts">
-  import type { TFile, TSymlink } from "./Tree.svelte";
-  import type { Props } from "$lib/utils/svelte.js";
+  import type { TFileLike, WithOnFile, WithRename } from "./Tree.svelte";
   import EditableName from "./EditableName.svelte";
-  import type { MouseEventHandler } from "svelte/elements";
-  import FsContextMenu from "./FsContextMenu.svelte";
-  import { onMount, untrack } from "svelte";
-  import { file, symlink } from "./icons.svelte";
+  import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
+  import { file as _file, symlink } from "./Icons.svelte";
 
-  type OnClick = MouseEventHandler<HTMLButtonElement>;
+  type WithMinimalFile = {
+    file: Pick<TFileLike, "name" | "path" | "type" | "focused" | "editing">;
+  };
 
   let {
-    name = $bindable(),
-    type,
-    focused,
+    file,
     rename,
-    onclick,
-    remove,
-    editing,
-  }: { onclick: OnClick; editing: boolean } & (TFile | TSymlink) &
-    Props<typeof EditableName> = $props();
+    getItems,
+    onFileClick,
+    onFileMouseEnter,
+    onFileMouseLeave,
+  }: WithMinimalFile & WithGetItems & WithOnFile & WithRename = $props();
 
-  let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
-
-  $effect(() => {
-    if (!editing) return;
-    untrack(() => {
-      nameUI?.highlight();
-      nameUI?.edit(true, 0, "");
-    });
-  });
+  let nameUI = $state<EditableName>();
 </script>
 
 <FsContextMenu
   {nameUI}
-  open={onclick}
-  {remove}
+  {getItems}
+  item={file}
+  type={file.type}
   target={topLevel}
-  {name}
-  beforeAction={() => nameUI?.edit(false, name)}
+  beforeAction={() => nameUI?.edit(false, file.name)}
 />
 
 <button
-  {onclick}
+  onclick={() => onFileClick(file.path)}
+  onmouseenter={() => onFileMouseEnter(file.path)}
+  onmouseleave={() => onFileMouseLeave(file.path)}
   class="relative flex w-full rounded-sm"
-  class:focused
+  class:focused={file.focused}
   bind:this={topLevel}
 >
   <span class="w-full flex flex-row items-center gap-0.5">
     <div class="shrink-0">
-      {#if type === "symlink"}
+      {#if file.type === "symlink"}
         {@render symlink()}
       {:else}
-        {@render file()}
+        {@render _file()}
       {/if}
     </div>
-    <EditableName bind:name {rename} bind:this={nameUI} />
+    <EditableName {rename} bind:this={nameUI} item={file} />
   </span>
 </button>
 
 <style>
   .focused {
-    background-color: rgba(255, 255, 255, 0.3);
-  }
-
-  svg {
-    will-change: transform, opacity;
-    backface-visibility: hidden;
+    background-color: var(--focus-color);
   }
 </style>

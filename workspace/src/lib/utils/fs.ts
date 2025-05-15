@@ -27,6 +27,8 @@ const sanitized = (path: string) => path.startsWith(".");
 
 export const trySanitize = (path: string) => sanitized(path) ? path : sanitize(path);
 
+export const removeLocal = (path: string) => path.startsWith("./") ? path.slice(2) : path;
+
 const preSanitize = <TReturn>(fn: (path: string) => TReturn) =>
   (path: string) => fn(trySanitize(path));
 
@@ -127,6 +129,14 @@ export const prependRoot = (path: string) => {
   return root + path;
 }
 
+export const validName = (siblings: string[], desired: string) => {
+  let candidate: string = desired;
+  let index = 1;
+  while (siblings.some((sibling) => sibling === candidate))
+    candidate = `${desired}-${++index}`;
+  return candidate;
+};
+
 export const file = <Name extends string>(
   name: Name, content: string | string[]
 ) => ({
@@ -138,6 +148,7 @@ export const file = <Name extends string>(
 } as {
     [name in Name]: FileNode;
   });
+
 export const iterateFilesystem = async (
   filesystem: FileSystemTree,
   callback: (path: string, content: string) => Promise<void> | void,

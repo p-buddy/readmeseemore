@@ -13,7 +13,10 @@
 
 <script lang="ts">
   import { isDark } from "../mode.js";
-  import FileTree from "../file-tree/Tree.svelte";
+  import FileTree, {
+    type TFile,
+    type TFileLike,
+  } from "../file-tree/Tree.svelte";
   import {
     Editor,
     type EditorProps,
@@ -39,8 +42,13 @@
   } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "../utils/FilePanelTracker.js";
   import "@xterm/xterm/css/xterm.css";
-  import { iterateFilesystem } from "$lib/utils/fs.js";
-  import { register } from "../context-menu/index.js";
+  import {
+    iterateFilesystem,
+    removeLocal,
+    trySanitize,
+    validName,
+  } from "$lib/utils/fs.js";
+  import { register, type Item } from "../context-menu/index.js";
   import { getItems as getTerminalContextItems } from "../operating-system/TerminalContext.svelte";
   import {
     animateEntry,
@@ -244,10 +252,6 @@
       console.error("error", error);
     });
 
-    container.on("xdg-open", async (text) => {
-      console.log("xdg-open", text);
-    });
-
     container.on("server-ready", async (port, url) => {});
 
     container.on("port", async (port, type, url) => {
@@ -312,12 +316,7 @@
 
     const commands = new Commands(os);
 
-    // commands:
-    // rm
-    // mkdir
-    // touch
-    // mv
-    // cp
+    let editOnAdd: string | undefined;
 
     status?.("Adding initial file tree");
     createAndRegisterFileSystemProvider(os);
@@ -325,54 +324,97 @@
       "FileTree",
       {
         fs,
-        commands,
-        onFileClick: async (file) => {
-          const id = `${filePanelTracker.add(file.path)}`;
-          (
-            tabsAPI!.getPanel(id) ??
-            (
-              await tabsAPI!.addComponentPanel(
-                "Editor",
-                {
-                  fs,
-                  file,
-                  onSave,
-                },
-                panelConfig<"dock">().id(id).title(file.name).options,
-              )
-            ).panel
-          ).api.setActive();
+        onFileClick: (path) => {
+          commands.open(path);
         },
-        onRemove: async ({ path }) => rm(path),
-        onPathUpdate: async ({ current, previous, type }) => {
+        onFileMouseEnter: (path) => {},
+        onFileMouseLeave: (path) => {},
+        rename: (name, path) => {
+          const index = path.lastIndexOf("/");
+          const dirname = index === -1 ? null : path.slice(0, index);
+          const updated = dirname ? `${dirname}/${name}` : name;
+          commands.mv(path, updated);
+        },
+        getItems: async (type, snippets, item) => {
+          if (type === "root") {
+            const entries = await fs.readdir(".");
+            return [
+              {
+                content: snippets.addFile,
+                onmouseenter: () => {
+                  console.log("onmouseenter", entries);
+                },
+                onclick: () => {
+                  const path = validName(entries, "my-file");
+                  commands.touch(path);
+                  editOnAdd = path;
+                },
+              },
+              {
+                content: snippets.addFolder,
+                onclick: () => {
+                  const path = validName(entries, "my-folder");
+                  commands.mkdir(path);
+                  editOnAdd = path;
+                },
+              },
+            ];
+          }
+
+          const rename: Item = {
+            content: snippets.rename,
+            onclick: () => {
+              const file = tree.exports.find(item!.path);
+              if (!file) return;
+              file.editing.condition = true;
+            },
+          };
+
           switch (type) {
-            case "folder":
-              fs.mkdir(current);
-              if (!(await dir.tryRemoveEmpty(previous)))
-                pending.rm.add(previous);
-              break;
             case "file":
-              actionOnFile(current);
-              fs.writeFile(current, await fs.readFile(previous));
-              await fs.rm(previous);
-
-              const index = previous.lastIndexOf("/");
-              const parent = index > 0 ? previous.slice(0, index) : "/";
-              if (pending.rm.has(parent)) dir.tryRemoveEmpty(parent);
-
-              if (!filePanelTracker.has("path", previous)) return;
-              filePanelTracker.set(current, filePanelTracker.id(previous)!);
-              filePanelTracker.drop("path", previous);
-              break;
+            case "symlink": {
+              return [rename];
+            }
+            case "folder": {
+              return [rename];
+            }
           }
         },
-        write: (type, path) =>
-          type === "file" ? fs.writeFile(path, "") : fs.mkdir(path),
       },
       panelConfig<"pane">().title("Explorer").isExpanded(true).options,
     );
 
     tree.panel.headerVisible = false;
+
+    const openFileAsCode = async (file: TFileLike) => {
+      const id = `${filePanelTracker.add(file.path)}`;
+      (
+        tabsAPI!.getPanel(id) ??
+        (
+          await tabsAPI!.addComponentPanel(
+            "Editor",
+            {
+              fs,
+              file,
+              onSave,
+            },
+            panelConfig<"dock">().id(id).title(file.name).options,
+          )
+        ).panel
+      ).api.setActive();
+    };
+
+    container.on("xdg-open", async (text) => {
+      const path = removeLocal(trySanitize(text));
+      const file = tree.exports.find(path);
+      console.log("xdg-open", text, path);
+
+      if (!file) throw new Error(`File not found: ${path}`);
+      if (file.type === "folder")
+        throw new Error(`Cannot open folder: ${path}`);
+
+      openFileAsCode(file);
+    });
 
     status?.("Creating file system watcher");
     await os.watch(async (change) => {
@@ -380,7 +422,7 @@
 
       let symlink = false;
 
-      //console.log({ change });
+      console.log({ change });
 
       switch (action) {
         case "add":
@@ -388,8 +430,11 @@
           symlink = Boolean(_entry && isSymlink(_entry));
           actionOnFile(path);
         case "addDir":
-          if (!tree.exports.find(path))
-            tree.exports.add(path, symlink ? "symlink" : type);
+          if (!tree.exports.find(path)) {
+            const editOnMount = editOnAdd === path;
+            tree.exports.add(path, symlink ? "symlink" : type, editOnMount);
+            if (editOnMount) editOnAdd = undefined;
+          }
           break;
         case "unlink":
           tree.exports.remove(path);

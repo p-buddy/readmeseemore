@@ -1,13 +1,12 @@
 <script lang="ts" module>
   import { TooltipSingleton } from "$lib/utils/tooltip.js";
   import NameOverflowTip from "./NameOverflow.svelte";
+  import { focusColor } from "./common.js";
 
   const tooltip = new TooltipSingleton(NameOverflowTip);
 
-  const selectedBg = "rgba(255, 255, 255, 0.3)";
-  const selectedRGBA = parse.rgba(selectedBg)!;
-  const selectedComposite = stringify.rgba(
-    blend(selectedRGBA, boost(colors.black, 40)),
+  const focusedComposite = stringify.rgba(
+    blend(parse.rgba(focusColor)!, boost(colors.black, 40)),
   );
 </script>
 
@@ -25,30 +24,37 @@
     colors,
     boost,
   } from "$lib/utils/colors.js";
-  import type { TBase } from "./Tree.svelte";
+  import type { TTreeItem, WithRename } from "./Tree.svelte";
 
-  let { name = $bindable(), rename }: Pick<TBase, "name" | "rename"> = $props();
+  let {
+    item,
+    rename,
+  }: WithRename & { item: Pick<TTreeItem, "name" | "path" | "editing"> } =
+    $props();
 
-  let editing = $state(false);
   let input = $state<HTMLInputElement>();
   let caretIndex = $state(-1);
   let highlighted = $state(false);
-  let editableNameOverride: string | undefined;
+
+  const value = $derived(item.editing.override ?? item.name);
 
   export const edit = <
     Condition extends true | false,
-    Detail extends Condition extends true ? typeof caretIndex : typeof name,
+    Detail extends Condition extends true
+      ? typeof caretIndex
+      : typeof item.name,
   >(
     condition: Condition,
     detail: Detail,
-    override?: string,
   ) => {
-    editing = condition;
-    editableNameOverride = override;
+    item.editing.condition = condition;
+    highlight(condition);
     if (condition) caretIndex = detail as number;
     else {
-      highlight(false);
-      rename(detail as string);
+      const name = detail as string;
+      item.editing.override = undefined;
+      item.name = name;
+      rename(name, item.path);
     }
   };
 
@@ -59,15 +65,15 @@
 
   $effect(() => {
     if (!input) return;
-    input.value = editableNameOverride ?? name;
     input.focus();
     if (caretIndex >= 0) input.setSelectionRange(caretIndex, caretIndex);
   });
 </script>
 
-{#if editing}
+{#if item.editing.condition}
   <input
     bind:this={input}
+    {value}
     type="text"
     class="bg-transparent outline outline-transparent"
     style:width="calc(100% - 1.25rem)"
@@ -84,21 +90,21 @@
     class="relative outline outline-transparent flex-grow text-left overflow-x-hidden overflow-ellipsis whitespace-nowrap"
     class:highlighted
     tabindex="0"
-    ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, name))}
+    ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, item.name))}
     onmouseenter={({ currentTarget: current }) => {
       if (!isEllipsisActive(current)) return;
       const bg = findNearestBackgroundColor(current);
       const { destroy, component } = tooltip.mount(
         fixToTopLeftCorner(current, { zIndex: "10000" }),
         {
-          name,
-          background: bg === selectedBg ? selectedComposite : bg,
+          name: item.name,
+          background: bg === focusColor ? focusedComposite : bg,
           onclick: () => {
             current.click();
-            component.setBackground(selectedComposite);
+            component.setBackground(focusedComposite);
           },
           ondblclick: async (event) => {
-            edit(true, mouseEventToCaretIndex(event, name, false));
+            edit(true, mouseEventToCaretIndex(event, item.name, false));
             destroy();
           },
           onmouseleave: () => destroy(),
@@ -107,7 +113,7 @@
     }}
   >
     <span class="w-fit">
-      {name}
+      {item.name}
     </span>
   </span>
 {/if}

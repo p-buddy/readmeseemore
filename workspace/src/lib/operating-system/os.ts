@@ -50,6 +50,18 @@ export default class OperatingSystem {
     await this._watch;
   }
 
+  public async unwatch(callback: FsChangeCallback) {
+    this.onChange?.delete(callback);
+  }
+
+  public async watchOnce(callback: FsChangeCallback) {
+    const wrapped = (change: FsChange) => {
+      callback(change);
+      this.unwatch(wrapped);
+    }
+    return this.watch(wrapped);
+  }
+
   public async addTerminal(reference?: Terminal) {
     const terminal = await Terminal.New(this.container);
     if (reference) this.terminals.splice(this.terminals.indexOf(reference), 0, terminal);

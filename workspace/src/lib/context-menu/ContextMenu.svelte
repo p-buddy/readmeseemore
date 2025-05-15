@@ -1,17 +1,16 @@
 <script lang="ts" module>
-  import { noop } from "$lib/utils/index.js";
+  import { noop, type OnClick } from "$lib/utils/index.js";
   import { onMount, type Snippet } from "svelte";
-  import type { MouseEventHandler } from "svelte/elements";
 
-  type OnButton = MouseEventHandler<HTMLButtonElement>;
+  type Items = {
+    content: Snippet;
+    onclick: OnClick;
+    onmouseenter?: OnClick;
+    onmouseleave?: OnClick;
+  }[];
 
   export type Props = {
-    items: {
-      content: Snippet;
-      onclick: OnButton;
-      onmouseenter?: OnButton;
-      onmouseleave?: OnButton;
-    }[];
+    items: Items;
     close: () => void;
   };
 </script>

@@ -5,7 +5,7 @@ import { createAtEvent } from "$lib/utils/index.js";
 import type { Props as ComponentProps } from "$lib/utils/svelte.js";
 
 export type Items = ComponentProps<typeof ContextMenu>["items"];
-
+export type Item = Items[number];
 const current = {
   menu: undefined as ContextMenu | undefined,
   close: undefined as (() => void) | undefined,
@@ -26,17 +26,19 @@ export const onContextMenu = (callback: (event: MouseEvent) => void) => {
   return () => listeners.delete(callback);
 }
 
+type RequiredProps = Omit<Props, "close">;
+
 export const register = (
   element: HTMLElement,
   getters: {
-    props: () => Omit<Props, "close">,
+    props: () => RequiredProps | Promise<RequiredProps>,
     notAtCursor?: () => boolean
   },
   callbacks?: {
     onMount?: () => void,
     onClose?: () => void,
   }
-) => element.addEventListener("contextmenu", (event) => {
+) => element.addEventListener("contextmenu", async (event) => {
   for (const listener of listeners) listener(event);
   event.preventDefault();
   event.stopPropagation();
@@ -47,7 +49,7 @@ export const register = (
   target.style.zIndex = "10000";
   target.style.backgroundColor = "transparent";
   current.target = target;
-  const props = { ...getters.props(), close };
+  const props = { ...(await getters.props()), close };
   current.menu = mount(ContextMenu, { target, props });
   current.close = callbacks?.onClose;
   callbacks?.onMount?.();

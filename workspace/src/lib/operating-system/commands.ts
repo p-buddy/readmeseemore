@@ -45,9 +45,20 @@ export class Commands {
     }
   }
 
+  public async mv(source: string, destination: string) {
+    await this.enqueue(`mv ${Commands.SanitizePath(source)} ${Commands.SanitizePath(destination)}`);
+  }
+
+  public open(path: string) {
+    return this.enqueue("open " + Commands.SanitizePath(Commands.EscapeNonAlphanumeric(path)));
+  }
+
   private static PathRequiresQuotes = (path: string) =>
     /[^a-zA-Z0-9._\/-]/.test(path);
 
   private static SanitizePath = (path: string) =>
     Commands.PathRequiresQuotes(path) ? `"${path}"` : path;
+
+  private static EscapeNonAlphanumeric = (path: string) =>
+    path.replace(/[^a-zA-Z0-9._\/-]/g, "\\$&");
 }

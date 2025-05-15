@@ -6,17 +6,23 @@ const easeInOut = {
 export default class FolderSlideTransition {
   private version = Number.MIN_SAFE_INTEGER;
   private inflight?: number;
+  private _element?: HTMLElement;
+
+  get element() {
+    if (this._element) return this._element;
+    throw new Error("Element not set");
+  }
+
+  set element(element: HTMLElement) {
+    if (this._element === element) return;
+    element.style.willChange = "max-height";
+    element.style.overflow = "hidden";
+    this._element = element;
+  }
 
   get height() {
     const { children, scrollHeight } = this.element;
     return children[0]?.getBoundingClientRect().height ?? scrollHeight;
-  }
-
-  constructor(private element: HTMLElement) {
-    this.element = element;
-    const { style } = this.element;
-    style.willChange = "max-height";
-    style.overflow = "hidden";
   }
 
   initialHeight(opening: boolean) {
@@ -33,10 +39,12 @@ export default class FolderSlideTransition {
     return opening ? height * (1 - t) : height * t;
   }
 
-  fire(opening: boolean, recursive = false as never) {
-    const { style, children } = this.element;
-    if (!children[0] && !recursive)
-      return requestAnimationFrame(() => this.fire(opening, true as never));
+  fire(opening: boolean, element: HTMLElement, recursive = false as never) {
+    const { style, children } = (this.element = element);
+    if (!children[0]) {
+      if (!recursive) requestAnimationFrame(() => this.fire(opening, element, true as never));
+      return;
+    }
     const version = ++this.version;
     style.maxHeight = `${this.initialHeight(opening)}px`;
     style.transition = "none";

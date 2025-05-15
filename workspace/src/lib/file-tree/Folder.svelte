@@ -1,121 +1,78 @@
 <script lang="ts">
-  import {
-    type WithOnFileClick,
-    type TFolder,
-    tryRenameAt,
-    writeChild,
-    type WithWrite,
-  } from "./Tree.svelte";
-  import type { Props } from "$lib/utils/svelte.js";
+  import type { TFolder, WithOnFile, WithRename } from "./Tree.svelte";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
   import { fade } from "svelte/transition";
-  import { folderExpanded, folderCollapsed } from "./icons.svelte";
+  import { folderExpanded, folderCollapsed } from "./Icons.svelte";
   import EditableName from "./EditableName.svelte";
-  import FsContextMenu from "./FsContextMenu.svelte";
-  import { untrack } from "svelte";
+  import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
   import FolderSlideTransition from "./folder-slide-transition.js";
+
+  type WithMinimalFolder = {
+    folder: Pick<
+      TFolder,
+      "name" | "path" | "type" | "children" | "expanded" | "editing"
+    >;
+  };
+
   let {
-    expanded = false,
-    name = $bindable(),
-    path,
+    folder,
     rename,
-    focused,
-    children,
-    remove: _delete,
-    onFileClick,
-    write,
-    editing,
-  }: TFolder &
-    WithOnFileClick & { editing: boolean } & Props<typeof EditableName> &
-    WithWrite = $props();
+    getItems,
+    ...rest
+  }: WithMinimalFolder & WithGetItems & WithOnFile & WithRename = $props();
 
-  let nameUI = $state<EditableName>();
   let topLevel = $state<HTMLElement>();
-  let expandOn: string | undefined;
-  let editingTarget = $state<string>();
+  let nameUI = $state<EditableName>();
 
   $effect(() => {
-    children.sort((a, b) => a.name.localeCompare(b.name));
-    if (expandOn && children.some(({ path }) => path === expandOn)) {
-      expanded = true;
-      editingTarget = expandOn;
-    }
-    expandOn = undefined;
-  });
-
-  const add = async (type: "file" | "folder") =>
-    (expandOn = writeChild(children, type, path, write));
-
-  $effect(() => {
-    if (!editing) return;
-    untrack(() => {
-      nameUI?.highlight();
-      nameUI?.edit(true, 0, "");
-    });
+    folder.children.sort((a, b) => a.name.localeCompare(b.name));
   });
 
   let childContainer: HTMLElement;
-  let folderSlider: FolderSlideTransition | undefined;
+  const folderSlider = new FolderSlideTransition();
 
   $effect(() => {
-    folderSlider ??= new FolderSlideTransition(childContainer);
-    folderSlider.fire(expanded);
+    const isOpening = folder.expanded;
+    if (childContainer) folderSlider.fire(isOpening, childContainer);
   });
 </script>
 
 <FsContextMenu
-  addFile={() => add("file")}
-  addFolder={() => add("folder")}
   {nameUI}
-  remove={_delete}
+  {getItems}
+  item={folder}
+  type="folder"
   target={topLevel}
-  {name}
-  beforeAction={() => nameUI?.edit(false, name)}
+  beforeAction={() => nameUI?.edit(false, folder.name)}
 />
 
 <button
-  onclick={() => (expanded = !expanded)}
-  class:focused
+  onclick={() => (folder.expanded = !folder.expanded)}
   class="relative flex w-full"
   bind:this={topLevel}
 >
   <span class="w-full flex items-center gap-0.5">
     <div class="shrink-0">
-      {#if expanded}
+      {#if folder.expanded}
         {@render folderExpanded()}
       {:else}
         {@render folderCollapsed()}
       {/if}
     </div>
-    <EditableName bind:name {rename} bind:this={nameUI} />
+    <EditableName item={folder} {rename} bind:this={nameUI} />
   </span>
 </button>
 
 <div bind:this={childContainer}>
-  {#if expanded}
+  {#if folder.expanded && folder.children.length > 0}
     <ul out:fade={{ duration: FolderSlideTransition.DurationMs + 100 }}>
-      {#each children as child, index}
-        {@const rename: typeof child.rename = (...args) => tryRenameAt(children, index, ...args)}
+      {#each folder.children as child}
         <li>
           {#if child.type === "folder"}
-            <Self
-              {...child}
-              {rename}
-              {onFileClick}
-              {write}
-              editing={editingTarget === child.path}
-              bind:name={child.name}
-            />
+            <Self {...rest} folder={child} {getItems} {rename} />
           {:else}
-            {@const onclick = () => onFileClick(child)}
-            <File
-              {...child}
-              {rename}
-              bind:name={child.name}
-              {onclick}
-              editing={editingTarget === child.path}
-            />
+            <File {...rest} file={child} {getItems} {rename} />
           {/if}
         </li>
       {/each}
@@ -133,9 +90,5 @@
 
   li {
     padding: 0.2em 1px;
-  }
-
-  .focused {
-    background-color: rgba(255, 255, 255, 0.3);
   }
 </style>
