@@ -237,6 +237,7 @@
       },
       getItems: async (type, snippets, item) => {
         const terminal = await os!.terminal;
+        terminal.scrollToBottom();
         let last: number | undefined;
         const suggest = (command: () => string | Promise<string>) => {
           let suggestion: IDisposable | undefined;

@@ -73,12 +73,14 @@ export default class {
   private executing: boolean = false;
   private receiving: boolean = false;
   private forceClear: boolean = false;
+  private delayScrollDown: boolean = false;
   private _inputReady?: Deferred;
   private readonly queue = new CommandQueue();
   private onCapture?: CaptureCommandOutput;
   private element?: HTMLElement;
   private viewport?: HTMLElement;
   private screen?: HTMLElement;
+
   public fade(direction: "in" | "out", duration: number) {
     this.element!.style.opacity = direction === "in" ? "1" : "0";
     this.element!.style.transition = `opacity ${duration}ms ease-in-out`;
@@ -190,7 +192,7 @@ export default class {
     decoration.onRender((target) => {
       if (hault) return;
       hault = true;
-      const inMs = fadeIn ? 300 : 1;
+      const inMs = fadeIn ? 300 : 50;
       const props: SuggestionProps = { content, inMs, outMs: 400 };
       const suggestion = mount(Suggestion, { target, props });
       requestAnimationFrame(() => suggestion.visible(true));
@@ -212,6 +214,10 @@ export default class {
     this.fitAddon.fit();
     const { cols, rows } = this.xterm;
     this.jsh.resize({ cols, rows });
+  }
+
+  public scrollToBottom() {
+    this.viewport?.scrollTo({ top: this.viewport.scrollHeight, behavior: "smooth" });
   }
 
   public enqueueCommand(command: string): void;
@@ -243,7 +249,10 @@ export default class {
       if (current) commandQueue.onEmpty.then(() => this.input.write(current));
       this.executing = true;
       this.input.write(command);
-      this.onCapture = onCapture;
+      this.onCapture = (data, last) => {
+        if (!last) this.delayScrollDown = true;
+        onCapture?.(data, last);
+      };
     }
     return deferredCapture?.promise;
   }
@@ -276,13 +285,10 @@ export default class {
     }
     if (!this.forceClear) this.onCapture?.(data);
 
-    const { viewportY } = this.xterm.buffer.active;
-    this.xterm.write(data, callback ?? (() => {
-      this.xterm.scrollToLine(viewportY);
-      setTimeout(() => {
-        this.viewport?.scrollTo({ top: this.viewport.scrollHeight, behavior: "smooth" })
-      }, 200)
-    }));
+    if (this.delayScrollDown) callback = this.delayedScrollCallback(callback);
+    this.delayScrollDown = false;
+
+    this.xterm.write(data, callback);
   }
 
   private getAndClearUserInput() {
@@ -293,5 +299,14 @@ export default class {
     for (let i = 0; i < current.length; i++)
       this.input.write(cli.input.backspace);
     return current;
+  }
+
+  private delayedScrollCallback(toWrap?: () => void, delay = 200) {
+    const { viewportY } = this.xterm.buffer.active;
+    return () => {
+      toWrap?.();
+      this.xterm.scrollToLine(viewportY);
+      setTimeout(this.scrollToBottom.bind(this), delay)
+    }
   }
 }
