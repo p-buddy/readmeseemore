@@ -40,7 +40,9 @@
   } from "../code-editor/index.js";
   import {
     OperatingSystem,
+    Commands,
     type CreateOptions,
+    type IDisposable,
   } from "$lib/operating-system/index.js";
   import { defer } from "../utils/index.js";
   import { GridView } from "@p-buddy/dockview-svelte";
@@ -56,7 +58,6 @@
   import { panelConfig } from "$lib/utils/dockview.js";
   import { Ports } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/utils/fs.js";
-  import { Commands } from "$lib/operating-system/commands.js";
   import { nameEdit, iterate, type TFolder } from "$lib/file-tree/index.js";
 
   let {
@@ -236,39 +237,35 @@
       },
       getItems: async (type, snippets, item) => {
         const terminal = await os!.terminal;
-        type Suggestion = ReturnType<typeof terminal.suggest>;
-        const suggestions = new Map<string, Suggestion>();
-        const suggest = (key: string, command: string) => {
-          const suggestion = terminal.suggest(command);
-          if (suggestion) suggestions.set(key, suggestion);
-          return suggestion;
+        let last: number | undefined;
+        const suggest = (command: () => string | Promise<string>) => {
+          let suggestion: IDisposable | undefined;
+          const dispose = () => (suggestion?.dispose(), (last = Date.now()));
+          return {
+            onmouseenter: async () => {
+              const fadeIn = Boolean(!last || Date.now() - last > 100);
+              suggestion = terminal.suggest(await command(), fadeIn);
+            },
+            onmouseleave: dispose,
+            onclick: async () => (
+              dispose(), terminal.enqueueCommand(await command())
+            ),
+          };
         };
 
         if (type === "root") {
           return [
             {
               content: snippets.addFile,
-              onmouseenter: async () => {
-                suggest("file", commands.touch(await validPath(defaults.file)));
-                console.log("onmouseenter");
-              },
-              onmouseleave: () => {
-                suggestions.get("file")?.dispose();
-                console.log("onmouseleave");
-              },
-              onclick: async () => {
-                suggestions.get("file")?.dispose();
-                terminal.enqueueCommand(
-                  commands.touch(await validPath(defaults.file)),
-                );
-              },
+              ...suggest(async () =>
+                commands.touch(await validPath(defaults.file)),
+              ),
             },
             {
               content: snippets.addFolder,
-              onclick: async () =>
-                terminal.enqueueCommand(
-                  await commands.mkdir(await validPath(defaults.folder), true),
-                ),
+              ...suggest(async () =>
+                commands.mkdir(await validPath(defaults.folder), true),
+              ),
             },
           ];
         }

@@ -1,12 +1,13 @@
 import type { WebContainerProcess } from "@webcontainer/api";
 import type { WebContainer } from "@webcontainer/api";
 import { type Status, cli } from "./common.js";
-import type { IDecoration, ITheme, Terminal, IDisposable } from "@xterm/xterm";
+import type { ITheme, Terminal, IDisposable } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { defer, removeFirstInstance, removeLastInstance, type Deferred } from "$lib/utils/index.js";
 import stripAnsi from "strip-ansi";
 import { mount, unmount } from "svelte";
 import Suggestion, { type Props as SuggestionProps } from "./Suggestion.svelte";
+export type { IDisposable };
 
 const sanitize = (data: string, command: string) => {
   data = stripAnsi(data);
@@ -14,6 +15,20 @@ const sanitize = (data: string, command: string) => {
   data = removeFirstInstance(data, command);
   data = removeLastInstance(data, cli.output.location);
   return data.trim();
+}
+
+const isElement = (element?: Element): element is HTMLElement =>
+  Boolean(element && element instanceof HTMLElement);
+
+const isViewport = (element?: Element): element is HTMLElement =>
+  isElement(element) && element.classList.contains("xterm-viewport");
+
+const isScreen = (element?: Element): element is HTMLElement =>
+  isElement(element) && element.classList.contains("xterm-screen");
+
+const overlappingScrollbarHack = (viewport?: HTMLElement) => {
+  if (!viewport) return;
+  viewport.style.width = "calc(100% + 20px)";
 }
 
 type CaptureCommandOutput = (command: string, last?: boolean) => void;
@@ -62,7 +77,8 @@ export default class {
   private readonly queue = new CommandQueue();
   private onCapture?: CaptureCommandOutput;
   private element?: HTMLElement;
-
+  private viewport?: HTMLElement;
+  private screen?: HTMLElement;
   public fade(direction: "in" | "out", duration: number) {
     this.element!.style.opacity = direction === "in" ? "1" : "0";
     this.element!.style.transition = `opacity ${duration}ms ease-in-out`;
@@ -118,7 +134,9 @@ export default class {
       import("@xterm/addon-fit"),
     ]);
 
-    const xterm = new Terminal({ convertEol: true, allowProposedApi: true });
+    const xterm = new Terminal({
+      convertEol: true, allowProposedApi: true,
+    });
     const addon = new FitAddon();
     const { cols, rows } = xterm;
     xterm.loadAddon(addon);
@@ -146,9 +164,19 @@ export default class {
     }
     this.xterm.open(parent);
     this.fit();
+
+    const container = this.element?.children[0];
+    const viewport = container?.children[0];
+    const screen = container?.children[1];
+    if (isViewport(viewport)) this.viewport = viewport;
+    else console.error("Terminal viewport not found");
+    if (isScreen(screen)) this.screen = screen;
+    else console.error("Terminal screen not found");
+
+    overlappingScrollbarHack(this.viewport);
   }
 
-  public suggest(content: string) {
+  public suggest(content: string, fadeIn = true) {
     const decoration = this.xterm.registerDecoration({
       marker: this.xterm.registerMarker(0),
       x: 1,
@@ -162,7 +190,8 @@ export default class {
     decoration.onRender((target) => {
       if (hault) return;
       hault = true;
-      const props: SuggestionProps = { content, inMs: 200, outMs: 200 };
+      const inMs = fadeIn ? 300 : 1;
+      const props: SuggestionProps = { content, inMs, outMs: 400 };
       const suggestion = mount(Suggestion, { target, props });
       requestAnimationFrame(() => suggestion.visible(true));
       const remove = () => (unmount(suggestion), decoration.dispose());
@@ -216,7 +245,6 @@ export default class {
       this.input.write(command);
       this.onCapture = onCapture;
     }
-
     return deferredCapture?.promise;
   }
 
@@ -247,7 +275,14 @@ export default class {
         break;
     }
     if (!this.forceClear) this.onCapture?.(data);
-    this.xterm.write(data, callback);
+
+    const { viewportY } = this.xterm.buffer.active;
+    this.xterm.write(data, callback ?? (() => {
+      this.xterm.scrollToLine(viewportY);
+      setTimeout(() => {
+        this.viewport?.scrollTo({ top: this.viewport.scrollHeight, behavior: "smooth" })
+      }, 200)
+    }));
   }
 
   private getAndClearUserInput() {

@@ -101,8 +101,6 @@ export const fixToBottomLeftCorner = (element: HTMLElement, attributes?: Partial
   return creationContainer.appendChild(fixed);
 }
 
-
-
 export const removeFirstInstance = (str: string, instance: string) => {
   const index = str.indexOf(instance);
   if (index === -1) return str;

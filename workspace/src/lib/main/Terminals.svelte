@@ -66,7 +66,8 @@
 </script>
 
 {#snippet terminal(props: PanelProps<"grid", PropsOf<typeof MountedDiv>>)}
-  <MountedDiv {...props.params} />
+  <!-- Margin right used to ensure terminal's scrollbar overlap hack works -->
+  <MountedDiv {...props.params} class="mr-4" />
 {/snippet}
 
 {#snippet terminals({ params }: PanelProps<"grid", Props>)}

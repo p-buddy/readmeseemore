@@ -23,10 +23,12 @@
   let element: HTMLElement;
 
   onMount(() => {
-    const { top, height } = element.getBoundingClientRect();
-    const { innerHeight } = window;
+    const { top, height, left, width } = element.getBoundingClientRect();
+    const { innerHeight, innerWidth } = window;
     if (top + height > innerHeight)
       element.style.top = `${innerHeight - top - height}px`;
+    if (left + width > innerWidth)
+      element.style.left = `${innerWidth - left - width}px`;
     visible = true;
   });
 </script>
