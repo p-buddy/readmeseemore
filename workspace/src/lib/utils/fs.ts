@@ -79,7 +79,8 @@ export const exists: Exists = async (fs, path, isFile) => {
   return !_entry ? (isFile === false && path === ".") : true;
 }
 
-export const isSymlink = (entry: DirEnt<string>) => !entry.isFile() && !entry.isDirectory();
+export const isSymlink = (entry?: DirEnt<string>) =>
+  Boolean(entry && !entry.isFile() && !entry.isDirectory());
 
 type ReadableFs = WithLimitFs<"readdir" | "readFile">;
 type Encoding = Parameters<WithLimitFs<"readFile">["readFile"]>[1];

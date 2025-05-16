@@ -9,6 +9,11 @@
   } & Pick<CreateOptions, "status"> &
     Pick<EditorProps, "onSave"> &
     Partial<WithElements & WithOperatingSystem>;
+
+  const defaults = {
+    file: "my-file",
+    folder: "my-folder",
+  };
 </script>
 
 <script lang="ts">
@@ -191,12 +196,17 @@
     if (filesystem) iterateFilesystem(filesystem, actionOnFile);
 
     const filePanelTracker = new FilePanelTracker();
-    const commands = new Commands(os);
+    const commands = new Commands(os.container.fs);
 
     createAndRegisterFileSystemProvider(os);
 
+    const validPath = async (desired: string) => {
+      const entries = await fs.readdir(".");
+      return validName(entries, desired);
+    };
+
     status?.("Adding initial file tree");
-    const tree = await openInSidebar.fileTree(sidebarAPI, fs, {
+    const { exports: tree } = await openInSidebar.fileTree(sidebarAPI, fs, {
       onFileClick: (path) => {
         commands.open(path);
       },
@@ -206,15 +216,14 @@
         if (name === item.name) return;
         const from = item.path;
         const to = pathWithNewName(name, item);
-        const remap = { from, to }; // reusable object to limit allocations
+        const remap = { from, to }; // reuse to limit allocations
         switch (item.type) {
           case "folder":
-            iterate(item as TFolder, (child) => {
-              if (child.type === "file" || child.type === "symlink") {
-                remap.from = child.path;
-                remap.to = child.path.replace(from, to);
-                filePanelTracker.tryRemap(remap);
-              }
+            iterate(item as TFolder, ({ path, type }) => {
+              if (type !== "file" && type !== "symlink") return;
+              remap.from = path;
+              remap.to = path.replace(from, to);
+              filePanelTracker.tryRemap(remap);
             });
             break;
           case "file":
@@ -226,24 +235,40 @@
         item.name = name;
       },
       getItems: async (type, snippets, item) => {
+        const terminal = await os!.terminal;
+        type Suggestion = ReturnType<typeof terminal.suggest>;
+        const suggestions = new Map<string, Suggestion>();
+        const suggest = (key: string, command: string) => {
+          const suggestion = terminal.suggest(command);
+          if (suggestion) suggestions.set(key, suggestion);
+          return suggestion;
+        };
+
         if (type === "root") {
           return [
             {
               content: snippets.addFile,
-              onmouseenter: () => {},
+              onmouseenter: async () => {
+                suggest("file", commands.touch(await validPath(defaults.file)));
+                console.log("onmouseenter");
+              },
+              onmouseleave: () => {
+                suggestions.get("file")?.dispose();
+                console.log("onmouseleave");
+              },
               onclick: async () => {
-                const entries = await fs.readdir(".");
-                const path = validName(entries, "my-file");
-                commands.touch(path);
+                suggestions.get("file")?.dispose();
+                terminal.enqueueCommand(
+                  commands.touch(await validPath(defaults.file)),
+                );
               },
             },
             {
               content: snippets.addFolder,
-              onclick: async () => {
-                const entries = await fs.readdir(".");
-                const path = validName(entries, "my-folder");
-                commands.mkdir(path);
-              },
+              onclick: async () =>
+                terminal.enqueueCommand(
+                  await commands.mkdir(await validPath(defaults.folder), true),
+                ),
             },
           ];
         }
@@ -251,7 +276,7 @@
         const rename: Item = {
           content: snippets.rename,
           onclick: () => {
-            const entry = tree.exports.root.find(item!.path);
+            const entry = tree.root.find(item!.path);
             if (entry)
               nameEdit.begin(entry, {
                 override: entry.name,
@@ -273,7 +298,7 @@
     });
 
     container.on("xdg-open", async (text) => {
-      const file = tree.exports.root.find(removeLocal(trySanitize(text)));
+      const file = tree.root.find(removeLocal(trySanitize(text)));
       if (!file || file.type === "folder")
         throw new Error(`Can't open: ${text} (${file?.type ?? "not found"})`);
       openTab.code(tabsAPI, { file, fs, onSave }, filePanelTracker);
@@ -287,23 +312,20 @@
 
       switch (action) {
         case "add":
-          const _entry = await entry(fs, path);
-          symlink = Boolean(_entry && isSymlink(_entry));
           actionOnFile(path);
+          symlink = isSymlink(await entry(fs, path));
         case "addDir":
           const ancestors: TFolder[] = [];
-          const parent = tree.exports.root.findParent(path, ancestors);
+          const parent = tree.root.findParent(path, ancestors);
           if (!parent) throw new Error(`Parent not found: ${path}`);
-          if (!tree.exports.root.find(path, parent)) {
-            nameEdit.begin(
-              tree.exports.root.touch(path, symlink ? "symlink" : type),
-              { override: "" },
-            );
+          if (!tree.root.find(path, parent)) {
+            const item = tree.root.touch(path, symlink ? "symlink" : type);
+            nameEdit.begin(item, { override: "" });
             for (const ancestor of ancestors) ancestor.expanded = true;
           }
           break;
         case "unlink":
-          tree.exports.root.rm(path);
+          tree.root.rm(path);
           const id = filePanelTracker.id(path);
           if (id === undefined) return;
           filePanelTracker.drop("path", path);
@@ -311,16 +333,15 @@
           if (panel) tabsAPI.removePanel(panel);
           break;
         case "unlinkDir":
-          tree.exports.root.rm(path);
+          tree.root.rm(path);
           break;
       }
     });
 
     tabsAPI.onDidActivePanelChange((e) => {
-      tree.exports.root.tryFocus(
-        e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
-      );
-      addedInSidebar.portsList?.exports.select(Ports.PanelIDToPort(e?.id));
+      const id = e?.id;
+      tree.root.tryFocus(id ? filePanelTracker.path(parseInt(id)) : undefined);
+      addedInSidebar.portsList?.exports.select(Ports.PanelIDToPort(id));
     });
 
     onReady?.();
