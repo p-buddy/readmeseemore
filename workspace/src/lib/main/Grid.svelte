@@ -12,63 +12,47 @@
 </script>
 
 <script lang="ts">
+  import "@xterm/xterm/css/xterm.css";
   import { isDark } from "../mode.js";
-  import FileTree, {
-    type TFile,
-    type TFileLike,
-  } from "../file-tree/Tree.svelte";
   import {
-    Editor,
+    tabs,
+    open as openTab,
+    utils as tabUtils,
+    type View as TabsView,
+  } from "./Tabs.svelte";
+  import {
+    sidebar,
+    open as openInSidebar,
+    added as addedInSidebar,
+    type View as SidebarView,
+  } from "./Sidebar.svelte";
+  import { terminals, open as openTerminal } from "./Terminals.svelte";
+  import {
     type EditorProps,
     takeAction,
     tryGetLanguageByFile,
     createAndRegisterFileSystemProvider,
   } from "../code-editor/index.js";
-  import { type Props as PropsOf } from "../utils/svelte.js";
-  import VsCodeWatermark from "../VSCodeWatermark.svelte";
-  import MountedDiv from "../utils/MountedDiv.svelte";
   import {
     OperatingSystem,
-    Terminal,
     type CreateOptions,
   } from "$lib/operating-system/index.js";
   import { defer } from "../utils/index.js";
-  import {
-    type PanelProps,
-    DockView,
-    PaneView,
-    GridView,
-    type WithViewOnReady,
-  } from "@p-buddy/dockview-svelte";
+  import { GridView } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "../utils/FilePanelTracker.js";
-  import "@xterm/xterm/css/xterm.css";
   import {
+    pathWithNewName,
     iterateFilesystem,
     removeLocal,
     trySanitize,
     validName,
   } from "$lib/utils/fs.js";
-  import { register, type Item } from "../context-menu/index.js";
-  import { getItems as getTerminalContextItems } from "../operating-system/TerminalContext.svelte";
-  import {
-    animateEntry,
-    animateExit,
-    defaultDuration,
-    panelConfig,
-    type ViewsHelper,
-    type ViewConfig,
-  } from "$lib/utils/dockview.js";
-  import type { IDisposable } from "@xterm/xterm";
-  import {
-    Tab as PortTab,
-    Preview,
-    List as PortsList,
-    Ports,
-    type PreviewProps,
-  } from "$lib/ports/index.js";
+  import { type Item } from "../context-menu/index.js";
+  import { panelConfig } from "$lib/utils/dockview.js";
+  import { Ports } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/utils/fs.js";
-  import { unique } from "$lib/ports/utils.js";
   import { Commands } from "$lib/operating-system/commands.js";
+  import { nameEdit, iterate, type TFolder } from "$lib/file-tree/index.js";
 
   let {
     filesystem,
@@ -80,64 +64,14 @@
   }: Props = $props();
 
   elements ??= {};
+</script>
 
-  type Panels = {
-    Full: {
-      tabs: typeof tabs;
-      sidebar: typeof sidebar;
-      terminals: typeof terminals;
-    };
-    Tabs: {
-      Preview: typeof Preview;
-      Editor: typeof Editor;
-    };
-    Sidebar: {
-      FileTree: typeof FileTree;
-      PortsList: typeof PortsList;
-    };
-    Terminals: {
-      terminal: typeof terminal;
-    };
-  };
-
-  type Views = ViewsHelper<{
-    Full: ViewConfig<"grid", Panels["Full"]>;
-    Tabs: ViewConfig<"dock", Panels["Tabs"]>;
-    Sidebar: ViewConfig<"pane", Panels["Sidebar"]>;
-    Terminals: ViewConfig<"grid", Panels["Terminals"]>;
-  }>;
-
-  const mountTerminal = async (
-    api: Views["Terminals"]["api"],
-    terminal: Terminal,
-    reference?: string,
-  ) => {
-    let fit: IDisposable;
-    let config = panelConfig(api).id(terminal.id).size(0);
-    if (reference) config.direction("right").reference(reference);
-    const { panel } = await api.addSnippetPanel(
-      "terminal",
-      {
-        onMount(element) {
-          terminal.mount(element, defaultDuration + 200);
-          register(element, {
-            props: () =>
-              getTerminalContextItems(os!, terminal, (onDropped) => {
-                fit.dispose();
-                terminal.fade("out", defaultDuration - 100);
-                animateExit(api, panel, onDropped);
-              }),
-          });
-        },
-        style: "height: 100%; padding: 10px;",
-      },
-      config.options,
-    );
-    fit = panel.api.onDidDimensionsChange(() => terminal.fit());
-    animateEntry(api, panel);
-  };
-
-  const onMainGridReady: Views["Full"]["onReady"] = async ({ api }) => {
+<GridView
+  orientation={"HORIZONTAL"}
+  className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
+  snippets={{ sidebar, tabs, terminals }}
+  proportionalLayout={false}
+  onReady={async ({ api }) => {
     status?.("Creating operating system");
     os = await OperatingSystem.Create({
       filesystem,
@@ -151,8 +85,8 @@
     const { fs } = container;
 
     const deferredAPI = {
-      tabs: defer<Views["Tabs"]["api"]>(),
-      sidebar: defer<Views["Sidebar"]["api"]>(),
+      tabs: defer<TabsView["api"]>(),
+      sidebar: defer<SidebarView["api"]>(),
     };
 
     status?.("Adding dock");
@@ -160,6 +94,7 @@
       deferredAPI.tabs.promise,
       api.addSnippetPanel("tabs", {
         onReady: ({ api }) => deferredAPI.tabs.resolve(api),
+        elements,
       }),
     ]);
 
@@ -182,15 +117,16 @@
       deferredAPI.sidebar.promise,
       api.addSnippetPanel(
         "sidebar",
-        { onReady: ({ api }) => deferredAPI.sidebar.resolve(api) },
+        { onReady: ({ api }) => deferredAPI.sidebar.resolve(api), elements },
         config.sidebar.options,
       ),
       api.addSnippetPanel(
         "terminals",
         {
+          elements,
           onReady: ({ api }) => {
             os!.onTerminal(async (terminal, reference) =>
-              mountTerminal(api, terminal, reference?.id),
+              openTerminal(os!, api, terminal, reference?.id),
             );
             os!.addTerminal();
           },
@@ -203,86 +139,46 @@
       os!.terminals.forEach((t) => t.fit()),
     );
 
-    let portsList:
-      | ReturnType<typeof sidebarAPI.addComponentPanel<"PortsList">>
-      | undefined;
-
-    const urlByPort = new Map<number, string>();
     const ports = Ports.Create();
-
-    const addPreview = (
-      port: number,
-      details?: Partial<Record<"title" | "url", string>>,
-    ) => {
-      ports.add(port);
-      if (details?.url) urlByPort.set(port, details.url);
-      const title = details?.title ?? `${port}`;
-      const url = urlByPort.get(port);
-      if (!url) throw new Error(`No url for port ${port}`);
-      return tabsAPI!.addComponentPanel(
-        "Preview",
-        { initial: { url: unique(url), port } },
-        panelConfig<"dock">()
-          .id(ports.getPanelID(port))
-          .title(title)
-          .tabComponent("PortTab")
-          .renderer("always")
-          .direction("right").options,
-      );
-    };
-
-    const getPortsList = () => {
-      portsList ??= sidebarAPI
-        .addComponentPanel(
-          "PortsList",
-          {
-            open: addPreview,
-            ports,
-          },
-          panelConfig<"pane">().title("Ports").options,
-        )
-        .then((list) => {
-          list.panel.api.setExpanded(true);
-          return list;
-        });
-      return portsList;
-    };
 
     container.on("error", (error) => {
       console.error("error", error);
     });
 
-    container.on("server-ready", async (port, url) => {});
+    const portsListProps: Parameters<typeof openInSidebar.portsList>[1] = {
+      open: (port) => openTab.preview(tabsAPI, ports, port),
+      ports,
+    };
 
     container.on("port", async (port, type, url) => {
       switch (type) {
         case "open":
-          const existing = tabsAPI.panels.filter(
-            ({ id }) => Ports.PanelIDToPort(id) === port,
-          );
+          const filter = tabUtils.previewPanelFilter(port);
+          const existing = tabsAPI.panels.filter(filter);
           if (existing.length > 0) {
             ports.refresh(existing);
-            urlByPort.set(port, url);
-            url = unique(url);
-            const params: Partial<PreviewProps> = { initial: { url, port } };
+            ports.url(port, url);
+            const params = tabUtils.uniquePreviewProps(url, port);
             for (const panel of existing) {
               panel.api.setTitle(`${port}`);
               panel.api.updateParameters(params);
             }
-            const list = await getPortsList();
+            const list = await openInSidebar.portsList(
+              sidebarAPI,
+              portsListProps,
+            );
             existing[0].api.setActive();
             list.exports.select(port);
           } else {
             const [preview, list] = await Promise.all([
-              addPreview(port, { url }),
-              getPortsList(),
+              openTab.preview(tabsAPI, ports, port, { url }),
+              openInSidebar.portsList(sidebarAPI, portsListProps),
             ]);
             if (preview.panel.api.isActive) list.exports.select(port);
           }
           break;
         case "close":
           ports.remove(port);
-          urlByPort.delete(port);
           break;
       }
     });
@@ -295,125 +191,92 @@
     if (filesystem) iterateFilesystem(filesystem, actionOnFile);
 
     const filePanelTracker = new FilePanelTracker();
-
-    const pending = {
-      rm: new Set<string>(),
-    };
-
-    const rm = async (path: string) => {
-      fs.rm(path, { recursive: true });
-      pending.rm.delete(path);
-    };
-
-    const dir = {
-      empty: async (path: string) => (await fs.readdir(path)).length === 0,
-      tryRemoveEmpty: async (path: string) => {
-        if (!(await dir.empty(path))) return false;
-        rm(path);
-        return true;
-      },
-    };
-
     const commands = new Commands(os);
 
-    let editOnAdd: string | undefined;
+    createAndRegisterFileSystemProvider(os);
 
     status?.("Adding initial file tree");
-    createAndRegisterFileSystemProvider(os);
-    const tree = await sidebarAPI!.addComponentPanel(
-      "FileTree",
-      {
-        fs,
-        onFileClick: (path) => {
-          commands.open(path);
-        },
-        onFileMouseEnter: (path) => {},
-        onFileMouseLeave: (path) => {},
-        rename: (name, path) => {
-          const index = path.lastIndexOf("/");
-          const dirname = index === -1 ? null : path.slice(0, index);
-          const updated = dirname ? `${dirname}/${name}` : name;
-          commands.mv(path, updated);
-        },
-        getItems: async (type, snippets, item) => {
-          if (type === "root") {
-            const entries = await fs.readdir(".");
-            return [
-              {
-                content: snippets.addFile,
-                onmouseenter: () => {
-                  console.log("onmouseenter", entries);
-                },
-                onclick: () => {
-                  const path = validName(entries, "my-file");
-                  commands.touch(path);
-                  editOnAdd = path;
-                },
-              },
-              {
-                content: snippets.addFolder,
-                onclick: () => {
-                  const path = validName(entries, "my-folder");
-                  commands.mkdir(path);
-                  editOnAdd = path;
-                },
-              },
-            ];
-          }
-
-          const rename: Item = {
-            content: snippets.rename,
-            onclick: () => {
-              const file = tree.exports.find(item!.path);
-              if (!file) return;
-              file.editing.condition = true;
-            },
-          };
-
-          switch (type) {
-            case "file":
-            case "symlink": {
-              return [rename];
-            }
-            case "folder": {
-              return [rename];
-            }
-          }
-        },
+    const tree = await openInSidebar.fileTree(sidebarAPI, fs, {
+      onFileClick: (path) => {
+        commands.open(path);
       },
-      panelConfig<"pane">().title("Explorer").isExpanded(true).options,
-    );
-
-    tree.panel.headerVisible = false;
-
-    const openFileAsCode = async (file: TFileLike) => {
-      const id = `${filePanelTracker.add(file.path)}`;
-      (
-        tabsAPI!.getPanel(id) ??
-        (
-          await tabsAPI!.addComponentPanel(
-            "Editor",
+      onFileMouseEnter: (path) => {},
+      onFileMouseLeave: (path) => {},
+      rename: (name, item) => {
+        if (name === item.name) return;
+        const from = item.path;
+        const to = pathWithNewName(name, item);
+        const remap = { from, to }; // reusable object to limit allocations
+        switch (item.type) {
+          case "folder":
+            iterate(item as TFolder, (child) => {
+              if (child.type === "file" || child.type === "symlink") {
+                remap.from = child.path;
+                remap.to = child.path.replace(from, to);
+                filePanelTracker.tryRemap(remap);
+              }
+            });
+            break;
+          case "file":
+          case "symlink":
+            filePanelTracker.tryRemap(remap);
+            break;
+        }
+        commands.mv(from, to);
+        item.name = name;
+      },
+      getItems: async (type, snippets, item) => {
+        if (type === "root") {
+          return [
             {
-              fs,
-              file,
-              onSave,
+              content: snippets.addFile,
+              onmouseenter: () => {},
+              onclick: async () => {
+                const entries = await fs.readdir(".");
+                const path = validName(entries, "my-file");
+                commands.touch(path);
+              },
             },
-            panelConfig<"dock">().id(id).title(file.name).options,
-          )
-        ).panel
-      ).api.setActive();
-    };
+            {
+              content: snippets.addFolder,
+              onclick: async () => {
+                const entries = await fs.readdir(".");
+                const path = validName(entries, "my-folder");
+                commands.mkdir(path);
+              },
+            },
+          ];
+        }
+
+        const rename: Item = {
+          content: snippets.rename,
+          onclick: () => {
+            const entry = tree.exports.root.find(item!.path);
+            if (entry)
+              nameEdit.begin(entry, {
+                override: entry.name,
+                caretIndex: entry.name.split(".")[0].length,
+              });
+          },
+        };
+
+        switch (type) {
+          case "file":
+          case "symlink": {
+            return [rename];
+          }
+          case "folder": {
+            return [rename];
+          }
+        }
+      },
+    });
 
     container.on("xdg-open", async (text) => {
-      const path = removeLocal(trySanitize(text));
-      const file = tree.exports.find(path);
-      console.log("xdg-open", text, path);
-
-      if (!file) throw new Error(`File not found: ${path}`);
-      if (file.type === "folder")
-        throw new Error(`Cannot open folder: ${path}`);
-
-      openFileAsCode(file);
+      const file = tree.exports.root.find(removeLocal(trySanitize(text)));
+      if (!file || file.type === "folder")
+        throw new Error(`Can't open: ${text} (${file?.type ?? "not found"})`);
+      openTab.code(tabsAPI, { file, fs, onSave }, filePanelTracker);
     });
 
     status?.("Creating file system watcher");
@@ -422,22 +285,25 @@
 
       let symlink = false;
 
-      console.log({ change });
-
       switch (action) {
         case "add":
           const _entry = await entry(fs, path);
           symlink = Boolean(_entry && isSymlink(_entry));
           actionOnFile(path);
         case "addDir":
-          if (!tree.exports.find(path)) {
-            const editOnMount = editOnAdd === path;
-            tree.exports.add(path, symlink ? "symlink" : type, editOnMount);
-            if (editOnMount) editOnAdd = undefined;
+          const ancestors: TFolder[] = [];
+          const parent = tree.exports.root.findParent(path, ancestors);
+          if (!parent) throw new Error(`Parent not found: ${path}`);
+          if (!tree.exports.root.find(path, parent)) {
+            nameEdit.begin(
+              tree.exports.root.touch(path, symlink ? "symlink" : type),
+              { override: "" },
+            );
+            for (const ancestor of ancestors) ancestor.expanded = true;
           }
           break;
         case "unlink":
-          tree.exports.remove(path);
+          tree.exports.root.rm(path);
           const id = filePanelTracker.id(path);
           if (id === undefined) return;
           filePanelTracker.drop("path", path);
@@ -445,65 +311,18 @@
           if (panel) tabsAPI.removePanel(panel);
           break;
         case "unlinkDir":
-          tree.exports.remove(path);
+          tree.exports.root.rm(path);
           break;
       }
     });
 
-    status?.("File tree initializing");
-    await tree.exports.ready();
-
     tabsAPI.onDidActivePanelChange((e) => {
-      tree.exports.focus(
+      tree.exports.root.tryFocus(
         e?.id ? filePanelTracker.path(parseInt(e.id)) : undefined,
       );
-      if (portsList)
-        getPortsList().then(({ exports: { select } }) =>
-          select(Ports.PanelIDToPort(e?.id)),
-        );
+      addedInSidebar.portsList?.exports.select(Ports.PanelIDToPort(e?.id));
     });
 
     onReady?.();
-  };
-</script>
-
-{#snippet tabs({
-  params,
-}: PanelProps<"grid", WithViewOnReady<"dock", Panels["Tabs"]>>)}
-  <div class="w-full h-full" bind:this={elements!.dock}>
-    <DockView
-      {...params}
-      components={{ Editor, Preview }}
-      tabs={{ components: { PortTab } }}
-      watermark={{ component: VsCodeWatermark }}
-    />
-  </div>
-{/snippet}
-
-{#snippet sidebar({
-  params,
-}: PanelProps<"grid", WithViewOnReady<"pane", Panels["Sidebar"]>>)}
-  <div class="w-full h-full" bind:this={elements!.tree}>
-    <PaneView components={{ FileTree, PortsList }} {...params} />
-  </div>
-{/snippet}
-
-{#snippet terminal(props: PanelProps<"grid", PropsOf<typeof MountedDiv>>)}
-  <MountedDiv {...props.params} />
-{/snippet}
-
-{#snippet terminals({
-  params,
-}: PanelProps<"grid", WithViewOnReady<"grid", Panels["Terminals"]>>)}
-  <div class="w-full h-full" bind:this={elements!.terminals}>
-    <GridView {...params} snippets={{ terminal }} orientation={"HORIZONTAL"} />
-  </div>
-{/snippet}
-
-<GridView
-  orientation={"HORIZONTAL"}
-  className={isDark.current ? "dockview-theme-dark" : "dockview-theme-light"}
-  snippets={{ sidebar, tabs, terminals }}
-  proportionalLayout={false}
-  onReady={onMainGridReady}
+  }}
 />

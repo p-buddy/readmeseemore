@@ -1,4 +1,5 @@
 import type { ViewAPI, AddedPanelByView, ViewKey, Renderables, WithViewOnReady } from "@p-buddy/dockview-svelte";
+import type { Component } from "svelte";
 
 export type ViewHelper<Type extends ViewKey, Views extends Renderables<Type>> = {
   api: ViewAPI<Type, Views>;

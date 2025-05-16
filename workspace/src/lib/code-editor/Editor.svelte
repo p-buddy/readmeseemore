@@ -83,7 +83,7 @@
 
 <script lang="ts">
   import type { PanelProps } from "@p-buddy/dockview-svelte";
-  import type { TFile } from "../file-tree/Tree.svelte";
+  import type { TFile } from "../file-tree/index.js";
   import { onDestroy } from "svelte";
   import MountedDiv from "$lib/utils/MountedDiv.svelte";
   import { tryGetLanguageByFileExtension } from "./languages.js";

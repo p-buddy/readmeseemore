@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Ports, Tab } from "$lib/ports/index.js";
+  import { Ports, PreviewTab } from "$lib/ports/index.js";
   import { DockView } from "@p-buddy/dockview-svelte";
 </script>
 
@@ -14,7 +14,7 @@
     snippets={{ dummy }}
     tabs={{
       components: {
-        Tab,
+        Tab: PreviewTab,
       },
     }}
     onReady={({ api }) => {

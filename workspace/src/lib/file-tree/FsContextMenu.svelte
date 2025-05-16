@@ -36,7 +36,7 @@
 <script lang="ts" generics="T extends MenuType">
   import { close, register, type Items } from "$lib/context-menu/index.js";
   import { noop, type OnClick } from "$lib/utils/index.js";
-  import type { FsItemType, TTreeItem } from "./Tree.svelte";
+  import type { FsItemType, TTreeItem } from "./common.svelte.js";
   import {
     plusFile,
     plusFolder,
@@ -81,12 +81,6 @@
     addFolder,
     deleter,
   };
-
-  /**
-   * name
-            ? () => nameUI?.edit(true, name.split(".")[0].length)
-            : undefined,
-   */
 
   $effect(() => {
     if (!target) return;

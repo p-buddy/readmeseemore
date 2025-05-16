@@ -41,4 +41,10 @@ export default class FilePanelTracker {
         break;
     }
   }
+
+  tryRemap({ from, to }: { from: string, to: string }) {
+    if (!this.has("path", from)) return;
+    this.set(to, this.id(from)!);
+    this.drop("path", from);
+  }
 }

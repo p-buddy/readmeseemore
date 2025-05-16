@@ -1,13 +1,43 @@
 <script lang="ts" module>
   import { TooltipSingleton } from "$lib/utils/tooltip.js";
   import NameOverflowTip from "./NameOverflow.svelte";
-  import { focusColor } from "./common.js";
+  import {
+    focusColor,
+    type TTreeItem,
+    type WithRename,
+  } from "./common.svelte.js";
 
   const tooltip = new TooltipSingleton(NameOverflowTip);
 
   const focusedComposite = stringify.rgba(
     blend(parse.rgba(focusColor)!, boost(colors.black, 40)),
   );
+
+  type Item = Pick<TTreeItem, "name" | "path" | "editing" | "type">;
+  type EditOptions = Pick<Item["editing"], "caretIndex" | "override">;
+
+  const set = (
+    item: Item,
+    condition: boolean,
+    override?: string,
+    caretIndex?: number,
+  ) => {
+    item.editing.condition = condition;
+    item.editing.override = override;
+    item.editing.caretIndex = caretIndex;
+  };
+
+  export const nameEdit = {
+    begin: (
+      item: Item,
+      { caretIndex = undefined, override = undefined }: EditOptions = {},
+    ) => set(item, true, override, caretIndex),
+    /**
+     * @description Exits the edit mode (WITHOUT saving)
+     * @param item
+     */
+    exit: (item: Item) => set(item, false),
+  };
 </script>
 
 <script lang="ts">
@@ -24,39 +54,13 @@
     colors,
     boost,
   } from "$lib/utils/colors.js";
-  import type { TTreeItem, WithRename } from "./Tree.svelte";
 
-  let {
-    item,
-    rename,
-  }: WithRename & { item: Pick<TTreeItem, "name" | "path" | "editing"> } =
-    $props();
+  let { item, rename }: WithRename & { item: Item } = $props();
 
   let input = $state<HTMLInputElement>();
-  let caretIndex = $state(-1);
   let highlighted = $state(false);
-
   const value = $derived(item.editing.override ?? item.name);
-
-  export const edit = <
-    Condition extends true | false,
-    Detail extends Condition extends true
-      ? typeof caretIndex
-      : typeof item.name,
-  >(
-    condition: Condition,
-    detail: Detail,
-  ) => {
-    item.editing.condition = condition;
-    highlight(condition);
-    if (condition) caretIndex = detail as number;
-    else {
-      const name = detail as string;
-      item.editing.override = undefined;
-      item.name = name;
-      rename(name, item.path);
-    }
-  };
+  const caretIndex = $derived(item.editing.caretIndex ?? item.name.length);
 
   export const highlight = (setting?: boolean) => {
     setting ??= !highlighted;
@@ -66,7 +70,7 @@
   $effect(() => {
     if (!input) return;
     input.focus();
-    if (caretIndex >= 0) input.setSelectionRange(caretIndex, caretIndex);
+    input.setSelectionRange(caretIndex, caretIndex);
   });
 </script>
 
@@ -75,11 +79,22 @@
     bind:this={input}
     {value}
     type="text"
-    class="bg-transparent outline outline-transparent"
+    class="bg-transparent outline outline-transparent border-none p-0 m-0 overflow-hidden"
     style:width="calc(100% - 1.25rem)"
-    onblur={({ currentTarget: { value } }) => edit(false, value)}
-    onkeydown={({ key, currentTarget }) =>
-      key !== "Enter" || currentTarget.blur()}
+    onblur={() => nameEdit.exit(item)}
+    onkeydown={({ key, currentTarget }) => {
+      switch (key) {
+        case "Enter":
+          const { value: update } = currentTarget;
+          if (update !== item.name && update.trim()) rename(update, item);
+          currentTarget.blur();
+          break;
+        case "Escape":
+          nameEdit.exit(item);
+          currentTarget.blur();
+          break;
+      }
+    }}
     onclick={(event) => {
       event.stopPropagation();
     }}
@@ -90,7 +105,10 @@
     class="relative outline outline-transparent flex-grow text-left overflow-x-hidden overflow-ellipsis whitespace-nowrap"
     class:highlighted
     tabindex="0"
-    ondblclick={(event) => edit(true, mouseEventToCaretIndex(event, item.name))}
+    ondblclick={(event) =>
+      nameEdit.begin(item, {
+        caretIndex: mouseEventToCaretIndex(event, item.name),
+      })}
     onmouseenter={({ currentTarget: current }) => {
       if (!isEllipsisActive(current)) return;
       const bg = findNearestBackgroundColor(current);
@@ -104,7 +122,8 @@
             component.setBackground(focusedComposite);
           },
           ondblclick: async (event) => {
-            edit(true, mouseEventToCaretIndex(event, item.name, false));
+            const caretIndex = mouseEventToCaretIndex(event, item.name, false);
+            nameEdit.begin(item, { caretIndex });
             destroy();
           },
           onmouseleave: () => destroy(),
@@ -122,12 +141,5 @@
   .highlighted,
   input:focus {
     outline-color: #007fd4;
-  }
-  input {
-    /* Remove default border and padding */
-    border: none;
-    padding: 0;
-    margin: 0;
-    overflow: hidden;
   }
 </style>

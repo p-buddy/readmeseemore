@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { TFolder, WithOnFile, WithRename } from "./Tree.svelte";
+  import type { TFolder, WithOnFile, WithRename } from "./common.svelte.js";
   import File from "./File.svelte";
   import Self from "./Folder.svelte";
   import { fade } from "svelte/transition";
   import { folderExpanded, folderCollapsed } from "./Icons.svelte";
-  import EditableName from "./EditableName.svelte";
+  import EditableName, { nameEdit } from "./EditableName.svelte";
   import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
   import FolderSlideTransition from "./folder-slide-transition.js";
 
@@ -44,7 +44,7 @@
   item={folder}
   type="folder"
   target={topLevel}
-  beforeAction={() => nameUI?.edit(false, folder.name)}
+  beforeAction={() => nameEdit.exit(folder)}
 />
 
 <button

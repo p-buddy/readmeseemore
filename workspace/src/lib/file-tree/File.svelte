@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { TFileLike, WithOnFile, WithRename } from "./Tree.svelte";
-  import EditableName from "./EditableName.svelte";
+  import type { TFileLike, WithOnFile, WithRename } from "./common.svelte.js";
+  import EditableName, { nameEdit } from "./EditableName.svelte";
   import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
   import { file as _file, symlink } from "./Icons.svelte";
 
@@ -27,7 +27,7 @@
   item={file}
   type={file.type}
   target={topLevel}
-  beforeAction={() => nameUI?.edit(false, file.name)}
+  beforeAction={() => nameEdit.exit(file)}
 />
 
 <button

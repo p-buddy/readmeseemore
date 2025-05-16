@@ -4,7 +4,8 @@ export type ElementKey = "dock" | "tree" | "terminals";
 
 export type Elements = Partial<Record<ElementKey, HTMLElement | undefined>>;
 
-export type WithElements<T = {}> = T & { elements: Elements };
+export type WithElements<PickKeys extends ElementKey = ElementKey> =
+  { elements: Pick<Elements, PickKeys> };
 
 export type OS = OperatingSystem;
 

@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import type { Port, WithPorts } from "./common.svelte.js";
 
-  type Props = WithPorts & {
+  export type Props = WithPorts & {
     open: (port: Port) => void;
   };
 </script>

@@ -207,3 +207,10 @@ export type WithLimitFsReturn<
       limitted: ApplyRemap<Pick<FsReturn<FsKey, ExtractionConfig>, ReturnKey>, Remap>;
     };
   };
+
+export const pathWithNewName = (name: string, { path }: { path: string }) => {
+  const index = path.lastIndexOf("/");
+  const dirname = index === -1 ? null : path.slice(0, index);
+  const updated = dirname ? `${dirname}/${name}` : name;
+  return updated;
+}

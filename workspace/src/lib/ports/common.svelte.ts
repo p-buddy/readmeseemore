@@ -11,6 +11,7 @@ export type PortPath =
 export class Ports {
   readonly set = new SvelteSet<Port>();
   private readonly counts = new Map<Port, number>();
+  private readonly urlByPort = new Map<Port, string>();
 
   private constructor() { }
 
@@ -19,8 +20,18 @@ export class Ports {
     if (!this.counts.has(port)) this.counts.set(port, count);
   }
 
+  url<T extends string | undefined = undefined>(port: Port, url?: T) {
+    type SetterReturn = void;
+    type GetterReturn = string | undefined;
+    type Return = T extends string ? SetterReturn : GetterReturn;
+    if (!url) return this.urlByPort.get(port) as Return;
+    this.urlByPort.set(port, url)
+    return void 0 as Return;
+  }
+
   remove(port: Port) {
     this.set.delete(port);
+    this.urlByPort.delete(port);
     if (this.counts.has(port)) this.counts.delete(port);
   }
 
