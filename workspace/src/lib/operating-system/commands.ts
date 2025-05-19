@@ -44,15 +44,47 @@ export class Commands {
   }
 
   public open(path: string) {
-    return "open " + Commands.SanitizePath(Commands.EscapeNonAlphanumeric(path));
+    return "open " + Commands.Escape(Commands.SanitizePath(path));
   }
 
-  private static PathRequiresQuotes = (path: string) =>
-    /[^a-zA-Z0-9._\/-]/.test(path);
+  private static readonly FilenameChars = {
+    Forbidden: ['/', '\0', '"', '?', '\\'] as const,
+    Discouraged: [':', '*', '<', '>', '|', ' '] as const,
+  }
+
+  public static CheckFileName = (filename: string) => {
+    type ForbiddenChar = typeof Commands.FilenameChars.Forbidden[number];
+    type DiscouragedChar = typeof Commands.FilenameChars.Discouraged[number];
+
+    const forbidden: ForbiddenChar[] = [];
+    const discouraged: DiscouragedChar[] = [];
+
+    for (const char of Commands.FilenameChars.Forbidden)
+      if (filename.includes(char))
+        forbidden.push(char);
+
+    for (const char of Commands.FilenameChars.Discouraged)
+      if (filename.includes(char))
+        discouraged.push(char);
+
+    return forbidden.length || discouraged.length
+      ? { forbidden, discouraged }
+      : undefined;
+  }
+
+  private static Escape = (str: string) =>
+    str
+      .replace(/'/g, "\\'")
+      .replace(/\|/g, "\\|")
+      .replace(/\\/g, "\\\\")
+      .replace(/</g, "\\<")
+      .replace(/>/g, "\\>");
 
   private static SanitizePath = (path: string) =>
     Commands.PathRequiresQuotes(path) ? `"${path}"` : path;
 
-  private static EscapeNonAlphanumeric = (path: string) =>
-    path.replace(/[^a-zA-Z0-9._\/-]/g, "\\$&");
+  private static PathRequiresQuotes = (str: string) =>
+    /[^A-Za-z0-9._\/-]/.test(str) ||   // any special shell character
+    str !== str.trim() ||              // leading/trailing whitespace
+    /(^-)/.test(str)                   // starts with a dash (could be mistaken as a flag)
 }

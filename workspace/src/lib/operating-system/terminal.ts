@@ -7,6 +7,7 @@ import { defer, removeFirstInstance, removeLastInstance, type Deferred } from "$
 import stripAnsi from "strip-ansi";
 import { mount, unmount } from "svelte";
 import Suggestion, { type Props as SuggestionProps } from "./Suggestion.svelte";
+import type { Exports } from "$lib/utils/svelte.js";
 export type { IDisposable };
 
 const sanitize = (data: string, command: string) => {
@@ -64,6 +65,8 @@ class CommandQueue {
 }
 
 type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
+
+export type TerminalSuggestion = IDisposable & { exports?: Exports<typeof Suggestion> };
 
 let count = 0;
 
@@ -187,7 +190,8 @@ export default class {
     if (!decoration) return;
     let hault = false;
     const dispose = () => (hault = true, decoration.dispose());
-    const disposable: IDisposable = { dispose };
+
+    const payload: TerminalSuggestion = { dispose };
 
     decoration.onRender((target) => {
       if (hault) return;
@@ -196,11 +200,18 @@ export default class {
       const props: SuggestionProps = { content, inMs, outMs: 400 };
       const suggestion = mount(Suggestion, { target, props });
       requestAnimationFrame(() => suggestion.visible(true));
-      const remove = () => (unmount(suggestion), decoration.dispose());
-      disposable.dispose = () => suggestion.visible(false, true).then(remove);
+      let unmounted = false;
+      const remove = () => {
+        if (unmounted) return;
+        unmounted = true;
+        unmount(suggestion);
+        decoration.dispose();
+      };
+      payload.exports = suggestion;
+      payload.dispose = () => suggestion.visible(false, true).then(remove);
     });
 
-    return disposable;
+    return payload;
   }
 
   public async dispose() {
@@ -250,7 +261,8 @@ export default class {
       this.executing = true;
       this.input.write(command);
       this.onCapture = (data, last) => {
-        if (!last) this.delayScrollDown = true;
+        if (last) this.onCapture = undefined;
+        else this.delayScrollDown = true;
         onCapture?.(data, last);
       };
     }

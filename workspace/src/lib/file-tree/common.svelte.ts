@@ -45,14 +45,14 @@ export type TTreeItem = TFile | TFolder | TSymlink;
 
 export type Rename = (
   newName: string,
-  item: Pick<TTreeItem, "path" | "name" | "type">,
+  item: Pick<TTreeItem, "path" | "name" | "type" | "editing">,
 ) => void;
 
 export type WithRename = { rename: Rename };
 
 export type WithOnFile = Record<
   "onFileClick" | "onFileMouseEnter" | "onFileMouseLeave",
-  (path: string) => void
+  (item: Pick<TFileLike, "path" | "name" | "type" | "editing">) => void
 >;
 
 type Dirname = () => string;

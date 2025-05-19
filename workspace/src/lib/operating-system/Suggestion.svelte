@@ -24,6 +24,10 @@
     const delay = (condition ? inMs : outMs) + 1;
     return new Promise((resolve) => setTimeout(resolve, delay)) as Return;
   };
+
+  export const update = (_content: string) => {
+    content = _content;
+  };
 </script>
 
 <div

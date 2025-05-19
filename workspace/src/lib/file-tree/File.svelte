@@ -31,9 +31,9 @@
 />
 
 <button
-  onclick={() => onFileClick(file.path)}
-  onmouseenter={() => onFileMouseEnter(file.path)}
-  onmouseleave={() => onFileMouseLeave(file.path)}
+  onclick={() => onFileClick(file)}
+  onmouseenter={() => onFileMouseEnter(file)}
+  onmouseleave={() => onFileMouseLeave(file)}
   class="relative flex w-full rounded-sm"
   class:focused={file.focused}
   bind:this={topLevel}

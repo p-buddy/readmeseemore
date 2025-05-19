@@ -1,6 +1,7 @@
 <script lang="ts" module>
   import type { FileSystemTree } from "@webcontainer/api";
   import type { WithElements, WithOperatingSystem } from "./index.js";
+  import { type Terminal } from "$lib/operating-system/index.js";
 
   export type Props = {
     filesystem?: FileSystemTree;
@@ -42,9 +43,9 @@
     OperatingSystem,
     Commands,
     type CreateOptions,
-    type IDisposable,
+    type TerminalSuggestion,
   } from "$lib/operating-system/index.js";
-  import { defer } from "../utils/index.js";
+  import { defer, type Deferred } from "../utils/index.js";
   import { GridView } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "../utils/FilePanelTracker.js";
   import {
@@ -59,6 +60,11 @@
   import { Ports } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/utils/fs.js";
   import { nameEdit, iterate, type TFolder } from "$lib/file-tree/index.js";
+  import {
+    nonFlickeringSuggestionScope,
+    dynamicNonFlickeringSuggestionScope,
+    checkFileNameAtLocation,
+  } from "./common.svelte.js";
 
   let {
     filesystem,
@@ -206,15 +212,36 @@
       return validName(entries, desired);
     };
 
+    // Can turn into a set of strings
+    let renameInProgress = new Map<string, Deferred>();
+
     status?.("Adding initial file tree");
+
+    const getUserVisibleTerminal = async () => {
+      const terminal = await os!.terminal;
+      terminal.scrollToBottom();
+      return terminal;
+    };
+
+    const suggestOpen = nonFlickeringSuggestionScope();
+
     const { exports: tree } = await openInSidebar.fileTree(sidebarAPI, fs, {
-      onFileClick: (path) => {
-        commands.open(path);
+      onFileClick: async (file) => {
+        const terminal = await getUserVisibleTerminal();
+        suggestOpen.onclick(commands.open(file.path), terminal);
       },
-      onFileMouseEnter: (path) => {},
-      onFileMouseLeave: (path) => {},
+      onFileMouseEnter: async (file) => {
+        if (file.editing.condition) return suggestOpen.onmouseleave();
+        // TODO: This actualy shouldn't fire if a rename editing is in progress nore if a rename is in progress
+        const renaming = renameInProgress?.get(file.path);
+        if (renaming) await renaming.promise;
+        const terminal = await getUserVisibleTerminal();
+        suggestOpen.onmouseenter(commands.open(file.path), terminal);
+      },
+      onFileMouseLeave: suggestOpen.onmouseleave,
       rename: (name, item) => {
         if (name === item.name) return;
+        if (name === "" || name.trim() === "") return;
         const from = item.path;
         const to = pathWithNewName(name, item);
         const remap = { from, to }; // reuse to limit allocations
@@ -232,27 +259,16 @@
             filePanelTracker.tryRemap(remap);
             break;
         }
-        commands.mv(from, to);
         item.name = name;
+        renameInProgress.get(item.path)?.resolve();
+        renameInProgress.set(item.path, defer());
+        getUserVisibleTerminal().then((terminal) =>
+          terminal.enqueueCommand(commands.mv(from, to)),
+        );
       },
       getItems: async (type, snippets, item) => {
-        const terminal = await os!.terminal;
-        terminal.scrollToBottom();
-        let last: number | undefined;
-        const suggest = (command: () => string | Promise<string>) => {
-          let suggestion: IDisposable | undefined;
-          const dispose = () => (suggestion?.dispose(), (last = Date.now()));
-          return {
-            onmouseenter: async () => {
-              const fadeIn = Boolean(!last || Date.now() - last > 100);
-              suggestion = terminal.suggest(await command(), fadeIn);
-            },
-            onmouseleave: dispose,
-            onclick: async () => (
-              dispose(), terminal.enqueueCommand(await command())
-            ),
-          };
-        };
+        const terminal = await getUserVisibleTerminal();
+        const suggest = dynamicNonFlickeringSuggestionScope(terminal);
 
         if (type === "root") {
           return [
@@ -271,15 +287,31 @@
           ];
         }
 
+        if (!item) throw new Error("No item to create file-tree context menu");
+
+        const renameSuggest = suggest(commands.mv(item.path, "..."));
+
         const rename: Item = {
           content: snippets.rename,
+          ...renameSuggest,
           onclick: () => {
-            const entry = tree.root.find(item!.path);
-            if (entry)
-              nameEdit.begin(entry, {
-                override: entry.name,
-                caretIndex: entry.name.split(".")[0].length,
-              });
+            renameSuggest.onmouseleave();
+            const suggestion = terminal.suggest(
+              commands.mv(item.path, item.path),
+              false,
+            );
+            nameEdit.begin(item, {
+              override: item.name,
+              caretIndex: item.name.split(".")[0].length,
+              callback: (value, done) => {
+                done
+                  ? suggestion?.dispose()
+                  : suggestion?.exports?.update(
+                      commands.mv(item.path, pathWithNewName(value, item)),
+                    );
+                return checkFileNameAtLocation(value, item, tree.root).status;
+              },
+            });
           },
         };
 
@@ -313,12 +345,39 @@
           actionOnFile(path);
           symlink = isSymlink(await entry(fs, path));
         case "addDir":
+          renameInProgress.get(path)?.resolve();
+          renameInProgress.delete(path);
           const ancestors: TFolder[] = [];
           const parent = tree.root.findParent(path, ancestors);
           if (!parent) throw new Error(`Parent not found: ${path}`);
           if (!tree.root.find(path, parent)) {
             const item = tree.root.touch(path, symlink ? "symlink" : type);
-            nameEdit.begin(item, { override: "" });
+            let renameSuggestion: TerminalSuggestion | undefined;
+            let terminal: Terminal | undefined;
+            let initial = true;
+            nameEdit.begin(item, {
+              override: "",
+              callback: async (value, done) => {
+                if (done) {
+                  renameSuggestion?.dispose();
+                  return checkFileNameAtLocation(value, item, tree.root).status;
+                }
+                terminal ??= await getUserVisibleTerminal();
+                renameSuggestion ??= terminal.suggest(
+                  commands.mv(item.path, pathWithNewName(value, item)),
+                );
+                const cmd = commands.mv(
+                  item.path,
+                  pathWithNewName(value, item),
+                );
+                renameSuggestion?.exports?.update(cmd);
+                const isFirstCallback = initial;
+                initial = false;
+                return isFirstCallback
+                  ? "valid"
+                  : checkFileNameAtLocation(value, item, tree.root).status;
+              },
+            });
             for (const ancestor of ancestors) ancestor.expanded = true;
           }
           break;

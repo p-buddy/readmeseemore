@@ -71,7 +71,7 @@
 {/snippet}
 
 {#snippet terminals({ params }: PanelProps<"grid", Props>)}
-  <div class="w-full h-full" bind:this={params.elements.terminals}>
+  <div class="w-full h-full pb-1" bind:this={params.elements.terminals}>
     <GridView {...params} snippets={{ terminal }} orientation={"HORIZONTAL"} />
   </div>
 {/snippet}

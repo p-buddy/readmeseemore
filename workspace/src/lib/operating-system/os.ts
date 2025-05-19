@@ -4,6 +4,7 @@ import type { ITheme } from "@xterm/xterm";
 import { boot, root, teardown } from "./common.js";
 import Terminal from "./terminal.js";
 import { cli } from "./common.js";
+import { insertAfter } from "$lib/utils/index.js";
 
 type FsChange = {
   action: "add" | "unlink" | "addDir" | "unlinkDir" | "change",
@@ -63,9 +64,10 @@ export default class OperatingSystem {
   }
 
   public async addTerminal(reference?: Terminal) {
-    const terminal = await Terminal.New(this.container);
-    if (reference) this.terminals.splice(this.terminals.indexOf(reference), 0, terminal);
-    else this.terminals.push(terminal);
+    const { terminals, container } = this;
+    const terminal = await Terminal.New(container);
+    if (reference) insertAfter(terminals, terminal, terminals.indexOf(reference));
+    else terminals.push(terminal);
     await this.onTerminalCallback?.(terminal, reference);
     return terminal;
   }
@@ -123,8 +125,9 @@ export default class OperatingSystem {
             resolve(watch);
           }
 
-          const action: string = data.split(':').at(0) || '';
-          let path = data.split(':').at(1)?.trim() || '';
+          const colonIndex = data.indexOf(":");
+          const action: string = data.slice(0, colonIndex);
+          let path = data.slice(colonIndex + 1).trim();
 
           if (path.startsWith(root)) path = path.slice(root.length);
 

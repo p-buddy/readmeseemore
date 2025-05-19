@@ -10,7 +10,7 @@
 
   let snippets: Snippets;
 
-  type FsItem = Pick<TTreeItem, "name" | "path">;
+  type FsItem = Pick<TTreeItem, "name" | "path" | "type" | "editing">;
   type ItemsReturn = Promise<Items> | Items;
 
   export interface GetItems {
@@ -56,7 +56,7 @@
     (T extends "root"
       ? { item?: never; nameUI?: never }
       : {
-          item: Pick<TTreeItem, "name" | "path">;
+          item: FsItem;
           nameUI: EditableName | undefined;
         });
 

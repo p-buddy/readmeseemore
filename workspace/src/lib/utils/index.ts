@@ -176,3 +176,7 @@ export const unset = <T extends Record<string, any>>(
 ) => { for (const key in value) value[key] = undefined as any; };
 
 export const noop = () => { };
+
+export const insertAfter = <T>(array: T[], item: T, index: number) => {
+  array.splice(index + 1, 0, item);
+}
