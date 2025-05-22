@@ -40,7 +40,7 @@ export class Commands {
   }
 
   public mv(source: string, destination: string) {
-    return `mv ${Commands.SanitizePath(source)} ${Commands.SanitizePath(destination)}`;
+    return `mv ${Commands.SanitizePath(source)} ${Commands.SanitizePath(destination)}` as const;
   }
 
   public open(path: string) {

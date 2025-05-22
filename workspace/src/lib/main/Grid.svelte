@@ -71,6 +71,7 @@
     dynamicNonFlickeringSuggestionScope,
     checkFileNameAtLocation,
     validateAnnotations,
+    destinationIndexFromMv,
   } from "./common.svelte.js";
 
   let {
@@ -220,7 +221,7 @@
     };
 
     // Can turn into a set of strings
-    let renameInProgress = new Map<string, Deferred>();
+    let addInProgress = new Map<string, Deferred>();
 
     status?.("Adding initial file tree");
 
@@ -239,8 +240,8 @@
       },
       onFileMouseEnter: async (file) => {
         if (file.editing.condition) return suggestOpen.onmouseleave();
-        // TODO: This actualy shouldn't fire if a rename editing is in progress nore if a rename is in progress
-        const renaming = renameInProgress?.get(file.path);
+        // TODO: This actualy shouldn't fire if a rename editing is in progress nor if a rename is in progress
+        const renaming = addInProgress?.get(file.path);
         if (renaming) await renaming.promise;
         const terminal = await getUserVisibleTerminal();
         suggestOpen.onmouseenter(commands.open(file.path), terminal);
@@ -267,8 +268,8 @@
             break;
         }
         item.name = name;
-        renameInProgress.get(item.path)?.resolve();
-        renameInProgress.set(item.path, defer());
+        addInProgress.get(item.path)?.resolve();
+        addInProgress.set(item.path, defer());
         getUserVisibleTerminal().then((terminal) =>
           terminal.enqueueCommand(commands.mv(from, to)),
         );
@@ -281,15 +282,19 @@
           return [
             {
               content: snippets.addFile,
-              ...suggest(async () =>
-                commands.touch(await validPath(defaults.file)),
-              ),
+              ...suggest(async (condition) => {
+                const path = await validPath(defaults.file);
+                if (condition === "click") addInProgress.set(path, defer());
+                return commands.touch(path);
+              }),
             },
             {
               content: snippets.addFolder,
-              ...suggest(async () =>
-                commands.mkdir(await validPath(defaults.folder), true),
-              ),
+              ...suggest(async (condition) => {
+                const path = await validPath(defaults.folder);
+                if (condition === "click") addInProgress.set(path, defer());
+                return commands.mkdir(path, true);
+              }),
             },
           ];
         }
@@ -317,7 +322,7 @@
                   value,
                   item,
                   tree.root,
-                  cmd.indexOf(desired),
+                  destinationIndexFromMv(cmd),
                 );
                 done
                   ? suggestion?.dispose()
@@ -358,13 +363,20 @@
           actionOnFile(path);
           symlink = isSymlink(await entry(fs, path));
         case "addDir":
-          renameInProgress.get(path)?.resolve();
-          renameInProgress.delete(path);
+          const adding = addInProgress.get(path);
+          if (adding) {
+            adding.resolve();
+            addInProgress.delete(path);
+          }
           const ancestors: TFolder[] = [];
           const parent = tree.root.findParent(path, ancestors);
           if (!parent) throw new Error(`Parent not found: ${path}`);
-          if (!tree.root.find(path, parent)) {
+          if (tree.root.find(path, parent)) break;
+          else if (!adding) tree.root.touch(path, symlink ? "symlink" : type);
+          else {
+            // Tree item doesn't exist, and it's been noted it's beind added
             const item = tree.root.touch(path, symlink ? "symlink" : type);
+
             let renameSuggestion: TerminalSuggestion | undefined;
             let terminal: Terminal | undefined;
             let initial = true;
@@ -391,7 +403,7 @@
                       value,
                       item,
                       tree.root,
-                      cmd.indexOf(desired),
+                      destinationIndexFromMv(cmd),
                     );
                 renameSuggestion?.exports?.update(cmd, annotions);
                 return validateAnnotations(annotions);

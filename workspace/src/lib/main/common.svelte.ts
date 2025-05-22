@@ -50,7 +50,7 @@ export const nonFlickeringSuggestionScope = () => {
 
 export const dynamicNonFlickeringSuggestionScope = (terminal: SuggestionTerminal) => {
   const events = nonFlickeringSuggestionScope();
-  return (command: (() => string | Promise<string>) | string) =>
+  return (command: ((condition: "click" | "enter") => string | Promise<string>) | string) =>
     typeof command === "string"
       ? {
         onmouseenter: events.onmouseenter.bind(null, command, terminal),
@@ -58,9 +58,9 @@ export const dynamicNonFlickeringSuggestionScope = (terminal: SuggestionTerminal
         onclick: events.onclick.bind(null, command, terminal),
       }
       : {
-        onmouseenter: async () => events.onmouseenter(await command(), terminal),
+        onmouseenter: async () => events.onmouseenter(await command("enter"), terminal),
         onmouseleave: events.onmouseleave,
-        onclick: async () => events.onclick(await command(), terminal),
+        onclick: async () => events.onclick(await command("click"), terminal),
       };
 }
 
@@ -71,9 +71,10 @@ const getCharacterRanges = (
   skipTail: number,
   offset: number,
 ) => {
+  const upper = query.length - skipTail;
   const ranges: Annotation["ranges"] = [];
   let current: number | undefined = undefined;
-  for (let i = skipHead; i < query.length - skipTail; i++) {
+  for (let i = skipHead; i < upper; i++) {
     if (target.has(query[i])) {
       current ??= i;
     }
@@ -83,7 +84,7 @@ const getCharacterRanges = (
     }
   }
 
-  if (current !== undefined) ranges.push([current + offset, query.length + offset]);
+  if (current !== undefined) ranges.push([current + offset, upper + offset]);
 
   return ranges.length === 0 ? undefined : ranges.length === 1 ? ranges[0] : ranges;
 }
@@ -99,12 +100,13 @@ export const checkFileNameAtLocation = (
   if (desired.length === 0) return [{
     severity: "invalid",
     message: `${prefix} cannot be empty`,
+    ranges: [0 + offset, 1 + offset],
   }];
 
   if (desired.trim() === "") return [{
     severity: "invalid",
     message: `${prefix} cannot be all space (aka whitespace) characters`,
-    ranges: [0, desired.length],
+    ranges: [0 + offset, desired.length + offset],
   }];
 
   let annotations: Annotation[] | undefined;
@@ -146,7 +148,7 @@ export const checkFileNameAtLocation = (
     (annotations ??= []).push({
       severity: "invalid",
       message: noSpaceSuffix,
-      ranges: [desired.length - length, desired.length],
+      ranges: [desired.length - length + offset, desired.length + offset],
     })
   }
 
@@ -209,4 +211,14 @@ export const validateAnnotations = (annotations?: Annotation[]): NameEditStatus 
   for (const annotation of annotations)
     if (annotation.severity === "invalid") return "invalid";
   return "unsafe";
+}
+
+export const destinationIndexFromMv = (cmd: string) => {
+  const firstSpace = cmd.indexOf(" ");
+  const sourceIsQuoted = cmd[firstSpace + 1] === '"';
+  const sourceEndIncludingSpace = sourceIsQuoted
+    ? cmd.indexOf('"', firstSpace + 2) + 1
+    : cmd.indexOf(" ", firstSpace + 1);
+  const destinationIsQuoted = cmd[sourceEndIncludingSpace + 1] === '"';
+  return sourceEndIncludingSpace + (destinationIsQuoted ? 2 : 1);
 }
