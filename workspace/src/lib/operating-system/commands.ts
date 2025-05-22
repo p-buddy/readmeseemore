@@ -48,26 +48,26 @@ export class Commands {
   }
 
   private static readonly FilenameChars = {
-    Forbidden: ['/', '\0', '"', '?', '\\'] as const,
-    Discouraged: [':', '*', '<', '>', '|', ' '] as const,
+    Forbidden: ['/', '\0', '"', '?', '\\', '`', "#", ";"] as const,
+    Discouraged: [':', '*', '<', '>', '|', ' ', '&', '(', ')', '$'] as const,
   }
 
-  public static CheckFileName = (filename: string) => {
+  public static CheckFileNameChars = (filename: string) => {
     type ForbiddenChar = typeof Commands.FilenameChars.Forbidden[number];
     type DiscouragedChar = typeof Commands.FilenameChars.Discouraged[number];
 
-    const forbidden: ForbiddenChar[] = [];
-    const discouraged: DiscouragedChar[] = [];
+    let forbidden: Set<ForbiddenChar> | undefined;
+    let discouraged: Set<DiscouragedChar> | undefined;
 
     for (const char of Commands.FilenameChars.Forbidden)
       if (filename.includes(char))
-        forbidden.push(char);
+        (forbidden ??= new Set()).add(char);
 
     for (const char of Commands.FilenameChars.Discouraged)
       if (filename.includes(char))
-        discouraged.push(char);
+        (discouraged ??= new Set()).add(char);
 
-    return forbidden.length || discouraged.length
+    return forbidden?.size || discouraged?.size
       ? { forbidden, discouraged }
       : undefined;
   }
@@ -78,7 +78,11 @@ export class Commands {
       .replace(/\|/g, "\\|")
       .replace(/\\/g, "\\\\")
       .replace(/</g, "\\<")
-      .replace(/>/g, "\\>");
+      .replace(/>/g, "\\>")
+      .replace(/&/g, "\\&")
+      .replace(/\$/g, "\\$")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
 
   private static SanitizePath = (path: string) =>
     Commands.PathRequiresQuotes(path) ? `"${path}"` : path;

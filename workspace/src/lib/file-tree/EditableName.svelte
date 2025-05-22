@@ -114,7 +114,7 @@
     bind:this={input}
     {value}
     type="text"
-    class="bg-transparent outline outline-transparent border-none p-0 m-0 overflow-hidden"
+    class="bg-transparent outline border-none p-0 m-0 overflow-hidden"
     style:width="calc(100% - 1.25rem)"
     class:invalid={status === "invalid"}
     class:unsafe={status === "unsafe"}
@@ -194,12 +194,10 @@
 {/if}
 
 <style>
-  input {
-    transition: outline-color 300ms linear;
-  }
   .highlighted,
-  input:focus {
+  input {
     outline-color: #007fd4;
+    transition: outline-color 200ms ease-in-out;
   }
 
   input:focus.invalid {

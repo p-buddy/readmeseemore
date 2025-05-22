@@ -15,6 +15,12 @@
     file: "my-file",
     folder: "my-folder",
   };
+
+  const mvPrefixLength = (cmd: string) => {
+    const [mv, from, to] = cmd.split(" ");
+    const length = mv.length + from.length + 2;
+    return to?.startsWith('"') ? length + 1 : length;
+  };
 </script>
 
 <script lang="ts">
@@ -64,6 +70,7 @@
     nonFlickeringSuggestionScope,
     dynamicNonFlickeringSuggestionScope,
     checkFileNameAtLocation,
+    validateAnnotations,
   } from "./common.svelte.js";
 
   let {
@@ -304,12 +311,18 @@
               override: item.name,
               caretIndex: item.name.split(".")[0].length,
               callback: (value, done) => {
+                const desired = pathWithNewName(value, item);
+                const cmd = commands.mv(item.path, desired);
+                const annotations = checkFileNameAtLocation(
+                  value,
+                  item,
+                  tree.root,
+                  cmd.indexOf(desired),
+                );
                 done
                   ? suggestion?.dispose()
-                  : suggestion?.exports?.update(
-                      commands.mv(item.path, pathWithNewName(value, item)),
-                    );
-                return checkFileNameAtLocation(value, item, tree.root).status;
+                  : suggestion?.exports?.update(cmd, annotations);
+                return validateAnnotations(annotations);
               },
             });
           },
@@ -360,22 +373,28 @@
               callback: async (value, done) => {
                 if (done) {
                   renameSuggestion?.dispose();
-                  return checkFileNameAtLocation(value, item, tree.root).status;
+                  return validateAnnotations(
+                    checkFileNameAtLocation(value, item, tree.root),
+                  );
                 }
                 terminal ??= await getUserVisibleTerminal();
                 renameSuggestion ??= terminal.suggest(
                   commands.mv(item.path, pathWithNewName(value, item)),
                 );
-                const cmd = commands.mv(
-                  item.path,
-                  pathWithNewName(value, item),
-                );
-                renameSuggestion?.exports?.update(cmd);
                 const isFirstCallback = initial;
                 initial = false;
-                return isFirstCallback
-                  ? "valid"
-                  : checkFileNameAtLocation(value, item, tree.root).status;
+                const desired = pathWithNewName(value, item);
+                const cmd = commands.mv(item.path, desired);
+                const annotions = isFirstCallback
+                  ? undefined
+                  : checkFileNameAtLocation(
+                      value,
+                      item,
+                      tree.root,
+                      cmd.indexOf(desired),
+                    );
+                renameSuggestion?.exports?.update(cmd, annotions);
+                return validateAnnotations(annotions);
               },
             });
             for (const ancestor of ancestors) ancestor.expanded = true;
