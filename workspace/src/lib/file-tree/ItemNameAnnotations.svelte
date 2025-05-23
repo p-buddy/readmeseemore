@@ -1,16 +1,216 @@
 <script lang="ts" module>
-  import type { TTreeItem, NameEditStatus } from "$lib/file-tree/index.js";
+  import type {
+    TTreeItem,
+    NameEditStatus,
+    Root,
+  } from "$lib/file-tree/index.js";
+  import { Commands } from "$lib/operating-system/commands.js";
+  import {
+    type SuggestionAnnotation,
+    range,
+  } from "$lib/operating-system/suggestions/index.js";
   import type { Snippet } from "svelte";
 
+  type NameCheckSeverity = Exclude<NameEditStatus, "valid">;
+
+  const colors = {
+    unsafe: "var(--color-yellow-400)",
+    invalid: "var(--color-red-400)",
+  } satisfies Record<NameCheckSeverity, string>;
+
+  const styles = {
+    unsafe: {
+      indicator: {
+        style: {
+          backgroundColor: colors.unsafe,
+        },
+      },
+    },
+    invalid: {
+      indicator: {
+        style: {
+          backgroundColor: colors.invalid,
+        },
+      },
+    },
+  };
   type ItemType = TTreeItem["type"];
 
-  export type Annotation = {
-    severity: Exclude<NameEditStatus, "valid">;
-    message: string | AnnotationSnippet;
-    ranges?: [number, number] | [number, number][];
+  type FileNameAnnotation = SuggestionAnnotation<TTreeItem["type"]>;
+
+  const rangeWithOffset = (
+    _range: SuggestionAnnotation["range"],
+    offset: number,
+  ) => {
+    if (range.isIndex(_range)) return _range + offset;
+    if (range.isSingular(_range)) {
+      _range[0] += offset;
+      _range[1] += offset;
+    } else
+      for (const range of _range) {
+        range[0] += offset;
+        range[1] += offset;
+      }
+    return _range;
   };
 
-  export type AnnotationSnippet = Snippet<[ItemType, Annotation]>;
+  const getCharacterRanges = (
+    query: string,
+    included: Set<string>,
+    head: number,
+    tail: number,
+  ) => {
+    const upper = query.length - tail;
+    const ranges: SuggestionAnnotation["range"] = [];
+    let current: number | undefined = undefined;
+    for (let i = head; i < upper; i++) {
+      if (included.has(query[i])) {
+        current ??= i;
+        continue;
+      }
+      if (current !== undefined) ranges.push([current, i]);
+      current = undefined;
+    }
+    if (current !== undefined) ranges.push([current, upper]);
+    const { length } = ranges;
+    return length === 0 ? undefined : length === 1 ? ranges[0] : ranges;
+  };
+
+  const highlight = (
+    item: Pick<TTreeItem, "type">,
+    severity: NameCheckSeverity,
+    _range: SuggestionAnnotation["range"],
+    offset: number,
+    snippet: Snippet<[TTreeItem["type"]]>,
+  ): FileNameAnnotation => ({
+    kind: "highlight",
+    range: rangeWithOffset(_range, offset),
+    indicator: styles[severity].indicator,
+    key: snippet.name,
+    comment: snippet,
+    props: item.type,
+  });
+
+  type NameCheckResult =
+    | { annotations: FileNameAnnotation[]; status: NameCheckSeverity }
+    | { status: "valid"; annotations?: undefined };
+
+  export const checkFileNameAtLocation = (
+    desired: string,
+    item: Pick<TTreeItem, "path" | "type">,
+    root: Root,
+    offset: number = 0,
+  ): NameCheckResult => {
+    if (desired.length === 0)
+      return {
+        status: "invalid",
+        annotations: [highlight(item, "invalid", 0, offset, notEmpty)],
+      };
+
+    if (desired.trim() === "")
+      return {
+        status: "invalid",
+        annotations: [
+          highlight(
+            item,
+            "invalid",
+            [0, desired.length],
+            offset,
+            notWhitespace,
+          ),
+        ],
+      };
+
+    let annotations: FileNameAnnotation[] | undefined;
+
+    let skipHead = 0;
+    let skipTail = 0;
+    let invalid = false;
+
+    if (desired.startsWith("~")) {
+      invalid = true;
+      const { length } = desired.match(/^~+/)![0];
+      skipHead = length;
+      (annotations ??= []).push(
+        highlight(item, "invalid", [0, length], offset, noTildePrefix),
+      );
+    } else if (desired.startsWith("-")) {
+      invalid = true;
+      const { length } = desired.match(/^~+/)![0];
+      skipHead = length;
+      (annotations ??= []).push(
+        highlight(item, "invalid", [0, length], offset, noDashPrefix),
+      );
+    } else if (desired.startsWith(" ")) {
+      invalid = true;
+      const { length } = desired.match(/^\s+/)![0];
+      skipHead = length;
+      (annotations ??= []).push(
+        highlight(item, "invalid", [0, length], offset, noSpacePrefix),
+      );
+    }
+
+    if (desired.endsWith(" ")) {
+      invalid = true;
+      const { length } = desired.match(/\s+$/)![0];
+      skipTail = length;
+      (annotations ??= []).push(
+        highlight(
+          item,
+          "invalid",
+          [desired.length - length, desired.length],
+          offset,
+          noSpaceSuffix,
+        ),
+      );
+    }
+
+    const check = Commands.CheckFileNameChars(desired);
+
+    if (check?.forbidden) {
+      invalid = true;
+      const ranges = getCharacterRanges(
+        desired,
+        check.forbidden,
+        skipHead,
+        skipTail,
+      );
+      if (ranges)
+        (annotations ??= []).push(
+          highlight(item, "invalid", ranges, offset, forbiddenCharacters),
+        );
+    }
+
+    if (check?.discouraged) {
+      const ranges = getCharacterRanges(
+        desired,
+        check.discouraged,
+        skipHead,
+        skipTail,
+      );
+      if (ranges)
+        (annotations ??= []).push(
+          highlight(item, "unsafe", ranges, offset, discouragedCharacters),
+        );
+    }
+
+    const parent = root.findParent(item.path);
+    if (!parent) throw new Error("Parent not found");
+
+    const existing = parent.children.find(
+      (child) => child !== item && child.name === desired,
+    );
+    if (existing) {
+      invalid = true;
+      (annotations ??= []).push(
+        highlight(item, "invalid", [0, desired.length], offset, conflict),
+      );
+    }
+
+    return annotations
+      ? { status: invalid ? "invalid" : "unsafe", annotations }
+      : { status: "valid" };
+  };
 
   export const simplify = (type: ItemType) =>
     type === "folder" ? "folder" : "file";
@@ -19,15 +219,6 @@
   const capitalize = (type: ItemType) => {
     const simplified = simplify(type);
     return simplified.charAt(0).toUpperCase() + simplified.slice(1);
-  };
-
-  export {
-    noTildePrefix,
-    noDashPrefix,
-    noSpacePrefix,
-    noSpaceSuffix,
-    forbiddenCharacters,
-    discouragedCharacters,
   };
 </script>
 
@@ -72,6 +263,14 @@
   {@render note(
     "This isn't an issue on all computers, but is a limit of our system.",
   )}
+{/snippet}
+
+{#snippet notEmpty(type: ItemType)}
+  {capitalize(type)} names cannot be empty.
+{/snippet}
+
+{#snippet notWhitespace(type: ItemType)}
+  {capitalize(type)} names cannot be all whitespace (aka spaces, tabs, etc.).
 {/snippet}
 
 {#snippet noTildePrefix(type: ItemType)}
@@ -152,4 +351,8 @@
     )}) like so: {@render code('open "d\\&b"')}.
   {/snippet}
   {@render footnote(1, escaping)}
+{/snippet}
+
+{#snippet conflict(type: ItemType)}
+  A {simplify(type)} already exists with this name.
 {/snippet}

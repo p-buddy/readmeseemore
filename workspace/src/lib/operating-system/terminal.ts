@@ -6,7 +6,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 import { defer, removeFirstInstance, removeLastInstance, type Deferred } from "$lib/utils/index.js";
 import stripAnsi from "strip-ansi";
 import { mount, unmount } from "svelte";
-import Suggestion, { type Props as SuggestionProps } from "./Suggestion.svelte";
+import Suggestion, { type Props as SuggestionProps } from "./suggestions/Suggestion.svelte";
 import type { Exports } from "$lib/utils/svelte.js";
 export type { IDisposable };
 

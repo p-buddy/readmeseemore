@@ -69,10 +69,9 @@
   import {
     nonFlickeringSuggestionScope,
     dynamicNonFlickeringSuggestionScope,
-    checkFileNameAtLocation,
-    validateAnnotations,
     destinationIndexFromMv,
   } from "./common.svelte.js";
+  import { checkFileNameAtLocation } from "$lib/file-tree/ItemNameAnnotations.svelte";
 
   let {
     filesystem,
@@ -318,7 +317,7 @@
               callback: (value, done) => {
                 const desired = pathWithNewName(value, item);
                 const cmd = commands.mv(item.path, desired);
-                const annotations = checkFileNameAtLocation(
+                const { annotations, status } = checkFileNameAtLocation(
                   value,
                   item,
                   tree.root,
@@ -327,7 +326,7 @@
                 done
                   ? suggestion?.dispose()
                   : suggestion?.exports?.update(cmd, annotations);
-                return validateAnnotations(annotations);
+                return status;
               },
             });
           },
@@ -385,9 +384,7 @@
               callback: async (value, done) => {
                 if (done) {
                   renameSuggestion?.dispose();
-                  return validateAnnotations(
-                    checkFileNameAtLocation(value, item, tree.root),
-                  );
+                  return checkFileNameAtLocation(value, item, tree.root).status;
                 }
                 terminal ??= await getUserVisibleTerminal();
                 renameSuggestion ??= terminal.suggest(
@@ -397,7 +394,7 @@
                 initial = false;
                 const desired = pathWithNewName(value, item);
                 const cmd = commands.mv(item.path, desired);
-                const annotions = isFirstCallback
+                const check = isFirstCallback
                   ? undefined
                   : checkFileNameAtLocation(
                       value,
@@ -405,8 +402,8 @@
                       tree.root,
                       destinationIndexFromMv(cmd),
                     );
-                renameSuggestion?.exports?.update(cmd, annotions);
-                return validateAnnotations(annotions);
+                renameSuggestion?.exports?.update(cmd, check?.annotations);
+                return check?.status ?? "valid";
               },
             });
             for (const ancestor of ancestors) ancestor.expanded = true;

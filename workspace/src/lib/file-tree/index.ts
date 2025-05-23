@@ -7,4 +7,5 @@ export type {
   TTreeItem,
   TFile,
   LimitedFs as FileTreeLimitedFs,
+  Root,
 } from "./common.svelte.js";
