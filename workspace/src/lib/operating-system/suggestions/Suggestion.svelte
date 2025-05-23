@@ -257,6 +257,10 @@
       tick().then(fire);
     }
   };
+
+  export const dispose = () => {
+    clearPending();
+  };
 </script>
 
 <div

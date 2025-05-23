@@ -208,7 +208,10 @@ export default class {
         decoration.dispose();
       };
       payload.exports = suggestion;
-      payload.dispose = () => suggestion.visible(false, true).then(remove);
+      payload.dispose = () => {
+        suggestion.dispose();
+        suggestion.visible(false, true).then(remove);
+      };
     });
 
     return payload;
