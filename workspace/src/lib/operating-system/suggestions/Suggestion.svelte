@@ -1,6 +1,10 @@
 <script lang="ts" module>
   import { type BoundingBox, isIndex, type Range, resize } from "./math.js";
-  import { type SuggestionAnnotation, set } from "./common.svelte.js";
+  import {
+    type AnnotationDelay,
+    type SuggestionAnnotation,
+    set,
+  } from "./common.svelte.js";
 
   export type Props = {
     inMs: number;
@@ -171,7 +175,6 @@
 
   let container: HTMLDivElement;
   const indicators = new Array<ReturnType<typeof Indicator.Make>>();
-  const timings = new Map<Required<SuggestionAnnotation<any>>["key"], number>();
 
   const annotate = (annotations?: AnyAnnotation[]) => {
     const { length } = indicators;
@@ -182,19 +185,7 @@
       const origin = container.getBoundingClientRect();
 
       for (let i = 0; i < annotations.length; i++) {
-        const { range, key, delay } = annotations[i];
-        if (key && delay && delay >= 0) {
-          const time = timings.get(key);
-          const now = performance.now();
-          if (time) {
-            if (now - time < delay) continue; // Don't append element
-          } else {
-            timings.set(key, now);
-            continue; // Don't append element
-          }
-        }
-
-        // Assumes ranges do not overlap
+        const { range, key } = annotations[i];
         if (isIndex(range)) continue;
         else if (isSingleRange(range))
           appendBoundsAndSetIndex(i, boundingBoxes, range, origin, chars);
@@ -218,13 +209,53 @@
     }
   };
 
+  const pending = {
+    delay: undefined as AnnotationDelay | undefined,
+    interval: undefined as ReturnType<typeof setTimeout> | undefined,
+    time: undefined as number | undefined,
+  };
+
+  const clearPending = () => {
+    pending.delay = undefined;
+    if (pending.interval) clearInterval(pending.interval);
+    pending.interval = undefined;
+    pending.time = undefined;
+  };
+
   export const update = <T,>(
     _content: string,
     annotations?: SuggestionAnnotation<T>[],
+    delay?: AnnotationDelay,
   ) => {
     content = _content;
     fillChars(content, chars);
-    tick().then(() => annotate(annotations as AnyAnnotation[]));
+    const fire = () => annotate(annotations as AnyAnnotation[]);
+
+    if (!delay) {
+      clearPending();
+      tick().then(fire);
+      return;
+    }
+
+    const { key, delayMs } = delay;
+    const now = performance.now();
+
+    if (pending.delay?.key !== key) {
+      clearPending();
+      pending.time = now;
+      pending.delay = delay;
+      pending.interval = setTimeout(fire, delayMs);
+      return;
+    }
+
+    const elapsed = now - pending.time!;
+    if (elapsed < delayMs) {
+      clearInterval(pending.interval!);
+      pending.interval = setTimeout(fire, delayMs - elapsed);
+    } else {
+      clearPending();
+      tick().then(fire);
+    }
   };
 </script>
 

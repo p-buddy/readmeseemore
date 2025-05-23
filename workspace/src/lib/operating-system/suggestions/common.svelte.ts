@@ -7,25 +7,32 @@ type CSS = {
   noDefaultStyle?: true,
 }
 
-type Keyed<T> = {
-  key: string | number | symbol,
+type Key = string | number | symbol;
+
+type KeyedAnnotation<T> = {
+  key: Key,
   /**
    *  As a matter of principle, `comment` snippets should be static (e.g. valid for the course of their rendering). 
    * `range` should be the dynamic property. 
    * */
   comment: Snippet<[T]>,
   props: T,
-  delay?: number,
 };
 
-type NotKeyed = { [k in keyof Keyed<any>]?: undefined };
+type NotKeyedAnnotation = { [k in keyof KeyedAnnotation<any>]?: undefined };
 
 export type SuggestionAnnotation<T = undefined> = {
   kind: "highlight" | "top-hook",
+  /** CRITICAL ASSUMPTION: Ranges in a colllection of annotations will NOT overlap. */
   range: Ranges;
   indicator?: CSS,
   connector?: CSS,
-} & (NonNullable<T> extends never ? NotKeyed : Keyed<T>);
+} & (NonNullable<T> extends never ? NotKeyedAnnotation : KeyedAnnotation<T>);
+
+export type AnnotationDelay = {
+  key: Key,
+  delayMs: number,
+}
 
 export const set = {
   style: (element: HTMLElement, style: Required<CSS>["style"]) => {
