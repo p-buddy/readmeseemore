@@ -7,9 +7,10 @@ type CSS = {
   noDefaultStyle?: true,
 }
 
-type Key = string | number | symbol;
+export type Key = string | number | symbol;
 
 type KeyedAnnotation<T> = {
+  /** CRITICAL ASSUMPTION: Only a single annotation entry should have a given key.*/
   key: Key,
   /**
    *  As a matter of principle, `comment` snippets should be static (e.g. valid for the course of their rendering). 
@@ -21,13 +22,19 @@ type KeyedAnnotation<T> = {
 
 type NotKeyedAnnotation = { [k in keyof KeyedAnnotation<any>]?: undefined };
 
-export type SuggestionAnnotation<T = undefined> = {
+export type SuggestionAnnotation<T = undefined, KeyedOverride = false> = {
   kind: "highlight" | "top-hook",
   /** CRITICAL ASSUMPTION: Ranges in a colllection of annotations will NOT overlap. */
   range: Ranges;
   indicator?: CSS,
   connector?: CSS,
-} & (NonNullable<T> extends never ? NotKeyedAnnotation : KeyedAnnotation<T>);
+} & (
+    KeyedOverride extends true
+    /**/ ? KeyedAnnotation<T>
+    /**/ : NonNullable<T> extends never
+      /**/ ? NotKeyedAnnotation
+      /**/ : KeyedAnnotation<T>
+  );
 
 export type AnnotationDelay = {
   key: Key,
@@ -48,4 +55,4 @@ export const set = {
     if (css?.style) set.style(element, css.style);
     if (css?.class) set.class(element, css.class);
   },
-}
+};

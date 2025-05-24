@@ -135,3 +135,12 @@ export const resize = (
   style.width = `${overrides?.width ?? rect.width}px`;
   style.height = `${overrides?.height ?? rect.height}px`;
 };
+
+export const xCenter = (rect: BoundingBox | BoundingBox[]) => {
+  if (Array.isArray(rect)) {
+    const left = rect.reduce((acc, r) => acc + r.left, 0) / rect.length;
+    const width = rect.reduce((acc, r) => acc + r.width, 0) / rect.length;
+    return left + width / 2;
+  }
+  return rect.left + rect.width / 2;
+};
