@@ -422,8 +422,8 @@ importers:
         specifier: ^4.1.4
         version: 4.1.6(picomatch@4.0.2)(svelte@5.27.1)(typescript@5.8.3)
       sweater-vest:
-        specifier: ^0.0.3
-        version: 0.0.3(react@19.1.0)(storybook@8.6.12(prettier@3.3.3))(svelte@5.27.1)
+        specifier: ^0.0.4
+        version: 0.0.4(react@19.1.0)(storybook@8.6.12(prettier@3.3.3))(svelte@5.27.1)
       tailwindcss:
         specifier: ^4.0.9
         version: 4.1.4
@@ -3523,6 +3523,11 @@ packages:
 
   sweater-vest@0.0.3:
     resolution: {integrity: sha512-4nJzMSgb5nF0Cjte7LjBulxydKBmFUE7RWbLJYtVJRLyl3h0XD0YJYHym87oM/L1OmZIR9tOy64LRQq+/61S5A==}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  sweater-vest@0.0.4:
+    resolution: {integrity: sha512-dV84PfVkfaeWqMcdCSQVm0hk6ezeaqY1C1LvOK/Y15QkmQpTtmNA2kOd1bQXcYGe+4fH8tAIHSIqOv2HGSfEVA==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -7667,6 +7672,16 @@ snapshots:
   sweater-vest@0.0.3(react@19.1.0)(storybook@8.6.12(prettier@3.3.3))(svelte@5.27.1):
     dependencies:
       '@p-buddy/dockview-svelte': 0.0.6(react@19.1.0)(svelte@5.27.1)
+      '@storybook/test': 8.6.12(storybook@8.6.12(prettier@3.3.3))
+      html-to-image: 1.11.13
+      svelte: 5.27.1
+    transitivePeerDependencies:
+      - react
+      - storybook
+
+  sweater-vest@0.0.4(react@19.1.0)(storybook@8.6.12(prettier@3.3.3))(svelte@5.27.1):
+    dependencies:
+      '@p-buddy/dockview-svelte': 0.0.9(react@19.1.0)(svelte@5.27.1)
       '@storybook/test': 8.6.12(storybook@8.6.12(prettier@3.3.3))
       html-to-image: 1.11.13
       svelte: 5.27.1

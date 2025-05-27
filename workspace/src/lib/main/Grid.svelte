@@ -15,12 +15,6 @@
     file: "my-file",
     folder: "my-folder",
   };
-
-  const mvPrefixLength = (cmd: string) => {
-    const [mv, from, to] = cmd.split(" ");
-    const length = mv.length + from.length + 2;
-    return to?.startsWith('"') ? length + 1 : length;
-  };
 </script>
 
 <script lang="ts">
@@ -363,51 +357,45 @@
           symlink = isSymlink(await entry(fs, path));
         case "addDir":
           const adding = addInProgress.get(path);
-          if (adding) {
-            adding.resolve();
-            addInProgress.delete(path);
-          }
+          adding?.resolve();
+          addInProgress.delete(path);
           const ancestors: TFolder[] = [];
           const parent = tree.root.findParent(path, ancestors);
           if (!parent) throw new Error(`Parent not found: ${path}`);
           if (tree.root.find(path, parent)) break;
-          else if (!adding) tree.root.touch(path, symlink ? "symlink" : type);
-          else {
-            // Tree item doesn't exist, and it's been noted it's beind added
-            const item = tree.root.touch(path, symlink ? "symlink" : type);
-
-            let renameSuggestion: TerminalSuggestion | undefined;
-            let terminal: Terminal | undefined;
-            let initial = true;
-            nameEdit.begin(item, {
-              override: "",
-              callback: async (value, done) => {
-                if (done) {
-                  renameSuggestion?.dispose();
-                  return checkFileNameAtLocation(value, item, tree.root).status;
-                }
-                terminal ??= await getUserVisibleTerminal();
-                renameSuggestion ??= terminal.suggest(
-                  commands.mv(item.path, pathWithNewName(value, item)),
-                );
-                const isFirstCallback = initial;
-                initial = false;
-                const desired = pathWithNewName(value, item);
-                const cmd = commands.mv(item.path, desired);
-                const check = isFirstCallback
-                  ? undefined
-                  : checkFileNameAtLocation(
-                      value,
-                      item,
-                      tree.root,
-                      destinationIndexFromMv(cmd),
-                    );
-                renameSuggestion?.exports?.update(cmd, check?.annotations);
-                return check?.status ?? "valid";
-              },
-            });
-            for (const ancestor of ancestors) ancestor.expanded = true;
-          }
+          const item = tree.root.touch(path, symlink ? "symlink" : type);
+          if (!adding) break;
+          let renameSuggestion: TerminalSuggestion | undefined;
+          let terminal: Terminal | undefined;
+          let initial = true;
+          nameEdit.begin(item, {
+            override: "",
+            callback: async (value, done) => {
+              if (done) {
+                renameSuggestion?.dispose();
+                return checkFileNameAtLocation(value, item, tree.root).status;
+              }
+              terminal ??= await getUserVisibleTerminal();
+              renameSuggestion ??= terminal.suggest(
+                commands.mv(item.path, pathWithNewName(value, item)),
+              );
+              const isFirstCallback = initial;
+              initial = false;
+              const desired = pathWithNewName(value, item);
+              const cmd = commands.mv(item.path, desired);
+              const check = isFirstCallback
+                ? undefined
+                : checkFileNameAtLocation(
+                    value,
+                    item,
+                    tree.root,
+                    destinationIndexFromMv(cmd),
+                  );
+              renameSuggestion?.exports?.update(cmd, check?.annotations);
+              return check?.status ?? "valid";
+            },
+          });
+          for (const ancestor of ancestors) ancestor.expanded = true;
           break;
         case "unlink":
           tree.root.rm(path);

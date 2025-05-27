@@ -116,8 +116,7 @@ export default class {
   }
 
   private constructor(
-    public readonly container: WebContainer,
-    public readonly jsh: WebContainerProcess,
+    public readonly shell: Pick<WebContainerProcess, "kill" | "exit" | "resize" | "output">,
     private readonly input: WritableStreamDefaultWriter<string>,
     public readonly xterm: Terminal,
     private readonly fitAddon: FitAddon,
@@ -127,12 +126,12 @@ export default class {
       background: "#181818",
     };
     xterm.onData(this.onInput.bind(this));
-    jsh.output.pipeTo(new WritableStream({ write: this.onOutput.bind(this) }));
+    shell.output.pipeTo(new WritableStream({ write: this.onOutput.bind(this) }));
     xterm.clear();
     this.id = `${count++}`;
   }
 
-  public static async New(container: WebContainer, status?: Status) {
+  public static async New(container: Pick<WebContainer, "spawn">, status?: Status) {
     status?.("Importing xterm");
     const [{ Terminal }, { FitAddon }] = await Promise.all([
       import("@xterm/xterm"),
@@ -158,7 +157,7 @@ export default class {
     await reader.read();
     reader.releaseLock();
 
-    return new this(container, jsh, input, xterm, addon);
+    return new this(jsh, input, xterm, addon);
   }
 
   public mount(parent: HTMLElement, fade?: number) {
@@ -220,14 +219,14 @@ export default class {
   public async dispose() {
     this.fitAddon.dispose();
     this.xterm.dispose();
-    this.jsh.kill();
-    await this.jsh.exit;
+    this.shell.kill();
+    await this.shell.exit;
   }
 
   public fit() {
     this.fitAddon.fit();
     const { cols, rows } = this.xterm;
-    this.jsh.resize({ cols, rows });
+    this.shell.resize({ cols, rows });
   }
 
   public scrollToBottom() {
