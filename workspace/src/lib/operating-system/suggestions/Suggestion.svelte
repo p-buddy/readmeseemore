@@ -144,8 +144,10 @@
 
     private static readonly InitialStyle = {
       position: "absolute",
-      top: "-100%",
+      bottom: "-100%",
       opacity: "0",
+      whiteSpace: "normal",
+      width: "fit-content",
       transition: ["opacity", "left", "top"]
         .map((prop): string => `${prop} ${Comment.DurationMs}ms ease`)
         .join(", "),
@@ -279,8 +281,11 @@
 
       if (boxesByKey)
         for (const [key, boxes] of boxesByKey.entries()) {
-          const { element } = comments.get(key)!;
-          element.style.left = `${xCenter(boxes)}px`;
+          const { element, renderer } = comments.get(key)!;
+          const x = xCenter(boxes);
+          const width = element.getBoundingClientRect().width;
+          element.style.left = `${x - width / 2}px`;
+          element.style.bottom = "calc(100% + 40px)";
           element.style.opacity = "1";
         }
     }

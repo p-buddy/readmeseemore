@@ -180,7 +180,11 @@ export default class {
     overlappingScrollbarHack(this.viewport);
   }
 
-  public suggest(content: string, fadeIn = true) {
+  public suggest(
+    content: string,
+    fadeIn = true,
+    visible = true,
+    cb?: (payload: Required<TerminalSuggestion>) => void) {
     const decoration = this.xterm.registerDecoration({
       marker: this.xterm.registerMarker(0),
       x: 1,
@@ -198,7 +202,7 @@ export default class {
       const inMs = fadeIn ? 300 : 50;
       const props: SuggestionProps = { content, inMs, outMs: 400 };
       const suggestion = mount(Suggestion, { target, props });
-      requestAnimationFrame(() => suggestion.visible(true));
+      if (visible) requestAnimationFrame(() => suggestion.visible(true));
       let unmounted = false;
       const remove = () => {
         if (unmounted) return;
@@ -211,9 +215,16 @@ export default class {
         suggestion.dispose();
         suggestion.visible(false, true).then(remove);
       };
+      cb?.(payload as Required<TerminalSuggestion>);
     });
 
     return payload;
+  }
+
+  public suggestAndWait(content: string, fadeIn = true, visible = true) {
+    return new Promise<Required<TerminalSuggestion>>((resolve) => {
+      this.suggest(content, fadeIn, visible, resolve);
+    });
   }
 
   public async dispose() {
