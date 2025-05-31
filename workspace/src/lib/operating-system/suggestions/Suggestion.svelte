@@ -8,7 +8,9 @@
   } from "./math.js";
   import {
     type AnnotationDelay,
+    type Indexed,
     type Key,
+    type Keyed,
     type SuggestionAnnotation,
     set,
   } from "./common.svelte.js";
@@ -114,7 +116,8 @@
   class Comment {
     public static Make(
       container: HTMLDivElement,
-      { comment, props }: AnyKeyedAnnotation,
+      { comment, props, key }: AnyKeyedAnnotation,
+      targetX: number,
     ) {
       const element = document.createElement("div");
       set.style(element, Comment.InitialStyle);
@@ -126,7 +129,20 @@
           props,
         },
       });
-      return { element, renderer };
+
+      const { width, height } = element.getBoundingClientRect();
+      element.style.left = `${targetX - width / 2}px`;
+      element.style.opacity = "1";
+      return {
+        key,
+        element,
+        renderer,
+        width,
+        height,
+        x: -1,
+        y: -1,
+        targetX: -1,
+      };
     }
 
     public static Destroy({
@@ -141,43 +157,41 @@
     }
 
     private static readonly DurationMs = 300;
+    static readonly VerticalOffset = 40;
 
     private static readonly InitialStyle = {
       position: "absolute",
-      bottom: "-100%",
+      bottom: `calc(100% + ${Comment.VerticalOffset}px)`,
       opacity: "0",
       whiteSpace: "normal",
       width: "fit-content",
-      transition: ["opacity", "left", "top"]
+      transition: ["opacity", "left", "bottom"]
         .map((prop): string => `${prop} ${Comment.DurationMs}ms ease`)
         .join(", "),
     } satisfies Partial<CSSStyleDeclaration>;
   }
 
-  type BoxWith<T> = BoundingBox & T;
-
+  /** Because a range can extend onto multiple lines, it's possible that a single range can have multiple bounds / boxes. */
   const appendBoundsAndSetIndex = (
     index: number,
-    bounds: BoxWith<{ index: number }>[],
+    bounds: Indexed<BoundingBox>[],
     range: Range,
     origin: DOMRect,
     elements: HTMLElement[],
   ) => {
-    const added = appendLocalBoundingBoxesOfRange(
+    const start = appendLocalBoundingBoxesOfRange(
       bounds,
       range,
       origin,
       elements,
-    ) as typeof bounds | (typeof bounds)[number];
-    if (Array.isArray(added))
-      for (let i = 0; i < added.length; i++) added[i].index = index;
-    else added.index = index;
-    return added;
+    );
+    for (let i = start; i < bounds.length; i++) bounds[i].index = index;
+    return start;
   };
 
   const adjustIndicatorsToBounds = (
     annotations: AnyAnnotation[],
-    boundingBoxes: BoxWith<{ index: number }>[],
+    boundingBoxes: Indexed<BoundingBox>[],
     indicators: HTMLElement[],
     container: HTMLDivElement,
   ) => {
@@ -207,6 +221,8 @@
     isSingleRange,
   } from "./math.js";
   import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
+  import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
+  import { computeLayout, apply, type Entry } from "./layout.js";
 
   let { content, inMs, outMs }: Props = $props();
 
@@ -229,65 +245,65 @@
   let container: HTMLDivElement;
   const indicators = new Array<ReturnType<typeof Indicator.Make>>();
   const comments = new Map<Key, ReturnType<typeof Comment.Make>>();
+  const connectors = new Map<Key, ElbowConnector[]>();
 
   const annotate = (annotations?: AnyAnnotation[]) => {
     const { length } = indicators;
+    let origin: DOMRect;
+
     let indicatorResult: ReturnType<typeof sortAndAssign> | undefined;
-    let boxesByKey:
-      | Map<Key, ReturnType<typeof appendBoundsAndSetIndex>>
-      | undefined;
+    let keys: Set<Key> | undefined;
 
     if (annotations) {
-      const boundingBoxes = new Array<BoxWith<{ index: number }>>();
-      const origin = container.getBoundingClientRect();
+      origin ??= container.getBoundingClientRect();
+      const boxes = new Array<Indexed<BoundingBox>>();
 
-      for (let index = 0; index < annotations.length; index++) {
-        const { range, key } = annotations[index];
-        if (key && !comments.has(key))
-          comments.set(
-            key,
-            Comment.Make(container, annotations[index] as AnyKeyedAnnotation),
-          );
+      for (let noteIndex = 0; noteIndex < annotations.length; noteIndex++) {
+        const { range, key } = annotations[noteIndex];
+
+        let boxIndex: number;
 
         if (isIndex(range)) continue;
         else if (isSingleRange(range)) {
-          const boxes = appendBoundsAndSetIndex(
-            index,
-            boundingBoxes,
+          boxIndex = appendBoundsAndSetIndex(
+            noteIndex,
+            boxes,
             range,
             origin,
             chars,
           );
-          if (key) (boxesByKey ??= new Map()).set(key, boxes);
         } else
-          for (const _range of range) {
-            const boxes = appendBoundsAndSetIndex(
-              index,
-              boundingBoxes,
-              _range,
+          for (let rangeIndex = 0; rangeIndex < range.length; rangeIndex++) {
+            const index = appendBoundsAndSetIndex(
+              noteIndex,
+              boxes,
+              range[rangeIndex],
               origin,
               chars,
             );
-            if (key) (boxesByKey ??= new Map()).set(key, boxes);
+            if (rangeIndex === 0) boxIndex = index;
           }
+
+        if (!key) continue;
+
+        (keys ??= new Set()).add(key);
+        const keyed = annotations[noteIndex] as AnyKeyedAnnotation;
+
+        const localX = xCenter(boxes, boxIndex!);
+
+        let comment = comments.get(key);
+        if (!comment)
+          comments.set(key, (comment = Comment.Make(container, keyed, localX)));
+
+        const worldX = origin.x + localX;
+        const worldY = origin.y - Comment.VerticalOffset - comment.height / 2;
+        comment.targetX = worldX;
+        comment.x = worldX;
+        comment.y = worldY;
       }
 
-      indicatorResult = adjustIndicatorsToBounds(
-        annotations,
-        boundingBoxes,
-        indicators,
-        container,
-      );
-
-      if (boxesByKey)
-        for (const [key, boxes] of boxesByKey.entries()) {
-          const { element, renderer } = comments.get(key)!;
-          const x = xCenter(boxes);
-          const width = element.getBoundingClientRect().width;
-          element.style.left = `${x - width / 2}px`;
-          element.style.bottom = "calc(100% + 40px)";
-          element.style.opacity = "1";
-        }
+      const adjust = adjustIndicatorsToBounds;
+      indicatorResult = adjust(annotations, boxes, indicators, container);
     }
 
     for (let i = length - 1; i >= 0; i--) {
@@ -296,11 +312,24 @@
       Indicator.Destroy(removed);
     }
 
-    for (const [key, { element, renderer }] of comments.entries()) {
-      if (boxesByKey?.has(key)) continue;
-      comments.delete(key);
-      Comment.Destroy({ element, renderer });
-    }
+    let nodes: Keyed<Entry>[] | undefined;
+    for (const [key, comment] of comments.entries())
+      if (keys?.has(key)) (nodes ??= []).push(comment);
+      else {
+        comments.delete(key);
+        Comment.Destroy(comment);
+      }
+
+    if (!nodes) return;
+
+    computeLayout(
+      window.screen.width,
+      origin!.y - Comment.VerticalOffset,
+      nodes,
+    );
+
+    for (const node of nodes)
+      apply(node, comments.get(node.key)!.element, origin!);
   };
 
   const pending = {
@@ -364,8 +393,6 @@
   style:transition-duration={!isVisible ? `${outMs}ms` : `${inMs}ms`}
   class:opacity-100={isVisible}
   class:opacity-0={!isVisible}
-  style:--unsafe-color="var(--color-yellow-400)"
-  style:--invalid-color="var(--color-red-400)"
   class="absolute left-0 top-0 xterm-rows text-neutral-600"
 >
   <span> <!-- space for left margin, same as how xterm does it --></span>

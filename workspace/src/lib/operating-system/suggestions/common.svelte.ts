@@ -9,16 +9,19 @@ type CSS = {
 
 export type Key = string | number | symbol;
 
-type KeyedAnnotation<T> = {
-  /** CRITICAL ASSUMPTION: Only a single annotation entry should have a given key.*/
-  key: Key,
+export type Keyed<T> = T & { key: Key };
+
+export type Indexed<T> = T & { index: number };
+
+/** CRITICAL ASSUMPTION: Only a single annotation entry should have a given key.*/
+type KeyedAnnotation<T> = Keyed<{
   /**
    *  As a matter of principle, `comment` snippets should be static (e.g. valid for the course of their rendering). 
    * `range` should be the dynamic property. 
    * */
   comment: Snippet<[T]>,
   props: T,
-};
+}>;
 
 type NotKeyedAnnotation = { [k in keyof KeyedAnnotation<any>]?: undefined };
 

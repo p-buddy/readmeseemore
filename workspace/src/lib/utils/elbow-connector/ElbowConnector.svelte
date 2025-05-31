@@ -126,6 +126,8 @@
   const origin = $derived(parent.getBoundingClientRect());
   const path = $derived(connect(start, end));
 
+  export const getPath = () => path;
+
   const bounding = $derived.by(() => {
     let minX = Infinity;
     let minY = Infinity;

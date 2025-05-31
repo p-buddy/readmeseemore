@@ -1,6 +1,7 @@
+export type SingleOrArray<T> = T | T[];
 export type Index = number;
-export type Range = [Index, Index];
-export type Ranges = Index | Range | Range[];
+export type Range = [Index, Index] | readonly [Index, Index];
+export type Ranges = Index | SingleOrArray<Range>;
 
 export const isIndex = (ranges: Ranges): ranges is Index =>
   !Array.isArray(ranges);
@@ -114,6 +115,14 @@ export const getLocalBoundingBoxOfRange = (
   return boundingBoxes;
 };
 
+/**
+ * 
+ * @param boxes 
+ * @param range 
+ * @param origin 
+ * @param elements 
+ * @returns The starting index of the appended boxes.
+ */
 export const appendLocalBoundingBoxesOfRange = (
   boxes: BoundingBox[],
   range: Range,
@@ -121,8 +130,9 @@ export const appendLocalBoundingBoxesOfRange = (
   elements: HTMLElement[]
 ) => {
   const bboxes = getLocalBoundingBoxOfRange(range, origin, elements);
+  const index = boxes.length;
   Array.isArray(bboxes) ? boxes.push(...bboxes) : boxes.push(bboxes);
-  return bboxes;
+  return index;
 };
 
 export const resize = (
@@ -136,11 +146,13 @@ export const resize = (
   style.height = `${overrides?.height ?? rect.height}px`;
 };
 
-export const xCenter = (rect: BoundingBox | BoundingBox[]) => {
-  if (Array.isArray(rect)) {
-    const left = rect.reduce((acc, r) => acc + r.left, 0) / rect.length;
-    const width = rect.reduce((acc, r) => acc + r.width, 0) / rect.length;
-    return left + width / 2;
+export const xCenter = (boxes: BoundingBox[], start: number) => {
+  let left = 0;
+  let width = 0;
+  for (let i = start; i < boxes.length; i++) {
+    left += boxes[i].left;
+    width += boxes[i].width;
   }
-  return rect.left + rect.width / 2;
+  const length = boxes.length - start;
+  return left / length + width / 2 / length;
 };
