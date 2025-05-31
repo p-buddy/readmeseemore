@@ -2,7 +2,7 @@ import type { WebContainer, FileSystemTree, WebContainerProcess, SpawnOptions } 
 import { file } from "$lib/utils/fs.js";
 import type { ITheme } from "@xterm/xterm";
 import { boot, root, teardown } from "./common.js";
-import Terminal from "./terminal.js";
+import Terminal from "./terminal/index.js";
 import { cli } from "./common.js";
 import { insertAfter } from "$lib/utils/index.js";
 

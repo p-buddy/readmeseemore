@@ -1,6 +1,6 @@
 <script lang="ts" module>
   import { close, type Items } from "$lib/context-menu/index.js";
-  import type { Terminal, OperatingSystem } from "./index.js";
+  import type { Terminal, OperatingSystem } from "../index.js";
 
   export const getItems = (
     os: OperatingSystem,

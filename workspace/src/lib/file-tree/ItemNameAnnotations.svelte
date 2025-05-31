@@ -4,11 +4,11 @@
     NameEditStatus,
     Root,
   } from "$lib/file-tree/index.js";
-  import { Commands } from "$lib/operating-system/commands.js";
   import {
-    type SuggestionAnnotation,
+    type TerminalSuggestionAnnotation,
     range,
-  } from "$lib/operating-system/suggestions/index.js";
+    TerminalCommands,
+  } from "$lib/operating-system/index.js";
   import type { Snippet } from "svelte";
 
   type NameCheckSeverity = Exclude<NameEditStatus, "valid">;
@@ -36,10 +36,10 @@
   };
   type ItemType = TTreeItem["type"];
 
-  type FileNameAnnotation = SuggestionAnnotation<TTreeItem["type"]>;
+  type FileNameAnnotation = TerminalSuggestionAnnotation<TTreeItem["type"]>;
 
   const rangeWithOffset = (
-    _range: SuggestionAnnotation["range"],
+    _range: TerminalSuggestionAnnotation["range"],
     offset: number,
   ) => {
     if (range.isIndex(_range)) return _range + offset;
@@ -61,7 +61,7 @@
     tail: number,
   ) => {
     const upper = query.length - tail;
-    const ranges: SuggestionAnnotation["range"] = [];
+    const ranges: TerminalSuggestionAnnotation["range"] = [];
     let current: number | undefined = undefined;
     for (let i = head; i < upper; i++) {
       if (included.has(query[i])) {
@@ -79,7 +79,7 @@
   const highlight = (
     item: Pick<TTreeItem, "type">,
     severity: NameCheckSeverity,
-    _range: SuggestionAnnotation["range"],
+    _range: TerminalSuggestionAnnotation["range"],
     offset: number,
     snippet: Snippet<[TTreeItem["type"]]>,
   ): FileNameAnnotation => ({
@@ -165,7 +165,7 @@
       );
     }
 
-    const check = Commands.CheckFileNameChars(desired);
+    const check = TerminalCommands.CheckFileNameChars(desired);
 
     if (check?.forbidden) {
       invalid = true;

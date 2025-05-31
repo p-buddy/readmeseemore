@@ -1,6 +1,6 @@
 import type { WebContainerProcess } from "@webcontainer/api";
 import type { WebContainer } from "@webcontainer/api";
-import { type Status, cli } from "./common.js";
+import { type Status, cli } from "../common.js";
 import type { ITheme, Terminal, IDisposable } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { defer, removeFirstInstance, removeLastInstance, type Deferred } from "$lib/utils/index.js";

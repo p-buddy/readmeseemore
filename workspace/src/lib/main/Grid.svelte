@@ -41,7 +41,7 @@
   } from "../code-editor/index.js";
   import {
     OperatingSystem,
-    Commands,
+    TerminalCommands,
     type CreateOptions,
     type TerminalSuggestion,
   } from "$lib/operating-system/index.js";
@@ -204,7 +204,7 @@
     if (filesystem) iterateFilesystem(filesystem, actionOnFile);
 
     const filePanelTracker = new FilePanelTracker();
-    const commands = new Commands(os.container.fs);
+    const commands = new TerminalCommands(os.container.fs);
 
     createAndRegisterFileSystemProvider(os);
 

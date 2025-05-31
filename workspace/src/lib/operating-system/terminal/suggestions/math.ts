@@ -1,6 +1,6 @@
 export type SingleOrArray<T> = T | T[];
 export type Index = number;
-export type Range = [Index, Index] | readonly [Index, Index];
+export type Range = [Index, Index];
 export type Ranges = Index | SingleOrArray<Range>;
 
 export const isIndex = (ranges: Ranges): ranges is Index =>
