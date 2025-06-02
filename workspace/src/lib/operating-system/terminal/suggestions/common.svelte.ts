@@ -4,12 +4,14 @@ import type { Ranges } from "./math.js";
 type CSS = {
   style?: Partial<CSSStyleDeclaration>,
   class?: string | string[],
+  variables?: Record<string, string>,
   noDefaultStyle?: true,
 }
 
 export type Key = string | number | symbol;
 
 export type Keyed<T> = T & { key: Key };
+export type MaybeKeyed<T> = T & { key?: Key };
 
 export type Indexed<T> = T & { index: number };
 
@@ -20,6 +22,7 @@ type KeyedAnnotation<T> = Keyed<{
    * `range` should be the dynamic property. 
    * */
   comment: Snippet<[T]>,
+  commentStyle?: CSS,
   props: T,
 }>;
 
@@ -45,6 +48,10 @@ export type AnnotationDelay = {
 }
 
 export const set = {
+  variables: (element: HTMLElement, variables: Required<CSS>["variables"]) => {
+    for (const [key, value] of Object.entries(variables))
+      element.style.setProperty(key, value);
+  },
   style: (element: HTMLElement, style: Required<CSS>["style"]) => {
     for (const [key, value] of Object.entries(style))
       element.style[key as any] = value as any;
@@ -57,5 +64,6 @@ export const set = {
     if (!css?.noDefaultStyle) set.style(element, defaultStyle);
     if (css?.style) set.style(element, css.style);
     if (css?.class) set.class(element, css.class);
+    if (css?.variables) set.variables(element, css.variables);
   },
 };

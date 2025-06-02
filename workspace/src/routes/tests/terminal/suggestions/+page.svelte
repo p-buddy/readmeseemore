@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { TerminalSuggestionAnnotation } from "$lib/operating-system/index.js";
   import { Sweater } from "sweater-vest";
   import { testTerminal } from "../harness.js";
 
@@ -59,17 +60,15 @@
 </script>
 
 {#snippet randomSubsection()}
-  <div class="flex flex-col w-100 border-1 m-2 p-2">
-    {#each toRender() as line}
-      <div class="text-wrap m-2">
-        {line}
-      </div>
-    {/each}
-  </div>
+  {#each toRender() as line}
+    <div class="bg-red-500">
+      {line}
+    </div>
+  {/each}
 {/snippet}
 
 {#snippet annotation()}
-  <div class="flex flex-col w-100 text-wrap border-1">
+  <div class="flex flex-col w-100 border-1 m-2 p-2 text-wrap">
     {@render randomSubsection()}
   </div>
 {/snippet}
@@ -94,7 +93,7 @@
           kind: "highlight",
           range: [index, index + 1],
           props: null as any,
-        }) as const,
+        }) satisfies TerminalSuggestionAnnotation<undefined, true>,
     );
     /* 
     while (true) {

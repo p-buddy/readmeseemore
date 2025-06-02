@@ -1,14 +1,22 @@
 import { Layout, type Node, type Link } from 'webcola';
+import type { BoundingBox } from './math.js';
 
 type Center = Record<"x" | "y", number>;
 type Rect = Center & Record<"width" | "height", number>;
 type Horizontal = Pick<Rect, 'x' | 'width'>;
 type Vertical = Pick<Rect, 'y' | 'height'>;
 
-export type Entry = Rect & {
-  targetX: number;
-  fixed?: number;
-};
+export type LayoutItem = Rect & { fixed?: number; };
+
+const initForLayout = (box: BoundingBox | LayoutItem) => {
+  const { left, top, width, height } = box as BoundingBox;
+  (box as LayoutItem).x = left + width / 2;
+  (box as LayoutItem).y = top + height / 2;
+}
+
+function initAndAssert(boxes: (BoundingBox | LayoutItem)[]): asserts boxes is LayoutItem[] {
+  for (let i = 0; i < boxes.length; i++) initForLayout(boxes[i] as BoundingBox);
+}
 
 const anchor = (x: number, y: number) =>
   ({ x, y, fixed: 1, width: 0, height: 0, targetX: -1 });
@@ -30,15 +38,15 @@ const overlaps = (a: Horizontal & Vertical, b: Horizontal & Vertical) =>
 const inBounds = (entry: Horizontal & Vertical, width: number, height: number) =>
   left(entry) >= 0 && right(entry) <= width && top(entry) >= 0 && bottom(entry) <= height;
 
-const MAX_ITERATIONS = 10;
-const MAX_VALID_LAYOUTS = 3;
+const MAX_ITERATIONS = 5;
+const MAX_VALID_LAYOUTS = 2;
 const SERIALIZED_PROPERTIES = 2;
 const SERIALIZED_LAYOUT_WIDTH = SERIALIZED_PROPERTIES * MAX_VALID_LAYOUTS;
 const X_COST = 3;
 const Y_COST = 1;
 
 const write = (
-  index: number, serialized: Float32Array, entries: Entry[], length: number
+  index: number, serialized: Float32Array, entries: LayoutItem[], length: number
 ) => {
   const base = SERIALIZED_PROPERTIES * index * length;
   for (let i = 0; i < length; i++) {
@@ -49,7 +57,7 @@ const write = (
 }
 
 const read = (
-  index: number, serialized: Float32Array, entries: Entry[], length: number
+  index: number, serialized: Float32Array, entries: LayoutItem[], length: number
 ) => {
   const base = SERIALIZED_PROPERTIES * index * length;
   for (let i = 0; i < length; i++) {
@@ -59,7 +67,7 @@ const read = (
   }
 }
 
-const cost = (entries: Entry[], pureEntriesLength: number) => {
+const cost = (entries: LayoutItem[], pureEntriesLength: number) => {
   let cost = 0;
   for (let i = 0; i < pureEntriesLength; i++) {
     const entry = entries[i];
@@ -74,7 +82,7 @@ const cost = (entries: Entry[], pureEntriesLength: number) => {
 const layoutCost = (
   serialized: Float32Array,
   serializedIndex: number,
-  entries: Entry[],
+  entries: LayoutItem[],
   pureEntriesLength: number
 ) => {
   read(serializedIndex, serialized, entries, pureEntriesLength);
@@ -85,7 +93,7 @@ const step = (
   layout: Layout,
   width: number,
   height: number,
-  entries: Entry[],
+  entries: LayoutItem[],
   pureEntriesLength: number,
   serialized: Float32Array,
   serializedIndex: number,
@@ -130,30 +138,33 @@ const step = (
   return true;
 }
 
-export const computeLayout = (width: number, height: number, entries: Entry[]) => {
-  if (entries.length === 0) return;
+export const computeLayoutInPlace = (
+  width: number, height: number, boxes: BoundingBox[]
+) => {
+  if (boxes.length <= 1) return;
 
-  entries.sort((a, b) => a.targetX - b.targetX);
+  boxes.sort((a, b) => a.left - b.left);
 
-  const originalLength = entries.length;
+  const originalLength = boxes.length;
 
+  initAndAssert(boxes);
   for (let i = 0; i < originalLength; i++)
-    entries.push(anchor(entries[i].targetX, height));
+    boxes.push(anchor(boxes[i].x, height));
 
   const topLeft = { x: 0, y: 0, fixed: 1, width: 0, height: 0, targetX: -1 };
   const bottomRight = { x: width, y: height, fixed: 1, width: 0, height: 0, targetX: -1 };
-  const topLeftIndex = entries.push(topLeft) - 1;
-  const bottomRightIndex = entries.push(bottomRight) - 1;
+  const topLeftIndex = boxes.push(topLeft) - 1;
+  const bottomRightIndex = boxes.push(bottomRight) - 1;
 
   const constraints = Array<any>();
   const links: Link<Node>[] = [];
   for (let i = 0; i < originalLength; i++) {
-    const entry = entries[i];
+    const entry = boxes[i];
     const { width, height } = entry;
     const anchorIndex = i + originalLength;
     links.push({
       source: entry,
-      target: entries[anchorIndex],
+      target: boxes[anchorIndex],
       length: height / 2,
     });
     constraints.push({ axis: 'x', left: topLeftIndex, right: i, gap: width / 2 });
@@ -165,7 +176,7 @@ export const computeLayout = (width: number, height: number, entries: Entry[]) =
   const layout = new Layout()
     .size([width, height])
     .avoidOverlaps(true)
-    .nodes(entries)
+    .nodes(boxes)
     .links(links)
     .constraints(constraints);
 
@@ -174,7 +185,7 @@ export const computeLayout = (width: number, height: number, entries: Entry[]) =
   let valid = 0;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    if (!step(layout, width, height, entries, originalLength, layouts, valid))
+    if (!step(layout, width, height, boxes, originalLength, layouts, valid))
       continue;
     valid++;
     if (valid === MAX_VALID_LAYOUTS) break;
@@ -183,17 +194,18 @@ export const computeLayout = (width: number, height: number, entries: Entry[]) =
   let bestIndex = -1;
   let bestCost = Infinity;
   for (let i = 0; i < valid; i++) {
-    const cost = layoutCost(layouts, i, entries, originalLength);
+    const cost = layoutCost(layouts, i, boxes, originalLength);
     if (cost >= bestCost) continue;
     bestCost = cost;
     bestIndex = i;
   }
 
-  read(bestIndex, layouts, entries, originalLength);
-  entries.length = originalLength;
-}
-
-export const apply = (entry: Entry, { style }: HTMLElement, origin: DOMRect) => {
-  style.left = `${entry.x - entry.width / 2 - origin.x}px`;
-  style.bottom = `calc(100% + ${origin.y - (entry.y + entry.height / 2)}px)`;
+  read(bestIndex, layouts, boxes, originalLength);
+  for (let i = 0; i < originalLength; i++) {
+    boxes[i].left = boxes[i].x - boxes[i].width / 2;
+    boxes[i].top = boxes[i].y - boxes[i].height / 2;
+    delete (boxes[i] as any).x;
+    delete (boxes[i] as any).y;
+  }
+  boxes.length = originalLength;
 }

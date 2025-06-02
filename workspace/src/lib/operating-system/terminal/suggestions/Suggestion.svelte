@@ -4,6 +4,7 @@
     isIndex,
     type Range,
     resize,
+    worldify,
     xCenter,
   } from "./math.js";
   import {
@@ -11,6 +12,7 @@
     type Indexed,
     type Key,
     type Keyed,
+    type MaybeKeyed,
     type SuggestionAnnotation,
     set,
   } from "./common.svelte.js";
@@ -32,6 +34,9 @@
       chars.push(undefined as T);
     chars.length = content.length;
   };
+
+  const transition = (durationMs: number, ...keys: string[]) =>
+    keys.map((key) => `${key} ${durationMs}ms ease`).join(", ");
 
   class Indicator {
     static Highlight = class {
@@ -94,9 +99,13 @@
       backgroundColor: "transparent",
       borderRadius: "0.2rem",
       opacity: "0",
-      transition: ["opacity", "left", "width", "background-color"]
-        .map((prop): string => `${prop} ${Indicator.DurationMs}ms ease`)
-        .join(", "),
+      transition: transition(
+        Indicator.DurationMs,
+        "opacity",
+        "left",
+        "width",
+        "background-color",
+      ),
     } satisfies Partial<CSSStyleDeclaration>;
 
     private static readonly DefaultStylesByKind = {
@@ -114,14 +123,16 @@
   }
 
   class Comment {
-    public static Make(
-      container: HTMLDivElement,
-      { comment, props, key }: AnyKeyedAnnotation,
-      targetX: number,
-    ) {
+    public static Make({
+      comment,
+      props,
+      key,
+      commentStyle,
+    }: AnyKeyedAnnotation) {
       const element = document.createElement("div");
-      set.style(element, Comment.InitialStyle);
-      container.appendChild(element);
+      set.css(element, Comment.InitialStyle, commentStyle);
+
+      document.body.appendChild(element);
       const renderer = mount(SnippetRenderer, {
         target: element,
         props: {
@@ -129,19 +140,16 @@
           props,
         },
       });
-
       const { width, height } = element.getBoundingClientRect();
-      element.style.left = `${targetX - width / 2}px`;
-      element.style.opacity = "1";
       return {
         key,
         element,
         renderer,
         width,
         height,
-        x: -1,
-        y: -1,
-        targetX: -1,
+        firstRender: true,
+        left: Number.NaN,
+        top: Number.NaN,
       };
     }
 
@@ -156,38 +164,38 @@
       );
     }
 
-    private static readonly DurationMs = 300;
-    static readonly VerticalOffset = 40;
+    public static CloneForLayout = ({
+      left,
+      top,
+      width,
+      height,
+      key,
+    }: ReturnType<typeof Comment.Make>) => ({ left, top, width, height, key });
+
+    static readonly DurationMs = 500;
+    static readonly VerticalOffset = 20;
 
     private static readonly InitialStyle = {
       position: "absolute",
-      bottom: `calc(100% + ${Comment.VerticalOffset}px)`,
       opacity: "0",
       whiteSpace: "normal",
       width: "fit-content",
-      transition: ["opacity", "left", "bottom"]
-        .map((prop): string => `${prop} ${Comment.DurationMs}ms ease`)
-        .join(", "),
+      height: "fit-content",
+      zIndex: "10000",
+      transition: transition(Comment.DurationMs, "opacity"),
     } satisfies Partial<CSSStyleDeclaration>;
-  }
 
-  /** Because a range can extend onto multiple lines, it's possible that a single range can have multiple bounds / boxes. */
-  const appendBoundsAndSetIndex = (
-    index: number,
-    bounds: Indexed<BoundingBox>[],
-    range: Range,
-    origin: DOMRect,
-    elements: HTMLElement[],
-  ) => {
-    const start = appendLocalBoundingBoxesOfRange(
-      bounds,
-      range,
-      origin,
-      elements,
-    );
-    for (let i = start; i < bounds.length; i++) bounds[i].index = index;
-    return start;
-  };
+    static readonly StartAnimating = ({ style }: HTMLElement) =>
+      requestAnimationFrame(
+        () =>
+          (style.transition = transition(
+            Comment.DurationMs,
+            "opacity",
+            "left",
+            "top",
+          )),
+      );
+  }
 
   const adjustIndicatorsToBounds = (
     annotations: AnyAnnotation[],
@@ -211,22 +219,48 @@
     }
     return result;
   };
+
+  function worldifyAndRemoveUnkeyed(
+    boxes: MaybeKeyed<BoundingBox>[],
+    origin: DOMRect,
+  ): asserts boxes is Keyed<BoundingBox>[] {
+    for (let i = boxes.length - 1; i >= 0; i--) {
+      const box = boxes[i];
+      if (!box.key) boxes.splice(i, 1);
+      else worldify(box, origin);
+    }
+  }
 </script>
 
 <script lang="ts">
   import { mount, tick, unmount } from "svelte";
   import {
-    appendLocalBoundingBoxesOfRange,
+    appendLocalBoundsOfRange,
     sortAndAssign,
     isSingleRange,
   } from "./math.js";
   import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
   import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
-  import { computeLayout, apply, type Entry } from "./layout.js";
+  import type { Maybe } from "$lib/utils/index.js";
+  import worker from "./worker?worker";
+  import type { Input, Output } from "./worker.js";
 
   let { content, inMs, outMs }: Props = $props();
 
   let isVisible = $state(false);
+
+  const layoutWorker = new worker();
+  let pendingLayout: Promise<Output> | undefined;
+
+  const layout = async (input: Input) => {
+    if (pendingLayout) await pendingLayout;
+    layoutWorker.postMessage(input);
+    pendingLayout = new Promise(
+      (resolve) =>
+        (layoutWorker.onmessage = ({ data }) => resolve(data as Output)),
+    );
+    return pendingLayout;
+  };
 
   export const visible = <AwaitComplete extends true | undefined = undefined>(
     condition: boolean,
@@ -247,16 +281,20 @@
   const comments = new Map<Key, ReturnType<typeof Comment.Make>>();
   const connectors = new Map<Key, ElbowConnector[]>();
 
-  const annotate = (annotations?: AnyAnnotation[]) => {
-    const { length } = indicators;
-    let origin: DOMRect;
+  let version = Number.MIN_SAFE_INTEGER;
 
-    let indicatorResult: ReturnType<typeof sortAndAssign> | undefined;
-    let keys: Set<Key> | undefined;
+  const annotate = async (annotations?: AnyAnnotation[]) => {
+    let current = ++version;
+    const indicatorLength = indicators.length;
+
+    let origin: Maybe<DOMRect>;
+    let indicatorResult: Maybe<ReturnType<typeof sortAndAssign>>;
+    let boxes: Maybe<MaybeKeyed<Indexed<BoundingBox>>[]>;
+    let keys: Maybe<Set<Key>>;
 
     if (annotations) {
       origin ??= container.getBoundingClientRect();
-      const boxes = new Array<Indexed<BoundingBox>>();
+      boxes ??= [];
 
       for (let noteIndex = 0; noteIndex < annotations.length; noteIndex++) {
         const { range, key } = annotations[noteIndex];
@@ -265,71 +303,73 @@
 
         if (isIndex(range)) continue;
         else if (isSingleRange(range)) {
-          boxIndex = appendBoundsAndSetIndex(
-            noteIndex,
-            boxes,
-            range,
-            origin,
-            chars,
-          );
+          boxIndex = appendLocalBoundsOfRange(boxes, range, origin, chars);
         } else
           for (let rangeIndex = 0; rangeIndex < range.length; rangeIndex++) {
-            const index = appendBoundsAndSetIndex(
-              noteIndex,
-              boxes,
-              range[rangeIndex],
-              origin,
-              chars,
-            );
+            const r = range[rangeIndex];
+            const index = appendLocalBoundsOfRange(boxes, r, origin, chars);
             if (rangeIndex === 0) boxIndex = index;
           }
 
+        for (let i = boxIndex!; i < boxes.length; i++)
+          boxes[i].index = noteIndex;
+
         if (!key) continue;
+
+        for (let i = boxIndex!; i < boxes.length; i++) boxes[i].key = key;
 
         (keys ??= new Set()).add(key);
         const keyed = annotations[noteIndex] as AnyKeyedAnnotation;
-
-        const localX = xCenter(boxes, boxIndex!);
-
         let comment = comments.get(key);
-        if (!comment)
-          comments.set(key, (comment = Comment.Make(container, keyed, localX)));
-
-        const worldX = origin.x + localX;
-        const worldY = origin.y - Comment.VerticalOffset - comment.height / 2;
-        comment.targetX = worldX;
-        comment.x = worldX;
-        comment.y = worldY;
+        if (!comment) comments.set(key, (comment = Comment.Make(keyed)));
+        comment.left = origin.x + xCenter(boxes, boxIndex!) - comment.width / 2;
+        comment.top = origin.y - Comment.VerticalOffset - comment.height;
       }
 
-      const adjust = adjustIndicatorsToBounds;
-      indicatorResult = adjust(annotations, boxes, indicators, container);
+      indicatorResult = adjustIndicatorsToBounds(
+        annotations,
+        boxes,
+        indicators,
+        container,
+      );
     }
 
-    for (let i = length - 1; i >= 0; i--) {
+    for (let i = indicatorLength - 1; i >= 0; i--) {
       if (indicatorResult?.usedElementIndices.has(i)) continue;
       const removed = indicators.splice(i, 1)[0];
       Indicator.Destroy(removed);
     }
 
-    let nodes: Keyed<Entry>[] | undefined;
+    let commentBoxes: Maybe<Keyed<BoundingBox>[]>;
     for (const [key, comment] of comments.entries())
-      if (keys?.has(key)) (nodes ??= []).push(comment);
+      if (keys?.has(key))
+        (commentBoxes ??= []).push(Comment.CloneForLayout(comment));
       else {
         comments.delete(key);
         Comment.Destroy(comment);
       }
 
-    if (!nodes) return;
+    if (!commentBoxes || !origin || !boxes) return;
 
-    computeLayout(
-      window.screen.width,
-      origin!.y - Comment.VerticalOffset,
-      nodes,
-    );
+    worldifyAndRemoveUnkeyed(boxes, origin);
 
-    for (const node of nodes)
-      apply(node, comments.get(node.key)!.element, origin!);
+    const layoutResult = await layout({
+      width: window.screen.width,
+      height: origin.y - Comment.VerticalOffset,
+      comments: commentBoxes,
+      indicators: boxes,
+    });
+
+    if (current !== version) return;
+
+    for (const { key, left, top } of layoutResult.comments) {
+      const comment = comments.get(key)!;
+      if (comment.firstRender) Comment.StartAnimating(comment.element);
+      comment.element.style.opacity = "1";
+      comment.element.style.left = `${left}px`;
+      comment.element.style.top = `${top}px`;
+      comment.firstRender = false;
+    }
   };
 
   const pending = {
@@ -382,6 +422,8 @@
   };
 
   export const dispose = () => {
+    for (const indicator of indicators) Indicator.Destroy(indicator);
+    for (const comment of comments.values()) Comment.Destroy(comment);
     clearPending();
   };
 </script>

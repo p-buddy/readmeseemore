@@ -180,3 +180,35 @@ export const noop = () => { };
 export const insertAfter = <T>(array: T[], item: T, index: number) => {
   array.splice(index + 1, 0, item);
 }
+
+export const findOverflowAncestor = (
+  start: HTMLElement,
+  axis: 'x' | 'y' | 'both' | 'either' = 'both',
+): HTMLElement | null => {
+  let node: HTMLElement | null = start.parentElement;
+  const isHidden = (v: string) => v === 'hidden' || v === 'clip';
+
+  while (node && node !== document.documentElement) {
+    const { overflowX, overflowY } = getComputedStyle(node);
+
+    const blocksX = isHidden(overflowX);
+    const blocksY = isHidden(overflowY);
+
+    if (
+      (axis === 'x' && blocksX) ||
+      (axis === 'y' && blocksY) ||
+      (axis === 'both' && blocksX && blocksY) ||
+      (axis === 'either' && (blocksX || blocksY))
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;           // nothing is clipping
+}
+
+export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
+export type Prettify<T> = { [K in keyof T]: T[K] } & {};
+export type Maybe<T> = T | undefined;
+
+export type NotOptionalIf<T, Condition extends boolean> = Condition extends true ? T : T | undefined;

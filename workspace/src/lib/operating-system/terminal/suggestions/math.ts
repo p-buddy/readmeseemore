@@ -1,3 +1,5 @@
+import type { Mutable } from "$lib/utils/index.js";
+
 export type SingleOrArray<T> = T | T[];
 export type Index = number;
 export type Range = [Index, Index];
@@ -9,7 +11,10 @@ export const isIndex = (ranges: Ranges): ranges is Index =>
 export const isSingleRange = (ranges: Ranges): ranges is Range =>
   !isIndex(ranges) && !Array.isArray(ranges[0]);
 
-export type BoundingBox = Pick<DOMRect, "left" | "top" | "width" | "height">;
+/**
+ * Electing to use left & top instead of x & y since the latter can be incorrectly confused with the center point of a rect. 
+ */
+export type BoundingBox = Mutable<Pick<DOMRect, "left" | "top" | "width" | "height">>;
 
 export const float = (query: string | number) =>
   typeof query === "string" ? parseFloat(query) : query;
@@ -123,7 +128,7 @@ export const getLocalBoundingBoxOfRange = (
  * @param elements 
  * @returns The starting index of the appended boxes.
  */
-export const appendLocalBoundingBoxesOfRange = (
+export const appendLocalBoundsOfRange = (
   boxes: BoundingBox[],
   range: Range,
   origin: DOMRect,
@@ -155,4 +160,9 @@ export const xCenter = (boxes: BoundingBox[], start: number) => {
   }
   const length = boxes.length - start;
   return left / length + width / 2 / length;
+};
+
+export const worldify = (box: BoundingBox, origin: DOMRect) => {
+  box.left += origin.left;
+  box.top += origin.top;
 };
