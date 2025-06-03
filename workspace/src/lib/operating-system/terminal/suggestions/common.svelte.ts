@@ -15,32 +15,24 @@ export type MaybeKeyed<T> = T & { key?: Key };
 
 export type Indexed<T> = T & { index: number };
 
-/** CRITICAL ASSUMPTION: Only a single annotation entry should have a given key.*/
-type KeyedAnnotation<T> = Keyed<{
+type WithComment<T> = {
   /**
    *  As a matter of principle, `comment` snippets should be static (e.g. valid for the course of their rendering). 
    * `range` should be the dynamic property. 
    * */
-  comment: Snippet<[T]>,
-  commentStyle?: CSS,
-  props: T,
-}>;
+  comment: NonNullable<T> extends never ? Snippet : Snippet<[T]>,
+} & (NonNullable<T> extends never ? { props?: T } : { props: T })
 
-type NotKeyedAnnotation = { [k in keyof KeyedAnnotation<any>]?: undefined };
-
-export type SuggestionAnnotation<T = undefined, KeyedOverride = false> = {
+export type SuggestionAnnotation<T> = {
   kind: "highlight" | "top-hook",
   /** CRITICAL ASSUMPTION: Ranges in a colllection of annotations will NOT overlap. */
   range: Ranges;
   indicator?: CSS,
   connector?: CSS,
-} & (
-    KeyedOverride extends true
-    /**/ ? KeyedAnnotation<T>
-    /**/ : NonNullable<T> extends never
-      /**/ ? NotKeyedAnnotation
-      /**/ : KeyedAnnotation<T>
-  );
+  commentStyle?: CSS,
+  /** CRITICAL ASSUMPTION: Only a single annotation entry should have a given key.*/
+  key: Key,
+} & WithComment<T>
 
 export type AnnotationDelay = {
   key: Key,

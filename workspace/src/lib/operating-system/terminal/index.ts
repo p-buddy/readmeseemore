@@ -189,6 +189,7 @@ export default class {
       marker: this.xterm.registerMarker(0),
       x: 1,
       layer: "top",
+      width: this.xterm.cols,
     });
     if (!decoration) return;
     let hault = false;
@@ -198,6 +199,7 @@ export default class {
 
     decoration.onRender((target) => {
       if (hault) return;
+      console.log(target.getBoundingClientRect().width)
       hault = true;
       const inMs = fadeIn ? 300 : 50;
       const props: SuggestionProps = { content, inMs, outMs: 400 };

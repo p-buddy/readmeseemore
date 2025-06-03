@@ -18,6 +18,9 @@
     invalid: "var(--color-red-400)",
   } satisfies Record<NameCheckSeverity, string>;
 
+  const darken = (key: keyof typeof colors, alpha: number) =>
+    `oklch(from ${colors[key]} l c h / ${alpha})`;
+
   const defaults = {
     style: {
       maxWidth: "max(25%, 20rem)",
@@ -32,12 +35,22 @@
           backgroundColor: colors.unsafe,
         },
       },
+      connector: {
+        style: {
+          color: darken("unsafe", 0.6),
+        },
+      },
       commentStyle: defaults,
     },
     invalid: {
       indicator: {
         style: {
           backgroundColor: colors.invalid,
+        },
+      },
+      connector: {
+        style: {
+          color: darken("invalid", 0.6),
         },
       },
       commentStyle: defaults,
@@ -56,9 +69,9 @@
     conflict,
   };
 
-  export const snippetNames = Object.keys(
-    snippets,
-  ) as (keyof typeof snippets)[];
+  type SnippetKey = keyof typeof snippets;
+
+  export const snippetNames = Object.keys(snippets) as SnippetKey[];
 
   const titles = {
     notEmpty: "Empty Error",
@@ -70,19 +83,19 @@
     forbiddenCharacters: "Forbidden Characters",
     discouragedCharacters: "Discouraged Characters",
     conflict: "Already Exists Error",
-  } satisfies Record<keyof typeof snippets, string>;
+  } satisfies Record<SnippetKey, string>;
 
   type ItemType = TTreeItem["type"];
   type CommentProps = {
     type: ItemType;
-    snippet: keyof typeof snippets;
+    snippet: SnippetKey;
     severity: NameCheckSeverity;
   };
 
   type FileNameAnnotation = TerminalSuggestionAnnotation<CommentProps>;
 
   const rangeWithOffset = (
-    _range: TerminalSuggestionAnnotation["range"],
+    _range: FileNameAnnotation["range"],
     offset: number,
   ) => {
     if (range.isIndex(_range)) return _range + offset;
@@ -104,7 +117,7 @@
     tail: number,
   ) => {
     const upper = query.length - tail;
-    const ranges: TerminalSuggestionAnnotation["range"] = [];
+    const ranges: FileNameAnnotation["range"] = [];
     let current: number | undefined = undefined;
     for (let i = head; i < upper; i++) {
       if (included.has(query[i])) {
@@ -122,14 +135,13 @@
   const highlight = (
     { type }: Pick<TTreeItem, "type">,
     severity: NameCheckSeverity,
-    _range: TerminalSuggestionAnnotation["range"],
+    _range: FileNameAnnotation["range"],
     offset: number,
-    snippet: keyof typeof snippets,
+    snippet: SnippetKey,
   ): FileNameAnnotation => ({
+    ...styles[severity],
     kind: "highlight",
     range: rangeWithOffset(_range, offset),
-    indicator: styles[severity].indicator,
-    commentStyle: styles[severity].commentStyle,
     key: snippet,
     comment: wrapper,
     props: { type, snippet, severity },
@@ -388,18 +400,24 @@
 {/snippet}
 
 {#snippet noSpacePrefix(type: ItemType, severity: NameCheckSeverity)}
-  {capitalize(type)} names cannot start with a space, as that can confuse other programs.
+  {capitalize(type)} names cannot start with a space, as that can confuse other terminal
+  commands.
   {@render noteOurIssue(severity)}
 {/snippet}
 
 {#snippet noSpaceSuffix(type: ItemType, severity: NameCheckSeverity)}
-  {capitalize(type)} names cannot end with a space, as that can confuse other programs.
+  {capitalize(type)} names cannot end with a space, as that can confuse other terminal
+  commands.
   {@render noteOurIssue(severity)}
 {/snippet}
 
 {#snippet forbiddenCharacters(type: ItemType, severity: NameCheckSeverity)}
   These characters are not allowed in {simplify(type)} names, as they have special
-  meaning within the terminal's programming langauge (aka the "shell").
+  meaning within the terminal's programming langauge (aka the "shell", which is how
+  we talk to the {@render link(
+    "operating system",
+    "https://en.wikipedia.org/wiki/Operating_system",
+  )}).
   {@render note(
     "You might find that not all of these characters are forbidden on other systems.",
     severity,
@@ -415,16 +433,9 @@
   {#snippet escaping()}
     <span class="italic">Escaping</span> is the process of adding a backslash ({@render code(
       "\\",
-    )}) before a character to make it lose its special meaning. For example, if
-    you love {@render link(
-      "drum and bass",
-      "https://www.youtube.com/watch?v=oELrBolP5mM",
-    )} and wanted to name a {simplify(type)}
-    {@render code("d&b")}, when you run other commands / programs, like {@render code(
-      "open",
-    )}, you'll need to <span class="italic">escape</span> the ampersand ({@render code(
-      "&",
-    )}) like so: {@render code('open "d\\&b"')}.
+    )}) before a character to make it lose its special meaning. For example, {@render code(
+      'open "pb\\&j"',
+    )}.
   {/snippet}
   {@render footnotes([escaping], severity)}
 {/snippet}

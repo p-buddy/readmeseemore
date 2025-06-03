@@ -2,7 +2,6 @@
   import {
     type BoundingBox,
     isIndex,
-    type Range,
     resize,
     worldify,
     xCenter,
@@ -24,7 +23,6 @@
   };
 
   type AnyAnnotation = SuggestionAnnotation<any>;
-  type AnyKeyedAnnotation = SuggestionAnnotation<any, true>;
 
   /** from inline style of element with class "xterm-viewport" */
   const terminalBackground = "rgb(24, 24, 24)";
@@ -116,22 +114,13 @@
       "top-hook": {
         opacity: "1",
       },
-    } satisfies Record<
-      SuggestionAnnotation["kind"],
-      Partial<CSSStyleDeclaration>
-    >;
+    } satisfies Record<AnyAnnotation["kind"], Partial<CSSStyleDeclaration>>;
   }
 
   class Comment {
-    public static Make({
-      comment,
-      props,
-      key,
-      commentStyle,
-    }: AnyKeyedAnnotation) {
+    public static Make({ comment, props, key, commentStyle }: AnyAnnotation) {
       const element = document.createElement("div");
       set.css(element, Comment.InitialStyle, commentStyle);
-
       document.body.appendChild(element);
       const renderer = mount(SnippetRenderer, {
         target: element,
@@ -150,7 +139,20 @@
         firstRender: true,
         left: Number.NaN,
         top: Number.NaN,
+        index: Number.NaN,
       };
+    }
+
+    public static Update(
+      comment: ReturnType<typeof Comment.Make>,
+      verticalOffset: number,
+      localCenterX: number,
+      { x, y }: DOMRect,
+      index: number,
+    ) {
+      comment.left = x + localCenterX - comment.width / 2;
+      comment.top = y - verticalOffset - comment.height;
+      comment.index = index;
     }
 
     public static Destroy({
@@ -169,11 +171,16 @@
       top,
       width,
       height,
-      key,
-    }: ReturnType<typeof Comment.Make>) => ({ left, top, width, height, key });
+      index,
+    }: ReturnType<typeof Comment.Make>) => ({
+      left,
+      top,
+      width,
+      height,
+      index,
+    });
 
     static readonly DurationMs = 500;
-    static readonly VerticalOffset = 20;
 
     private static readonly InitialStyle = {
       position: "absolute",
@@ -185,16 +192,126 @@
       transition: transition(Comment.DurationMs, "opacity"),
     } satisfies Partial<CSSStyleDeclaration>;
 
-    static readonly StartAnimating = ({ style }: HTMLElement) =>
-      requestAnimationFrame(
-        () =>
-          (style.transition = transition(
-            Comment.DurationMs,
-            "opacity",
-            "left",
-            "top",
-          )),
-      );
+    static readonly AnimateOnNext = ({
+      element: { style },
+    }: ReturnType<typeof Comment.Make>) => {
+      requestAnimationFrame(() => {
+        style.transition = transition(
+          Comment.DurationMs,
+          "opacity",
+          "left",
+          "top",
+        );
+      });
+    };
+
+    static readonly ApplyLayout = (
+      comment: ReturnType<typeof Comment.Make>,
+      { left, top }: BoundingBox,
+    ) => {
+      if (comment.firstRender) Comment.AnimateOnNext(comment);
+      comment.element.style.opacity = "1";
+      comment.element.style.left = `${left}px`;
+      comment.element.style.top = `${top}px`;
+      comment.firstRender = false;
+    };
+  }
+
+  class Handle {
+    public static Make(
+      { left, right, topOffset, divisions }: THandle,
+      { y }: DOMRect,
+      { connector }: AnyAnnotation,
+    ) {
+      const top = y - topOffset;
+      const width = right - left;
+
+      const bar = document.createElement("div");
+
+      set.css(bar, Handle.InitialStyle, connector);
+
+      bar.style.left = `${left}px`;
+      bar.style.top = `${top}px`;
+      bar.style.width = `${width}px`;
+      bar.style.height = `${topOffset}px`;
+      if (divisions.length === 1) bar.style.borderRight = "none";
+
+      for (let i = 0; i < divisions.length; i++) {
+        const division = divisions[i];
+        const isEdge = i === 0 || i === divisions.length - 1;
+        if (isEdge && division.top === top) continue;
+        const tooth = document.createElement("div");
+        set.css(tooth, Handle.InitialDivisionStyle);
+        if (isEdge) {
+          tooth.style.height = `${division.top - top - topOffset}px`;
+          tooth.style.top = `${Handle.LineThickness + topOffset}px`;
+          tooth.style.transform = `translateY(${-Handle.CornerRadius}px)`;
+          const shift = `${-Handle.LineThickness}px`;
+          i === 0 ? (tooth.style.left = shift) : (tooth.style.right = shift);
+        } else {
+          tooth.style.height = `${division.top - top}px`;
+          tooth.style.top = `${Handle.CornerRadius}px`;
+          tooth.style.transform = `translate(${-Handle.LineThickness / 2}px, ${-Handle.CornerRadius}px)`;
+          tooth.style.left = `${division.x}px`;
+        }
+
+        bar.appendChild(tooth);
+      }
+
+      document.body.appendChild(bar);
+      return bar;
+    }
+
+    public static Destroy(element: HTMLElement) {
+      element.remove();
+    }
+
+    private static readonly LineThickness = 2;
+    private static readonly CornerRadius = 4;
+
+    private static readonly InitialStyle = {
+      position: "absolute",
+      boxSizing: "border-box",
+      borderTop: `${Handle.LineThickness}px solid currentColor`,
+      borderLeft: `${Handle.LineThickness}px solid currentColor`,
+      borderRight: `${Handle.LineThickness}px solid currentColor`,
+      borderBottom: "none",
+      borderTopLeftRadius: `${Handle.CornerRadius}px`,
+      borderTopRightRadius: `${Handle.CornerRadius}px`,
+      background: "transparent",
+      overflow: "visible",
+    } satisfies Partial<CSSStyleDeclaration>;
+
+    private static readonly InitialDivisionStyle = {
+      position: "absolute",
+      border: "none",
+      borderLeft: `${Handle.LineThickness}px solid currentColor`,
+      zIndex: "10000",
+    } satisfies Partial<CSSStyleDeclaration>;
+  }
+
+  class Connector {
+    public static Make() {
+      const parent = document.createElement("div");
+      parent.style.position = "absolute";
+      parent.style.overflow = "visible";
+      //set.css(element, Comment.InitialStyle, commentStyle);
+      parent.style.color = "red";
+      document.body.appendChild(parent);
+      const connector = mount(ElbowConnector, {
+        target: parent,
+        props: { parent },
+      }) as ElbowConnector;
+      return { element: parent, connector };
+    }
+
+    public static Destroy({
+      element,
+      connector,
+    }: ReturnType<typeof Connector.Make>) {
+      unmount(connector);
+      element.remove();
+    }
   }
 
   const adjustIndicatorsToBounds = (
@@ -219,17 +336,6 @@
     }
     return result;
   };
-
-  function worldifyAndRemoveUnkeyed(
-    boxes: MaybeKeyed<BoundingBox>[],
-    origin: DOMRect,
-  ): asserts boxes is Keyed<BoundingBox>[] {
-    for (let i = boxes.length - 1; i >= 0; i--) {
-      const box = boxes[i];
-      if (!box.key) boxes.splice(i, 1);
-      else worldify(box, origin);
-    }
-  }
 </script>
 
 <script lang="ts">
@@ -242,25 +348,14 @@
   import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
   import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
   import type { Maybe } from "$lib/utils/index.js";
-  import worker from "./worker?worker";
-  import type { Input, Output } from "./worker.js";
+  import type { Input, Handle as THandle } from "./worker.js";
+  import { ThreadedLayout } from "./threading.js";
 
   let { content, inMs, outMs }: Props = $props();
 
   let isVisible = $state(false);
 
-  const layoutWorker = new worker();
-  let pendingLayout: Promise<Output> | undefined;
-
-  const layout = async (input: Input) => {
-    if (pendingLayout) await pendingLayout;
-    layoutWorker.postMessage(input);
-    pendingLayout = new Promise(
-      (resolve) =>
-        (layoutWorker.onmessage = ({ data }) => resolve(data as Output)),
-    );
-    return pendingLayout;
-  };
+  const layout = new ThreadedLayout();
 
   export const visible = <AwaitComplete extends true | undefined = undefined>(
     condition: boolean,
@@ -277,58 +372,64 @@
   fillChars(content, chars);
 
   let container: HTMLDivElement;
+
   const indicators = new Array<ReturnType<typeof Indicator.Make>>();
   const comments = new Map<Key, ReturnType<typeof Comment.Make>>();
   const connectors = new Map<Key, ElbowConnector[]>();
+  const handles = new Array<ReturnType<typeof Handle.Make>>();
 
   let version = Number.MIN_SAFE_INTEGER;
 
   const annotate = async (annotations?: AnyAnnotation[]) => {
-    let current = ++version;
     const indicatorLength = indicators.length;
+    const verticalOffset = (annotations?.length ?? 0) * 10 + 10;
 
     let origin: Maybe<DOMRect>;
     let indicatorResult: Maybe<ReturnType<typeof sortAndAssign>>;
-    let boxes: Maybe<MaybeKeyed<Indexed<BoundingBox>>[]>;
+    let iBoxes: Maybe<Input["indicators"]>;
+    let cBoxes: Maybe<Input["comments"]>;
     let keys: Maybe<Set<Key>>;
 
     if (annotations) {
       origin ??= container.getBoundingClientRect();
-      boxes ??= [];
+      iBoxes ??= [];
+      cBoxes ??= new Array(annotations.length);
 
-      for (let noteIndex = 0; noteIndex < annotations.length; noteIndex++) {
-        const { range, key } = annotations[noteIndex];
+      for (let aIndex = 0; aIndex < annotations.length; aIndex++) {
+        const annotation = annotations[aIndex];
+        const { range, key } = annotation;
 
-        let boxIndex: number;
+        (keys ??= new Set()).add(key);
+
+        let bIndex: number;
 
         if (isIndex(range)) continue;
         else if (isSingleRange(range)) {
-          boxIndex = appendLocalBoundsOfRange(boxes, range, origin, chars);
+          bIndex = appendLocalBoundsOfRange(iBoxes, range, origin, chars);
         } else
           for (let rangeIndex = 0; rangeIndex < range.length; rangeIndex++) {
             const r = range[rangeIndex];
-            const index = appendLocalBoundsOfRange(boxes, r, origin, chars);
-            if (rangeIndex === 0) boxIndex = index;
+            const index = appendLocalBoundsOfRange(iBoxes, r, origin, chars);
+            if (rangeIndex === 0) bIndex = index;
           }
 
-        for (let i = boxIndex!; i < boxes.length; i++)
-          boxes[i].index = noteIndex;
+        for (let i = bIndex!; i < iBoxes.length; i++) iBoxes[i].index = aIndex;
 
-        if (!key) continue;
-
-        for (let i = boxIndex!; i < boxes.length; i++) boxes[i].key = key;
-
-        (keys ??= new Set()).add(key);
-        const keyed = annotations[noteIndex] as AnyKeyedAnnotation;
         let comment = comments.get(key);
-        if (!comment) comments.set(key, (comment = Comment.Make(keyed)));
-        comment.left = origin.x + xCenter(boxes, boxIndex!) - comment.width / 2;
-        comment.top = origin.y - Comment.VerticalOffset - comment.height;
+        if (!comment) comments.set(key, (comment = Comment.Make(annotation)));
+        Comment.Update(
+          comment,
+          verticalOffset,
+          xCenter(iBoxes, bIndex!),
+          origin,
+          aIndex,
+        );
+        cBoxes[aIndex] = Comment.CloneForLayout(comment);
       }
 
       indicatorResult = adjustIndicatorsToBounds(
         annotations,
-        boxes,
+        iBoxes,
         indicators,
         container,
       );
@@ -340,36 +441,44 @@
       Indicator.Destroy(removed);
     }
 
-    let commentBoxes: Maybe<Keyed<BoundingBox>[]>;
-    for (const [key, comment] of comments.entries())
-      if (keys?.has(key))
-        (commentBoxes ??= []).push(Comment.CloneForLayout(comment));
-      else {
-        comments.delete(key);
-        Comment.Destroy(comment);
-      }
+    for (const [key, comment] of comments.entries()) {
+      if (keys?.has(key)) continue;
+      comments.delete(key!);
+      Comment.Destroy(comment);
+    }
 
-    if (!commentBoxes || !origin || !boxes) return;
+    for (const handle of handles) Handle.Destroy(handle);
 
-    worldifyAndRemoveUnkeyed(boxes, origin);
+    if (iBoxes?.length === 0) return;
 
-    const layoutResult = await layout({
+    if (!origin || !cBoxes || !iBoxes || !annotations) return;
+
+    for (const box of iBoxes) worldify(box, origin);
+
+    let current = ++version;
+    const stale = () => current !== version;
+
+    const msg = await layout.compute({
       width: window.screen.width,
-      height: origin.y - Comment.VerticalOffset,
-      comments: commentBoxes,
-      indicators: boxes,
+      height: origin.y - verticalOffset,
+      comments: cBoxes,
+      indicators: iBoxes,
     });
 
-    if (current !== version) return;
+    const _comments = await msg(0);
+    if (stale()) return;
 
-    for (const { key, left, top } of layoutResult.comments) {
+    for (const layout of _comments) {
+      const { key } = annotations[layout.index];
       const comment = comments.get(key)!;
-      if (comment.firstRender) Comment.StartAnimating(comment.element);
-      comment.element.style.opacity = "1";
-      comment.element.style.left = `${left}px`;
-      comment.element.style.top = `${top}px`;
-      comment.firstRender = false;
+      Comment.ApplyLayout(comment, layout);
     }
+
+    const _handles = await msg(1);
+    if (stale()) return;
+
+    for (const handle of _handles)
+      handles.push(Handle.Make(handle, origin, annotations[handle.index]));
   };
 
   const pending = {
@@ -423,7 +532,10 @@
 
   export const dispose = () => {
     for (const indicator of indicators) Indicator.Destroy(indicator);
+    indicators.length = 0;
     for (const comment of comments.values()) Comment.Destroy(comment);
+    comments.clear();
+    connectors.clear();
     clearPending();
   };
 </script>
@@ -435,16 +547,21 @@
   style:transition-duration={!isVisible ? `${outMs}ms` : `${inMs}ms`}
   class:opacity-100={isVisible}
   class:opacity-0={!isVisible}
-  class="absolute left-0 top-0 xterm-rows text-neutral-600"
+  class="absolute left-0 bottom-0 xterm-rows text-neutral-600 max-w-full h-fit"
 >
   <span> <!-- space for left margin, same as how xterm does it --></span>
   {#each content as char, index (index)}
+    <!-- svelte-ignore binding_property_non_reactive -->
     <span bind:this={chars[index]}>{char}</span>{/each}
 </div>
 
 <style>
+  div {
+    white-space: pre-wrap !important;
+  }
+
   span {
-    display: contents;
+    display: inline-block;
     font-style: normal;
     transform: skewX(-15deg); /* apply visual skew */
     z-index: 2;

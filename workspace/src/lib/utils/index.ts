@@ -65,7 +65,7 @@ export type OnClick<T extends HTMLElement = HTMLButtonElement> = MouseEventHandl
 
 export type OnlyRequire<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;
 
-let creationContainer = document.body;
+let creationContainer: Maybe<HTMLElement>;
 
 export const setCreationContainer = (parent: HTMLElement) => creationContainer = parent;
 
@@ -74,7 +74,7 @@ export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLEle
   element.style.position = "fixed";
   element.style.top = `${clientY}px`;
   element.style.left = `${clientX}px`;
-  return (parent ?? creationContainer).appendChild(element);
+  return (parent ?? creationContainer ?? document.body).appendChild(element);
 }
 
 export const fixToTopLeftCorner = (element: HTMLElement, attributes?: Partial<CSSStyleDeclaration>) => {
@@ -86,7 +86,7 @@ export const fixToTopLeftCorner = (element: HTMLElement, attributes?: Partial<CS
   fixed.style.width = `${width}px`;
   fixed.style.height = `${height}px`;
   if (attributes) Object.assign(fixed.style, attributes);
-  return creationContainer.appendChild(fixed);
+  return (creationContainer ?? document.body).appendChild(fixed);
 }
 
 export const fixToBottomLeftCorner = (element: HTMLElement, attributes?: Partial<CSSStyleDeclaration>) => {
@@ -98,7 +98,7 @@ export const fixToBottomLeftCorner = (element: HTMLElement, attributes?: Partial
   fixed.style.width = `${width}px`;
   fixed.style.height = `${height}px`;
   if (attributes) Object.assign(fixed.style, attributes);
-  return creationContainer.appendChild(fixed);
+  return (creationContainer ?? document.body).appendChild(fixed);
 }
 
 export const removeFirstInstance = (str: string, instance: string) => {
@@ -207,8 +207,31 @@ export const findOverflowAncestor = (
   return null;           // nothing is clipping
 }
 
+export class Timer {
+  private stamp: number;
+
+  constructor(private log: boolean) {
+    this.stamp = performance.now();
+  }
+
+  public checkpoint(message: string) {
+    const now = performance.now();
+    if (this.log) console.log(message, `${(now - this.stamp).toFixed(2)}ms`);
+    this.stamp = now;
+  }
+
+  public get elapsed() {
+    return performance.now() - this.stamp;
+  }
+}
+
 export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
 export type Prettify<T> = { [K in keyof T]: T[K] } & {};
 export type Maybe<T> = T | undefined;
+export type Last<T extends any[]> = T extends [...infer _, infer Last] ? Last : never;
+export type LastIndex<T extends readonly unknown[]> =
+  T extends [...infer Rest, unknown]
+  ? Rest['length']
+  : never;
 
 export type NotOptionalIf<T, Condition extends boolean> = Condition extends true ? T : T | undefined;
