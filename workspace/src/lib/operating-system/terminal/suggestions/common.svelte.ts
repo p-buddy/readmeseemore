@@ -58,4 +58,11 @@ export const set = {
     if (css?.class) set.class(element, css.class);
     if (css?.variables) set.variables(element, css.variables);
   },
+  tryCss: (element: HTMLElement, css?: CSS,) => {
+    if (css?.style) set.style(element, css.style);
+    if (css?.class) set.class(element, css.class);
+    if (css?.variables) set.variables(element, css.variables);
+  }
 };
+
+export type AnyAnnotation = SuggestionAnnotation<any>;

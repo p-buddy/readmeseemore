@@ -39,7 +39,10 @@ const tempKey = <K extends string>(key: K) => `_${key}` as K;
 
 const preserve = (box: InputBox) => {
   for (const key in preserveKey)
-    if (preserved(key)) box[tempKey(key)] = box[key];
+    if (preserved(key)) {
+      box[tempKey(key)] = box[key];
+      delete box[key];
+    }
 }
 
 const restore = (box: InputBox) => {
@@ -138,7 +141,8 @@ const step = (
   serialized: Float32Array,
   serializedIndex: number,
 ) => {
-  layout.start(1, 1, 1);
+  // For some reason, (2, 2, 2) is the fastest configuration.
+  layout.start(2, 2, 2);
 
   let minLeft = Infinity;
   let maxRight = -Infinity;
@@ -180,7 +184,7 @@ const step = (
 
 /**
  * Problematic phrases:
- * - "e ;/ eae " toggling the final space takes almost 1s to compute
+ * - "e ;/ eae " toggling the final space takes almost 1s to compute when `layout.start(1, 1, 1);` (second iteration)
  */
 export const computeLayoutInPlace = (
   width: number, height: number, boxes: InputBox[]

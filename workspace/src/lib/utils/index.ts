@@ -69,6 +69,8 @@ let creationContainer: Maybe<HTMLElement>;
 
 export const setCreationContainer = (parent: HTMLElement) => creationContainer = parent;
 
+export const px = (value: number) => `${value}px`;
+
 export const createAtEvent = ({ clientX, clientY }: MouseEvent, parent?: HTMLElement) => {
   const element = document.createElement("div");
   element.style.position = "fixed";

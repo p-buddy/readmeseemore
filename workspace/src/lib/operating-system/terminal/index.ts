@@ -83,6 +83,7 @@ export default class {
   private element?: HTMLElement;
   private viewport?: HTMLElement;
   private screen?: HTMLElement;
+  private suggestion?: TerminalSuggestion;
 
   public fade(direction: "in" | "out", duration: number) {
     this.element!.style.opacity = direction === "in" ? "1" : "0";
@@ -184,7 +185,8 @@ export default class {
     content: string,
     fadeIn = true,
     visible = true,
-    cb?: (payload: Required<TerminalSuggestion>) => void) {
+    cb?: (payload: Required<TerminalSuggestion>) => void
+  ) {
     const decoration = this.xterm.registerDecoration({
       marker: this.xterm.registerMarker(0),
       x: 1,
@@ -193,13 +195,20 @@ export default class {
     });
     if (!decoration) return;
     let hault = false;
-    const dispose = () => (hault = true, decoration.dispose());
 
-    const payload: TerminalSuggestion = { dispose };
+    this.suggestion?.dispose();
+    const payload: TerminalSuggestion = {
+      dispose: () => {
+        hault = true;
+        decoration.dispose();
+        if (this.suggestion === payload) this.suggestion = undefined;
+      }
+    }
+
+    this.suggestion = payload;
 
     decoration.onRender((target) => {
       if (hault) return;
-      console.log(target.getBoundingClientRect().width)
       hault = true;
       const inMs = fadeIn ? 300 : 50;
       const props: SuggestionProps = { content, inMs, outMs: 400 };
@@ -216,6 +225,7 @@ export default class {
       payload.dispose = () => {
         suggestion.dispose();
         suggestion.visible(false, true).then(remove);
+        if (this.suggestion === payload) this.suggestion = undefined;
       };
       cb?.(payload as Required<TerminalSuggestion>);
     });

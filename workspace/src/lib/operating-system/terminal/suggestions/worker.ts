@@ -48,7 +48,7 @@ export const computeLayout = (
   { width, height, comments, indicators }: Input,
   send: <T extends OutputIndex>(index: T & number, data: Output[T]) => void
 ) => {
-  const timer = new Timer(true);
+  const timer = new Timer(false);
 
   computeLayoutInPlace(width, height, comments);
   timer.checkpoint("computeLayoutInPlace");

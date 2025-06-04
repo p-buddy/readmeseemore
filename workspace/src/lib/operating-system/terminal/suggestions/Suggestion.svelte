@@ -1,20 +1,12 @@
 <script lang="ts" module>
-  import {
-    type BoundingBox,
-    isIndex,
-    resize,
-    worldify,
-    xCenter,
-  } from "./math.js";
+  import { type BoundingBox, isIndex, worldify, xCenter } from "./math.js";
   import {
     type AnnotationDelay,
     type Indexed,
     type Key,
-    type Keyed,
-    type MaybeKeyed,
     type SuggestionAnnotation,
-    set,
   } from "./common.svelte.js";
+  import { Indicator, Comment, Handle, type Made } from "./elements.js";
 
   export type Props = {
     inMs: number;
@@ -32,287 +24,6 @@
       chars.push(undefined as T);
     chars.length = content.length;
   };
-
-  const transition = (durationMs: number, ...keys: string[]) =>
-    keys.map((key) => `${key} ${durationMs}ms ease`).join(", ");
-
-  class Indicator {
-    static Highlight = class {
-      public static Resize({ style }: HTMLElement, bbox: BoundingBox) {
-        const shrink = 2;
-        const width = Math.max(bbox.width - shrink - 1, 0.5);
-        const left = bbox.left + shrink;
-        resize(style, bbox, { width, left });
-        style.maskImage =
-          width > 2
-            ? "linear-gradient(to right, transparent 0px, black 2px, black calc(100% - 2px), transparent 100%)"
-            : "linear-gradient(to right, transparent, black 40%, black 60%, transparent)";
-      }
-    };
-
-    public static Resize(
-      element: HTMLElement,
-      { kind }: AnyAnnotation,
-      bbox: BoundingBox,
-    ) {
-      switch (kind) {
-        case "highlight":
-          Indicator.Highlight.Resize(element, bbox);
-          break;
-        case "top-hook":
-          resize(element.style, bbox);
-          break;
-      }
-    }
-
-    public static Make(
-      container: HTMLDivElement,
-      annotation: AnyAnnotation,
-      bbox: BoundingBox,
-    ) {
-      const element = document.createElement("div");
-      set.style(element, Indicator.InitialStyle);
-      Indicator.Resize(element, annotation, bbox);
-      container.appendChild(element);
-      return element;
-    }
-
-    public static Destroy(element: HTMLElement) {
-      element.style.opacity = "0";
-      setTimeout(() => element.remove(), Indicator.DurationMs);
-    }
-
-    public static Style(
-      element: HTMLElement,
-      { indicator, kind }: AnyAnnotation,
-    ) {
-      set.css(element, Indicator.DefaultStylesByKind[kind], indicator);
-    }
-
-    private static readonly DurationMs = 300;
-
-    private static readonly InitialStyle = {
-      position: "absolute",
-      transform: "skewX(-15deg)",
-      backgroundColor: "transparent",
-      borderRadius: "0.2rem",
-      opacity: "0",
-      transition: transition(
-        Indicator.DurationMs,
-        "opacity",
-        "left",
-        "width",
-        "background-color",
-      ),
-    } satisfies Partial<CSSStyleDeclaration>;
-
-    private static readonly DefaultStylesByKind = {
-      highlight: {
-        opacity: "0.4",
-        backgroundColor: "white",
-      },
-      "top-hook": {
-        opacity: "1",
-      },
-    } satisfies Record<AnyAnnotation["kind"], Partial<CSSStyleDeclaration>>;
-  }
-
-  class Comment {
-    public static Make({ comment, props, key, commentStyle }: AnyAnnotation) {
-      const element = document.createElement("div");
-      set.css(element, Comment.InitialStyle, commentStyle);
-      document.body.appendChild(element);
-      const renderer = mount(SnippetRenderer, {
-        target: element,
-        props: {
-          snippet: comment,
-          props,
-        },
-      });
-      const { width, height } = element.getBoundingClientRect();
-      return {
-        key,
-        element,
-        renderer,
-        width,
-        height,
-        firstRender: true,
-        left: Number.NaN,
-        top: Number.NaN,
-        index: Number.NaN,
-      };
-    }
-
-    public static Update(
-      comment: ReturnType<typeof Comment.Make>,
-      verticalOffset: number,
-      localCenterX: number,
-      { x, y }: DOMRect,
-      index: number,
-    ) {
-      comment.left = x + localCenterX - comment.width / 2;
-      comment.top = y - verticalOffset - comment.height;
-      comment.index = index;
-    }
-
-    public static Destroy({
-      element,
-      renderer,
-    }: ReturnType<typeof Comment.Make>) {
-      element.style.opacity = "0";
-      setTimeout(
-        () => (unmount(renderer), element.remove()),
-        Comment.DurationMs,
-      );
-    }
-
-    public static CloneForLayout = ({
-      left,
-      top,
-      width,
-      height,
-      index,
-    }: ReturnType<typeof Comment.Make>) => ({
-      left,
-      top,
-      width,
-      height,
-      index,
-    });
-
-    static readonly DurationMs = 500;
-
-    private static readonly InitialStyle = {
-      position: "absolute",
-      opacity: "0",
-      whiteSpace: "normal",
-      width: "fit-content",
-      height: "fit-content",
-      zIndex: "10000",
-      transition: transition(Comment.DurationMs, "opacity"),
-    } satisfies Partial<CSSStyleDeclaration>;
-
-    static readonly AnimateOnNext = ({
-      element: { style },
-    }: ReturnType<typeof Comment.Make>) => {
-      requestAnimationFrame(() => {
-        style.transition = transition(
-          Comment.DurationMs,
-          "opacity",
-          "left",
-          "top",
-        );
-      });
-    };
-
-    static readonly ApplyLayout = (
-      comment: ReturnType<typeof Comment.Make>,
-      { left, top }: BoundingBox,
-    ) => {
-      if (comment.firstRender) Comment.AnimateOnNext(comment);
-      comment.element.style.opacity = "1";
-      comment.element.style.left = `${left}px`;
-      comment.element.style.top = `${top}px`;
-      comment.firstRender = false;
-    };
-  }
-
-  class Handle {
-    public static Make(
-      { left, right, topOffset, divisions }: THandle,
-      { y }: DOMRect,
-      { connector }: AnyAnnotation,
-    ) {
-      const top = y - topOffset;
-      const width = right - left;
-
-      const bar = document.createElement("div");
-
-      set.css(bar, Handle.InitialStyle, connector);
-
-      bar.style.left = `${left}px`;
-      bar.style.top = `${top}px`;
-      bar.style.width = `${width}px`;
-      bar.style.height = `${topOffset}px`;
-      if (divisions.length === 1) bar.style.borderRight = "none";
-
-      for (let i = 0; i < divisions.length; i++) {
-        const division = divisions[i];
-        const isEdge = i === 0 || i === divisions.length - 1;
-        if (isEdge && division.top === top) continue;
-        const tooth = document.createElement("div");
-        set.css(tooth, Handle.InitialDivisionStyle);
-        if (isEdge) {
-          tooth.style.height = `${division.top - top - topOffset}px`;
-          tooth.style.top = `${Handle.LineThickness + topOffset}px`;
-          tooth.style.transform = `translateY(${-Handle.CornerRadius}px)`;
-          const shift = `${-Handle.LineThickness}px`;
-          i === 0 ? (tooth.style.left = shift) : (tooth.style.right = shift);
-        } else {
-          tooth.style.height = `${division.top - top}px`;
-          tooth.style.top = `${Handle.CornerRadius}px`;
-          tooth.style.transform = `translate(${-Handle.LineThickness / 2}px, ${-Handle.CornerRadius}px)`;
-          tooth.style.left = `${division.x}px`;
-        }
-
-        bar.appendChild(tooth);
-      }
-
-      document.body.appendChild(bar);
-      return bar;
-    }
-
-    public static Destroy(element: HTMLElement) {
-      element.remove();
-    }
-
-    private static readonly LineThickness = 2;
-    private static readonly CornerRadius = 4;
-
-    private static readonly InitialStyle = {
-      position: "absolute",
-      boxSizing: "border-box",
-      borderTop: `${Handle.LineThickness}px solid currentColor`,
-      borderLeft: `${Handle.LineThickness}px solid currentColor`,
-      borderRight: `${Handle.LineThickness}px solid currentColor`,
-      borderBottom: "none",
-      borderTopLeftRadius: `${Handle.CornerRadius}px`,
-      borderTopRightRadius: `${Handle.CornerRadius}px`,
-      background: "transparent",
-      overflow: "visible",
-    } satisfies Partial<CSSStyleDeclaration>;
-
-    private static readonly InitialDivisionStyle = {
-      position: "absolute",
-      border: "none",
-      borderLeft: `${Handle.LineThickness}px solid currentColor`,
-      zIndex: "10000",
-    } satisfies Partial<CSSStyleDeclaration>;
-  }
-
-  class Connector {
-    public static Make() {
-      const parent = document.createElement("div");
-      parent.style.position = "absolute";
-      parent.style.overflow = "visible";
-      //set.css(element, Comment.InitialStyle, commentStyle);
-      parent.style.color = "red";
-      document.body.appendChild(parent);
-      const connector = mount(ElbowConnector, {
-        target: parent,
-        props: { parent },
-      }) as ElbowConnector;
-      return { element: parent, connector };
-    }
-
-    public static Destroy({
-      element,
-      connector,
-    }: ReturnType<typeof Connector.Make>) {
-      unmount(connector);
-      element.remove();
-    }
-  }
 
   const adjustIndicatorsToBounds = (
     annotations: AnyAnnotation[],
@@ -339,16 +50,15 @@
 </script>
 
 <script lang="ts">
-  import { mount, tick, unmount } from "svelte";
+  import { tick } from "svelte";
   import {
     appendLocalBoundsOfRange,
     sortAndAssign,
     isSingleRange,
   } from "./math.js";
-  import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
   import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
-  import type { Maybe } from "$lib/utils/index.js";
-  import type { Input, Handle as THandle } from "./worker.js";
+  import { type Maybe } from "$lib/utils/index.js";
+  import type { Input } from "./worker.js";
   import { ThreadedLayout } from "./threading.js";
 
   let { content, inMs, outMs }: Props = $props();
@@ -373,10 +83,10 @@
 
   let container: HTMLDivElement;
 
-  const indicators = new Array<ReturnType<typeof Indicator.Make>>();
-  const comments = new Map<Key, ReturnType<typeof Comment.Make>>();
+  const indicators = new Array<Made<typeof Indicator>>();
+  const comments = new Map<Key, Made<typeof Comment>>();
   const connectors = new Map<Key, ElbowConnector[]>();
-  const handles = new Array<ReturnType<typeof Handle.Make>>();
+  const handles = new Map<Key, Made<typeof Handle>>();
 
   let version = Number.MIN_SAFE_INTEGER;
 
@@ -441,17 +151,27 @@
       Indicator.Destroy(removed);
     }
 
-    for (const [key, comment] of comments.entries()) {
+    for (const [key, comment] of comments) {
       if (keys?.has(key)) continue;
-      comments.delete(key!);
+      comments.delete(key);
       Comment.Destroy(comment);
     }
 
-    for (const handle of handles) Handle.Destroy(handle);
+    const handlePool = new Array<Made<typeof Handle>>();
+    const emptyHandlePool = () => {
+      for (const handle of handlePool) Handle.Destroy(handle);
+      handlePool.length = 0;
+    };
 
-    if (iBoxes?.length === 0) return;
+    for (const [key, handle] of handles) {
+      if (keys?.has(key)) continue;
+      handles.delete(key);
+      handlePool.push(handle);
+    }
 
-    if (!origin || !cBoxes || !iBoxes || !annotations) return;
+    if (iBoxes?.length === 0) return emptyHandlePool();
+
+    if (!origin || !cBoxes || !iBoxes || !annotations) return emptyHandlePool();
 
     for (const box of iBoxes) worldify(box, origin);
 
@@ -466,7 +186,7 @@
     });
 
     const _comments = await msg(0);
-    if (stale()) return;
+    if (stale()) return emptyHandlePool();
 
     for (const layout of _comments) {
       const { key } = annotations[layout.index];
@@ -475,10 +195,22 @@
     }
 
     const _handles = await msg(1);
-    if (stale()) return;
+    if (stale()) return emptyHandlePool();
 
-    for (const handle of _handles)
-      handles.push(Handle.Make(handle, origin, annotations[handle.index]));
+    for (const handle of _handles) {
+      const annotation = annotations[handle.index];
+      const existing = handles.get(annotation.key);
+      if (existing) Handle.Update(handle, origin, existing, annotation);
+      else if (handlePool.length === 0)
+        handles.set(annotation.key, Handle.Make(handle, origin, annotation));
+      else {
+        const pooled = handlePool.pop()!;
+        Handle.Update(handle, origin, pooled, annotation);
+        handles.set(annotation.key, pooled);
+      }
+    }
+
+    emptyHandlePool();
   };
 
   const pending = {
@@ -535,6 +267,8 @@
     indicators.length = 0;
     for (const comment of comments.values()) Comment.Destroy(comment);
     comments.clear();
+    for (const handle of handles.values()) Handle.Destroy(handle);
+    handles.clear();
     connectors.clear();
     clearPending();
   };
