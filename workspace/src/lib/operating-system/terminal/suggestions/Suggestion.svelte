@@ -1,5 +1,12 @@
 <script lang="ts" module>
-  import { type BoundingBox, isIndex, worldify, xCenter } from "./math.js";
+  import {
+    type BoundingBox,
+    cloneToBoundingBox,
+    isIndex,
+    type SingleOrArray,
+    worldify,
+    xCenter,
+  } from "./math.js";
   import {
     type AnnotationDelay,
     type Indexed,
@@ -90,9 +97,17 @@
 
   let version = Number.MIN_SAFE_INTEGER;
 
-  const annotate = async (annotations?: AnyAnnotation[]) => {
+  const annotate = async (
+    annotations?: AnyAnnotation[],
+    restricted?: SingleOrArray<DOMRect>,
+  ) => {
     const indicatorLength = indicators.length;
-    const verticalOffset = (annotations?.length ?? 0) * 10 + 10;
+    const padding = {
+      top: (annotations?.length ?? 0) * 10 + 10,
+      bottom: 10,
+      left: 10,
+      right: 10,
+    };
 
     let origin: Maybe<DOMRect>;
     let indicatorResult: Maybe<ReturnType<typeof sortAndAssign>>;
@@ -129,7 +144,7 @@
         if (!comment) comments.set(key, (comment = Comment.Make(annotation)));
         Comment.Update(
           comment,
-          verticalOffset,
+          padding.top,
           xCenter(iBoxes, bIndex!),
           origin,
           aIndex,
@@ -178,11 +193,21 @@
     let current = ++version;
     const stale = () => current !== version;
 
+    const body = document.body.getBoundingClientRect();
+    const restrictedAreas = [cloneToBoundingBox(origin, padding)];
+    if (restricted)
+      if (Array.isArray(restricted))
+        for (const rect of restricted)
+          restrictedAreas.push(cloneToBoundingBox(rect));
+      else restrictedAreas.push(cloneToBoundingBox(restricted));
+
+    const { width, height } = body;
     const msg = await layout.compute({
-      width: window.screen.width,
-      height: origin.y - verticalOffset,
+      width,
+      height,
       comments: cBoxes,
       indicators: iBoxes,
+      restricted: restrictedAreas,
     });
 
     const _comments = await msg(0);
@@ -229,11 +254,12 @@
   export const update = <T,>(
     _content: string,
     annotations?: SuggestionAnnotation<T>[],
+    restricted?: SingleOrArray<DOMRect>,
     delay?: AnnotationDelay,
   ) => {
     content = _content;
     fillChars(content, chars);
-    const fire = () => annotate(annotations as AnyAnnotation[]);
+    const fire = () => annotate(annotations, restricted);
 
     if (!delay) {
       clearPending();

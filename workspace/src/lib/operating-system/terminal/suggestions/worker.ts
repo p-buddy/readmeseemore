@@ -22,6 +22,7 @@ export type Input = {
   width: number;
   height: number;
   comments: Indexed<BoundingBox>[];
+  restricted: BoundingBox[];
   indicators: Indexed<BoundingBox>[];
 }
 
@@ -45,12 +46,12 @@ const overlaps = (a: Handle, b: Handle) =>
 const offsetResolution = 8;
 
 export const computeLayout = (
-  { width, height, comments, indicators }: Input,
+  { width, height, comments, indicators, restricted }: Input,
   send: <T extends OutputIndex>(index: T & number, data: Output[T]) => void
 ) => {
   const timer = new Timer(false);
 
-  computeLayoutInPlace(width, height, comments);
+  computeLayoutInPlace(width, height, comments, restricted);
   timer.checkpoint("computeLayoutInPlace");
 
   send(0, comments);
@@ -101,6 +102,8 @@ export const computeLayout = (
   timer.checkpoint("overlaps");
 
   send(1, handles);
+
+  // figure out where to position the connectors
 
   send(2 satisfies LastIndex<Output>, true);
 }

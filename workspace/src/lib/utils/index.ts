@@ -216,9 +216,9 @@ export class Timer {
     this.stamp = performance.now();
   }
 
-  public checkpoint(message: string) {
+  public checkpoint(message: string, override = false) {
     const now = performance.now();
-    if (this.log) console.log(message, `${(now - this.stamp).toFixed(2)}ms`);
+    if (override || this.log) console.log(message, `${(now - this.stamp).toFixed(2)}ms`);
     this.stamp = now;
   }
 

@@ -433,7 +433,8 @@
   {#snippet escaping()}
     <span class="italic">Escaping</span> is the process of adding a backslash ({@render code(
       "\\",
-    )}) before a character to make it lose its special meaning. For example, {@render code(
+    )}) before a character to make it lose its special meaning. For example,
+    escaping the {@render code("&")} (ampersand) in an open command looks like: {@render code(
       'open "pb\\&j"',
     )}.
   {/snippet}

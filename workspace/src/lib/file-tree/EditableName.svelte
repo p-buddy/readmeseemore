@@ -13,6 +13,7 @@
   export type EditStatus = "valid" | "invalid" | "unsafe";
   type EditCallback = (
     value: string,
+    rect: DOMRect,
     done?: true,
   ) => EditStatus | Promise<EditStatus>;
   type EditOptions = Pick<Item["editing"], "caretIndex" | "override"> & {
@@ -73,6 +74,7 @@
   let input = $state<HTMLInputElement>();
   let highlighted = $state(false);
   let status = $state<EditStatus>();
+  const inputRect = $derived(input?.getBoundingClientRect());
   const value = $derived(item.editing.override ?? item.name);
   const caretIndex = $derived(item.editing.caretIndex ?? item.name.length);
 
@@ -85,13 +87,13 @@
 
   const updateEditStatus = (value: string) => {
     if (!editCallback) return (status = "valid");
-    const result = editCallback?.(value);
+    const result = editCallback?.(value, inputRect!);
     if (result instanceof Promise) result.then((s) => (status = s));
     else status = result;
   };
 
   const notifyDoneEditing = (value: string) => {
-    editCallback?.(value, true);
+    editCallback?.(value, inputRect!, true);
     editCallback = undefined;
   };
 

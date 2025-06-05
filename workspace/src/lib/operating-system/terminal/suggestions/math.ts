@@ -16,6 +16,18 @@ export const isSingleRange = (ranges: Ranges): ranges is Range =>
  */
 export type BoundingBox = Mutable<Pick<DOMRect, "left" | "top" | "width" | "height">>;
 
+export type Padding = Record<"top" | "bottom" | "left" | "right", number>;
+
+export const cloneToBoundingBox = ({ left, top, width, height }: DOMRect, padding?: Padding): BoundingBox =>
+  padding
+    ? ({
+      left: left - padding.left,
+      top: top - padding.top,
+      width: width + padding.left + padding.right,
+      height: height + padding.top + padding.bottom
+    })
+    : ({ left, top, width, height });
+
 export const float = (query: string | number) =>
   typeof query === "string" ? parseFloat(query) : query;
 

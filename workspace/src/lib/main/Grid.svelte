@@ -308,7 +308,7 @@
             nameEdit.begin(item, {
               override: item.name,
               caretIndex: item.name.split(".")[0].length,
-              callback: (value, done) => {
+              callback: (value, rect, done) => {
                 const desired = pathWithNewName(value, item);
                 const cmd = commands.mv(item.path, desired);
                 const { annotations, status } = checkFileNameAtLocation(
@@ -319,7 +319,7 @@
                 );
                 done
                   ? suggestion?.dispose()
-                  : suggestion?.exports?.update(cmd, annotations);
+                  : suggestion?.exports?.update(cmd, annotations, rect);
                 return status;
               },
             });
@@ -370,10 +370,15 @@
           let initial = true;
           nameEdit.begin(item, {
             override: "",
-            callback: async (value, done) => {
+            callback: async (value, rect, done) => {
               if (done) {
                 renameSuggestion?.dispose();
-                return checkFileNameAtLocation(value, item, tree.root).status;
+                const { status } = checkFileNameAtLocation(
+                  value,
+                  item,
+                  tree.root,
+                );
+                return status;
               }
               terminal ??= await getUserVisibleTerminal();
               renameSuggestion ??= terminal.suggest(
@@ -391,7 +396,7 @@
                     tree.root,
                     destinationIndexFromMv(cmd),
                   );
-              renameSuggestion?.exports?.update(cmd, check?.annotations);
+              renameSuggestion?.exports?.update(cmd, check?.annotations, rect);
               return check?.status ?? "valid";
             },
           });
