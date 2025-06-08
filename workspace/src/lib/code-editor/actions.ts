@@ -79,7 +79,8 @@ const highlight = {
 const inprogress = new Map<string, Promise<void>>();
 
 const ensurePackageExists = async ({ os }: Payload, pkg: string, dev = false) => {
-  if (inprogress.has(pkg)) return;
+  if (inprogress.has(pkg)) return inprogress.get(pkg)!;
+
   const check = new Promise<void>(async (resolve) => {
     const { container: { fs } } = os;
     if ((await exists(fs, "package.json", true))) {

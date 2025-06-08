@@ -48,7 +48,16 @@ export type Rename = (
   item: Pick<TTreeItem, "path" | "name" | "type" | "editing">,
 ) => void;
 
-export type WithRename = { rename: Rename };
+export type RenameStatus = "valid" | "invalid" | "unsafe";
+
+export type ValidateRenaming = (
+  item: Pick<TTreeItem, "path" | "name" | "type" | "editing">,
+  value: string,
+  rect: DOMRect,
+  done?: true,
+) => RenameStatus | Promise<RenameStatus>;
+
+export type WithRename = { rename: Rename, validate: ValidateRenaming };
 
 export type WithOnFile = Record<
   "onFileClick" | "onFileMouseEnter" | "onFileMouseLeave",

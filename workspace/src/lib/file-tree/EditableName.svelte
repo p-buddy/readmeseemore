@@ -1,7 +1,11 @@
 <script lang="ts" module>
   import { TooltipSingleton } from "$lib/utils/tooltip.js";
   import NameOverflowTip from "./NameOverflow.svelte";
-  import { focusColor, type WithRename } from "./common.svelte.js";
+  import {
+    focusColor,
+    type RenameStatus,
+    type WithRename,
+  } from "./common.svelte.js";
 
   const tooltip = new TooltipSingleton(NameOverflowTip);
 
@@ -10,16 +14,6 @@
   );
 
   type Item = Parameters<WithRename["rename"]>[1];
-  export type EditStatus = "valid" | "invalid" | "unsafe";
-  type EditCallback = (
-    value: string,
-    rect: DOMRect,
-    done?: true,
-  ) => EditStatus | Promise<EditStatus>;
-  type EditOptions = Pick<Item["editing"], "caretIndex" | "override"> & {
-    callback?: EditCallback;
-    validate?: (value: string) => boolean;
-  };
 
   const set = (
     item: Item,
@@ -32,19 +26,15 @@
     item.editing.caretIndex = caretIndex;
   };
 
-  const editCallbacks = new Map<Item, EditCallback>();
-
   export const nameEdit = {
     begin: (
       item: Item,
       {
         caretIndex = undefined,
         override = undefined,
-        callback,
-      }: EditOptions = {},
+      }: Pick<Item["editing"], "caretIndex" | "override"> = {},
     ) => {
       set(item, true, override, caretIndex);
-      if (callback) editCallbacks.set(item, callback);
     },
     /**
      * @description Exits the edit mode (WITHOUT saving)
@@ -69,11 +59,11 @@
     boost,
   } from "$lib/utils/colors.js";
 
-  let { item, rename }: WithRename & { item: Item } = $props();
+  let { item, rename, validate }: WithRename & { item: Item } = $props();
 
   let input = $state<HTMLInputElement>();
   let highlighted = $state(false);
-  let status = $state<EditStatus>();
+  let status = $state<RenameStatus>();
   const inputRect = $derived(input?.getBoundingClientRect());
   const value = $derived(item.editing.override ?? item.name);
   const caretIndex = $derived(item.editing.caretIndex ?? item.name.length);
@@ -83,24 +73,18 @@
     highlighted = setting;
   };
 
-  let editCallback: EditCallback | undefined;
-
   const updateEditStatus = (value: string) => {
-    if (!editCallback) return (status = "valid");
-    const result = editCallback?.(value, inputRect!);
+    const result = validate?.(item, value, inputRect!);
     if (result instanceof Promise) result.then((s) => (status = s));
     else status = result;
   };
 
   const notifyDoneEditing = (value: string) => {
-    editCallback?.(value, inputRect!, true);
-    editCallback = undefined;
+    validate?.(item, value, inputRect!, true);
   };
 
   $effect(() => {
     if (!item.editing.condition) return;
-    editCallback = editCallbacks.get(item);
-    editCallbacks.delete(item);
     updateEditStatus(value);
   });
 

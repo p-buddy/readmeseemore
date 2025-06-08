@@ -66,14 +66,22 @@ class CommandQueue {
 
 type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
 
-export type TerminalSuggestion = IDisposable & { exports?: Exports<typeof Suggestion> };
+export type TerminalSuggestion = IDisposable & { exports?: Exports<typeof Suggestion>, pinned?: boolean };
+
+type TerminalSuggestionOptions = {
+  fadeIn?: boolean;
+  visible?: boolean;
+  callback?: (payload: Required<TerminalSuggestion>) => void;
+  pin?: boolean;
+}
 
 let count = 0;
 
 export default class {
   public readonly id: string;
 
-  private executing: boolean = false;
+  private _executing: boolean = false;
+  private _doneExecuting?: Deferred<typeof this>;
   private receiving: boolean = false;
   private forceClear: boolean = false;
   private delayScrollDown: boolean = false;
@@ -100,6 +108,15 @@ export default class {
     return this._inputReady.promise;
   }
 
+  public get executing() {
+    return this._executing;
+  }
+
+  public set executing(value: boolean) {
+    this._executing = value;
+    if (!value) this._doneExecuting?.resolve(this);
+  }
+
   public get userInput() {
     if (this.executing) return undefined;
     const { buffer: { active } } = this.xterm;
@@ -114,6 +131,12 @@ export default class {
 
   public get isExecuting() {
     return this.executing;
+  }
+
+  public get doneExecuting() {
+    if (!this.isExecuting) return Promise.resolve(this);
+    this._doneExecuting ??= defer<typeof this>();
+    return this._doneExecuting.promise;
   }
 
   private constructor(
@@ -183,10 +206,11 @@ export default class {
 
   public suggest(
     content: string,
-    fadeIn = true,
-    visible = true,
-    cb?: (payload: Required<TerminalSuggestion>) => void
+    { fadeIn = true, visible = true, callback, pin = false }: TerminalSuggestionOptions = {},
   ) {
+    if (this.suggestion?.pinned) return;
+    this.suggestion?.dispose();
+
     const decoration = this.xterm.registerDecoration({
       marker: this.xterm.registerMarker(0),
       x: 1,
@@ -196,8 +220,8 @@ export default class {
     if (!decoration) return;
     let hault = false;
 
-    this.suggestion?.dispose();
     const payload: TerminalSuggestion = {
+      pinned: pin,
       dispose: () => {
         hault = true;
         decoration.dispose();
@@ -227,15 +251,16 @@ export default class {
         suggestion.visible(false, true).then(remove);
         if (this.suggestion === payload) this.suggestion = undefined;
       };
-      cb?.(payload as Required<TerminalSuggestion>);
+      callback?.(payload as Required<TerminalSuggestion>);
     });
 
     return payload;
   }
 
-  public suggestAndWait(content: string, fadeIn = true, visible = true) {
+  public suggestAndWait(content: string, options: TerminalSuggestionOptions = {}) {
     return new Promise<Required<TerminalSuggestion>>((resolve) => {
-      this.suggest(content, fadeIn, visible, resolve);
+      options.callback = resolve;
+      this.suggest(content, options);
     });
   }
 

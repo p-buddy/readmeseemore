@@ -14,6 +14,7 @@
     type SuggestionAnnotation,
   } from "./common.svelte.js";
   import { Indicator, Comment, Handle, type Made } from "./elements.js";
+  import { ThreadedLayout } from "./threading.js";
 
   export type Props = {
     inMs: number;
@@ -54,10 +55,12 @@
     }
     return result;
   };
+
+  const layout = new ThreadedLayout();
 </script>
 
 <script lang="ts">
-  import { tick } from "svelte";
+  import { mount, tick } from "svelte";
   import {
     appendLocalBoundsOfRange,
     sortAndAssign,
@@ -66,13 +69,13 @@
   import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
   import { type Maybe } from "$lib/utils/index.js";
   import type { Input } from "./worker.js";
-  import { ThreadedLayout } from "./threading.js";
+  import { route, Rectangle } from "@blocksuite/connector";
+
+  import type { Padding } from "./connections.js";
 
   let { content, inMs, outMs }: Props = $props();
 
   let isVisible = $state(false);
-
-  const layout = new ThreadedLayout();
 
   export const visible = <AwaitComplete extends true | undefined = undefined>(
     condition: boolean,
@@ -85,6 +88,11 @@
     return new Promise((resolve) => setTimeout(resolve, delay)) as Return;
   };
 
+  const layoutPadding: Padding = {
+    edge: Handle.CornerRadius,
+    division: 2,
+  };
+
   const chars = new Array<HTMLSpanElement>();
   fillChars(content, chars);
 
@@ -92,7 +100,7 @@
 
   const indicators = new Array<Made<typeof Indicator>>();
   const comments = new Map<Key, Made<typeof Comment>>();
-  const connectors = new Map<Key, ElbowConnector[]>();
+  const connectors = new Map<Key, ElbowConnector>();
   const handles = new Map<Key, Made<typeof Handle>>();
 
   let version = Number.MIN_SAFE_INTEGER;
@@ -208,10 +216,13 @@
       comments: cBoxes,
       indicators: iBoxes,
       restricted: restrictedAreas,
+      padding: layoutPadding,
     });
 
     const _comments = await msg(0);
     if (stale()) return emptyHandlePool();
+
+    const handlesPromise = msg(1);
 
     for (const layout of _comments) {
       const { key } = annotations[layout.index];
@@ -219,8 +230,9 @@
       Comment.ApplyLayout(comment, layout);
     }
 
-    const _handles = await msg(1);
+    const _handles = await handlesPromise;
     if (stale()) return emptyHandlePool();
+    const connectionsPromise = msg(2);
 
     for (const handle of _handles) {
       const annotation = annotations[handle.index];
@@ -233,6 +245,44 @@
         Handle.Update(handle, origin, pooled, annotation);
         handles.set(annotation.key, pooled);
       }
+    }
+
+    const connections = await connectionsPromise;
+    if (stale()) return emptyHandlePool();
+
+    for (const { x, index, topOffset } of connections) {
+      console.log(`y: ${origin.y}`);
+      const { key } = annotations[index];
+      const comment = comments.get(key)!;
+      let elbow = connectors.get(key);
+      if (!elbow) {
+        elbow = mount(ElbowConnector, {
+          target: document.body,
+          props: {
+            parent: document.body,
+          },
+        });
+        connectors.set(key, elbow);
+      }
+
+      const commentREct = {
+        x: comment.left,
+        y: comment.top,
+        width: comment.width,
+        height: comment.height,
+      };
+      elbow.update(
+        route(
+          [],
+          [
+            { x, y: origin.y - topOffset },
+            {
+              x: comment.left + comment.width / 2,
+              y: comment.top + comment.height,
+            },
+          ],
+        ),
+      );
     }
 
     emptyHandlePool();

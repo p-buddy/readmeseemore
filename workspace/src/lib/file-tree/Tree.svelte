@@ -1,7 +1,7 @@
 <script lang="ts" module>
-  import { type WithGetItems } from "./FsContextMenu.svelte";
+  import { type WithGetContextItems } from "./FsContextMenu.svelte";
   import { type WithOnFile, type WithRename } from "./common.svelte.js";
-  export type Props = WithOnFile & WithRename & WithGetItems;
+  export type Props = WithOnFile & WithRename & WithGetContextItems;
 </script>
 
 <script lang="ts">
@@ -16,7 +16,7 @@
 
   let { params }: OnlyRequire<PanelProps<"pane", Props>, "params"> = $props();
 
-  const { getItems, ...rest } = params;
+  const { getContextItems: getItems, ...rest } = params;
 
   export const root = new Root();
 
@@ -36,7 +36,12 @@
   });
 </script>
 
-<FsContextMenu target={container} atCursor={true} {getItems} type="root" />
+<FsContextMenu
+  target={container}
+  atCursor={true}
+  getContextItems={getItems}
+  type="root"
+/>
 
 <div
   class="w-full h-full flex flex-col z-50 p-2 shadow-md focus:before:outline-none"
@@ -46,9 +51,9 @@
   {#each root.children as child}
     <div transition:slide={{ duration: 300 }}>
       {#if child.type === "folder"}
-        <FolderComponent {...rest} folder={child} {getItems} />
+        <FolderComponent {...rest} folder={child} getContextItems={getItems} />
       {:else}
-        <FileComponent {...rest} file={child} {getItems} />
+        <FileComponent {...rest} file={child} getContextItems={getItems} />
       {/if}
     </div>
   {/each}

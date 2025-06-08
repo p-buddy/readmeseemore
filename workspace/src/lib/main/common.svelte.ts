@@ -25,20 +25,22 @@ export const nonFlickeringSuggestionScope = () => {
     onmouseenter: (command: string, terminal: SuggestionTerminal) => {
       suggestion?.dispose();
       const fadeIn = Boolean(!last || Date.now() - last > 100);
-      suggestion = terminal!.suggest(command, fadeIn);
+      suggestion = terminal!.suggest(command, { fadeIn });
     },
     onmouseleave: dispose,
     onclick: (command: string, terminal: SuggestionTerminal) => {
       dispose();
-      terminal.enqueueCommand(command);
+      return terminal.enqueueCommand(command, true);
     },
   };
 }
 
+type SuggestionScopeHandlers = ReturnType<typeof nonFlickeringSuggestionScope>;
+
 export const dynamicNonFlickeringSuggestionScope = (terminal: SuggestionTerminal) => {
   const events = nonFlickeringSuggestionScope();
   return (command: ((condition: "click" | "enter") => string | Promise<string>) | string) =>
-    typeof command === "string"
+    (typeof command === "string"
       ? {
         onmouseenter: events.onmouseenter.bind(null, command, terminal),
         onmouseleave: events.onmouseleave,
@@ -48,7 +50,7 @@ export const dynamicNonFlickeringSuggestionScope = (terminal: SuggestionTerminal
         onmouseenter: async () => events.onmouseenter(await command("enter"), terminal),
         onmouseleave: events.onmouseleave,
         onclick: async () => events.onclick(await command("click"), terminal),
-      };
+      }) satisfies SuggestionScopeHandlers;
 }
 
 export const destinationIndexFromMv = (cmd: string) => {

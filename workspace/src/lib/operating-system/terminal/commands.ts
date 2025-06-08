@@ -15,9 +15,9 @@ export class Commands {
     return "touch " + Commands.SanitizePath(path);
   }
 
-  public async mkdir(path: string, assumeExists = false) {
+  public async mkdir(path: string, assumeParentExists = false) {
     const dir = dirname(path);
-    return assumeExists || await exists(this.fs, dir, false) ?
+    return assumeParentExists || await exists(this.fs, dir, false) ?
       "mkdir " + Commands.SanitizePath(path) :
       "mkdir --parents " + Commands.SanitizePath(path);
   }
@@ -29,14 +29,10 @@ export class Commands {
       : "rm " + Commands.SanitizePath(path);
   }
 
-  public async cp(path: string) {
-    const entry = await this.entry(path);
-    if (entry.isDirectory()) {
-
-    }
-    else {
-
-    }
+  public async cp(source: string, target: string, isDirectory: boolean) {
+    return isDirectory ?
+      `cp --recursive ${Commands.SanitizePath(source)} ${Commands.SanitizePath(target)}` :
+      `cp ${Commands.SanitizePath(source)} ${Commands.SanitizePath(target)}`;
   }
 
   public mv(source: string, destination: string) {

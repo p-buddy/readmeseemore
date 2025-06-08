@@ -2,9 +2,9 @@ import { Layout, type Node, type Link, type InputNode } from 'webcola';
 import type { BoundingBox } from './math.js';
 import type { Indexed } from './common.svelte.js';
 import { Timer, type Prettify } from '$lib/utils/index.js';
-import { inPlaceResolveOverlapAndKeepInBounds } from './ai-generated.js';
+import { inPlaceResolveOverlapAndKeepInBounds } from './llm-generated.js';
 
-type InputBox = Indexed<BoundingBox>;
+export type CommentBox = Indexed<BoundingBox>;
 
 const inputKeys = new Set(
   Object.keys(
@@ -14,7 +14,7 @@ const inputKeys = new Set(
       width: null,
       height: null,
       index: null,
-    } satisfies Record<keyof InputBox, null>
+    } satisfies Record<keyof CommentBox, null>
   )
 );
 
@@ -25,7 +25,7 @@ type Vertical = Pick<Rect, 'y' | 'height'>;
 
 export type LayoutItem = Prettify<Partial<InputNode> & Required<Pick<InputNode, keyof Rect>>>;
 
-type KeyOverlap = keyof InputNode & keyof InputBox;
+type KeyOverlap = keyof InputNode & keyof CommentBox;
 
 const preserveKey = {
   index: true,
@@ -38,7 +38,7 @@ const preserved = (key: string): key is KeyOverlap =>
 
 const tempKey = <K extends string>(key: K) => `_${key}` as K;
 
-const preserve = (box: InputBox) => {
+const preserve = (box: CommentBox) => {
   for (const key in preserveKey)
     if (preserved(key) && box[key] !== undefined) {
       box[tempKey(key)] = box[key];
@@ -46,7 +46,7 @@ const preserve = (box: InputBox) => {
     }
 }
 
-const restore = (box: InputBox) => {
+const restore = (box: CommentBox) => {
   for (const key in preserveKey)
     if (preserved(key) && box[tempKey(key)] !== undefined)
       box[key] = box[tempKey(key)];
@@ -58,9 +58,9 @@ const setCenter = (box: BoundingBox | LayoutItem) => {
   (box as LayoutItem).y = top + height / 2;
 }
 
-function initAndAssert(boxes: (InputBox | LayoutItem | BoundingBox)[]): asserts boxes is LayoutItem[] {
+function initAndAssert(boxes: (CommentBox | LayoutItem | BoundingBox)[]): asserts boxes is LayoutItem[] {
   for (const box of boxes) {
-    preserve(box as InputBox);
+    preserve(box as CommentBox);
     setCenter(box);
   }
 }
@@ -89,6 +89,17 @@ const overlaps = (a: Horizontal & Vertical, b: Horizontal & Vertical) =>
 const inBounds = (entry: Horizontal & Vertical, width: number, height: number) =>
   left(entry) >= 0 && right(entry) <= width && top(entry) >= 0 && bottom(entry) <= height;
 
+const trim = (entry: Horizontal & Vertical, width: number, height: number) => {
+  const iLeft = Math.max(left(entry), 0);
+  const iRight = Math.min(right(entry), width);
+  const iTop = Math.max(top(entry), 0);
+  const iBottom = Math.min(bottom(entry), height);
+  entry.x = (iLeft + iRight) / 2;
+  entry.y = (iTop + iBottom) / 2;
+  entry.width = iRight - iLeft;
+  entry.height = iBottom - iTop;
+}
+
 type Constraint = { axis: 'x' | 'y', left: number, right: number, gap: number, type: 'separation' | 'alignment' };
 
 const type = 'separation';
@@ -110,13 +121,13 @@ const override = (index: number, { x, y }: LayoutItem) =>
   ({ index, x, y } satisfies Override);
 
 const MAX_LAYOUT_ITERATIONS = 3;
-const MAX_CYCLES = 5;
+const MAX_CYCLES = 10;
 const MAX_VALID_LAYOUTS = 5;
 const SERIALIZED_PROPERTIES = 2;
 const SERIALIZED_LAYOUT_WIDTH = SERIALIZED_PROPERTIES * MAX_VALID_LAYOUTS;
-const X_COST = 1;
-const Y_COST = 2;
 const ALLOWED_MS = 1000;
+const X_COST = 3;
+const Y_COST = 2;
 
 const write = (
   index: number, serialized: Float32Array, entries: LayoutItem[], length: number
@@ -168,6 +179,7 @@ const layoutCost = (
   return cost(entries, pureEntriesLength);
 }
 
+
 const step = (
   layout: Layout,
   width: number,
@@ -179,6 +191,7 @@ const step = (
   restrictedLength: number,
   serialized: Float32Array,
   serializedIndex: number,
+  toggle: boolean
 ) => {
   // For some reason, (2, 2, 2) is the fastest configuration.
   layout.start(2, 2, 2);
@@ -208,7 +221,11 @@ const step = (
     const entry = entries[i];
     entry.x += (nudgeRight - nudgeLeft);
     entry.y += (nudgeDown - nudgeUp);
-    for (let j = 0; j < restrictedLength; j++) {
+    const iterateForward = toggle;
+    const start = iterateForward ? 0 : restrictedLength - 1;
+    const end = iterateForward ? restrictedLength : -1;
+    const step = iterateForward ? 1 : -1;
+    for (let j = start; j !== end; j += step) {
       const restricted = entries[restrictedIndex + j];
       if (!overlaps(entry, restricted)) continue;
       inPlaceResolveOverlapAndKeepInBounds(entry, restricted, width, height);
@@ -219,18 +236,19 @@ const step = (
     const entry = entries[i];
     for (let j = 0; j < pureEntriesLength; j++) {
       const other = entries[j];
-      if (i === j || !overlaps(entries[i], entries[j])) continue;
+      if (i === j || !overlaps(entry, other)) continue;
       inPlaceResolveOverlapAndKeepInBounds(entry, other, width, height);
     }
   }
 
   for (let i = 0; i < pureEntriesLength; i++) {
-    if (!inBounds(entries[i], width, height)) return false;
+    const entry = entries[i];
+    if (!inBounds(entry, width, height)) return false;
     for (let j = 0; j < restrictedLength; j++)
-      if (overlaps(entries[i], entries[restrictedIndex + j])) return false;
+      if (overlaps(entry, entries[restrictedIndex + j])) return false;
     for (let j = 0; j < pureEntriesLength; j++) {
       if (i === j) continue;
-      if (overlaps(entries[i], entries[j])) return false;
+      if (overlaps(entry, entries[j])) return false;
     }
   }
 
@@ -244,7 +262,7 @@ const step = (
  * - "e ;/ eae " toggling the final space takes almost 1s to compute when `layout.start(1, 1, 1);` (second iteration)
  */
 export const computeLayoutInPlace = (
-  width: number, height: number, boxes: InputBox[], restricted: BoundingBox[]
+  width: number, height: number, boxes: CommentBox[], restricted: BoundingBox[]
 ) => {
   const timer = new Timer(false);
 
@@ -281,6 +299,7 @@ export const computeLayoutInPlace = (
   }
 
   const restrictedIndex = boxes.length;
+  const restrictedOverrideIndex = overrides.length;
   initAndAssert(restricted);
   for (let i = 0; i < restricted.length; i++) {
     const box = restricted[i];
@@ -297,21 +316,51 @@ export const computeLayoutInPlace = (
   let valid = 0;
   let attempts = 0;
 
-  while (valid < MAX_VALID_LAYOUTS && attempts < maxAttempts && timer.elapsed < ALLOWED_MS) {
+  while (
+    valid < MAX_VALID_LAYOUTS &&
+    attempts < maxAttempts &&
+    timer.elapsed < ALLOWED_MS
+  ) {
     const cycles = Math.floor(attempts / originalLength);
+
+    if (cycles > 0 && valid > 0)
+      // Always prefer first-cycle layouts (which feature no width/height reduction)
+      break;
 
     if (attempts > 0) {
       read(0, layouts, boxes, originalLength);
-      let firstX = boxes[0].x;
+      const firstX = boxes[0].x;
+      const reductionFactor = cycles * 0.05;
+      let maxWidthReduction = 0;
+      let maxHeightReduction = 0;
+
       for (let i = 0; i < originalLength; i++) {
         const box = boxes[i];
         const anchor = boxes[i + originalLength];
         box.x = i === originalLength - 1 ? firstX : boxes[i + 1].x;
-        box.width *= (1 - cycles * 0.1);
-        box.height *= (1 - cycles * 0.1);
+        const widthReduction = box.width * reductionFactor;
+        const heightReduction = box.height * reductionFactor;
+        box.width -= widthReduction;
+        box.height -= heightReduction;
         anchor.x = anchorX(box);
         anchor.y = anchorY(box);
+        maxWidthReduction = Math.max(maxWidthReduction, widthReduction);
+        maxHeightReduction = Math.max(maxHeightReduction, heightReduction);
       }
+
+      for (let i = 0; i < restricted.length; i++) {
+        const index = restrictedIndex + i;
+        const box = boxes[index];
+        box.x -= maxWidthReduction / 2;
+        box.y -= maxHeightReduction / 2;
+        box.width += maxWidthReduction;
+        box.height += maxHeightReduction;
+        trim(box, width, height);
+        overrides[restrictedOverrideIndex + i] = override(index, box);
+      }
+
+      width -= maxWidthReduction;
+      height -= maxHeightReduction;
     }
 
     const layout = new Layout()
@@ -321,8 +370,11 @@ export const computeLayoutInPlace = (
       .links(links)
       .constraints(constraints);
 
+    let toggle = false;
+
     for (let i = 0; i < MAX_LAYOUT_ITERATIONS; i++) {
       if (timer.elapsed > ALLOWED_MS) break;
+      toggle = !toggle;
       if (
         !step(
           layout,
@@ -335,22 +387,17 @@ export const computeLayoutInPlace = (
           restricted.length,
           layouts,
           valid,
+          toggle
         )
       ) continue;
       valid++;
       if (valid === MAX_VALID_LAYOUTS) break;
     }
+
     attempts++;
   }
 
-  if (valid === 0) {
-    console.error("no valid layouts");
-  }
-  else {
-    timer.checkpoint("elapsed", true);
-  }
-
-  let bestIndex = 0; // read in original settings if no valid layout, meaning overlaps likely
+  let bestIndex = 0; // read-in original settings if no valid layout, meaning overlaps likely
   let bestCost = Infinity;
   for (let i = 0; i < valid; i++) {
     const cost = layoutCost(layouts, i, boxes, originalLength);

@@ -1,87 +1,149 @@
-import { type createElbowConnector, type Rect, } from "$lib/utils/elbow-connector/index.js";
-import type { BoundingBox, } from "./math.js";
+import type { Indexed } from "./common.svelte.js";
+import type { CommentBox } from "./comments.js";
+import { occupyHorizontally, sortHandlesHighToLow, tryGetOccupiedIndex, type Division, type Handle } from "./handles.js";
+import type { BoundingBox, Range } from "./math.js";
 
-type Polyline = ReturnType<typeof createElbowConnector>;
+export type ConnectionPoint = Indexed<{ x: number, topOffset: number }>;
 
-export const countPolylineIntersectionsWithBoxes = (
-  polyline: Polyline, boxes: BoundingBox[], skipBox: number,
-) => {
-  const interesectedBoxes = new Set<number>();
-  for (let i = 0; i < polyline.length - 1; ++i) {
-    const { x: x1, y: y1 } = polyline[i];
-    const { x: x2, y: y2 } = polyline[i + 1];
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    for (let b = 0; b < boxes.length; ++b) {
-      if (b === skipBox) continue;
-      if (interesectedBoxes.has(b)) continue;
+const boxOnTopOf = ({ left, width }: BoundingBox, x: number) =>
+  left <= x && x <= left + width;
 
-      const { left, top, width, height } = boxes[b];
-      const right = left + width;
-      const bottom = top + height;
+const isSingular = (handle: Handle) =>
+  handle.divisions.length === 1;
 
-      if (
-        (x1 >= left && x1 <= right && y1 >= top && y1 <= bottom) ||
-        (x2 >= left && x2 <= right && y2 >= top && y2 <= bottom)
-      ) {
-        interesectedBoxes.add(b);
-        continue;
-      }
+const isTop = (handle: Handle, maxTopOffset: number) =>
+  handle.topOffset === maxTopOffset;
 
-      if (
-        Math.max(x1, x2) < left || Math.min(x1, x2) > right ||
-        Math.max(y1, y2) < top || Math.min(y1, y2) > bottom
-      ) {
-        continue;
-      }
+type Rightward = 1;
+type Leftward = -1;
+type Direction = Rightward | Leftward;
 
-      // Left edge (x = xMin)
-      if (dx !== 0) {
-        let t = (left - x1) / dx;
-        if (t >= 0 && t <= 1) {
-          const y = y1 + t * dy;
-          if (y >= top && y <= bottom) {
-            interesectedBoxes.add(b);
-            continue;
-          }
-        }
-        // Right edge (x = xMax)
-        t = (right - x1) / dx;
-        if (t >= 0 && t <= 1) {
-          const y = y1 + t * dy;
-          if (y >= top && y <= bottom) {
-            interesectedBoxes.add(b);
-            continue;
-          }
-        }
-      }
-      // Top edge (y = yMin)
-      if (dy !== 0) {
-        let t = (top - y1) / dy;
-        if (t >= 0 && t <= 1) {
-          const x = x1 + t * dx;
-          if (x >= left && x <= right) {
-            interesectedBoxes.add(b);
-            continue;
-          }
-        }
-        // Bottom edge (y = yMax)
-        t = (bottom - y1) / dy;
-        if (t >= 0 && t <= 1) {
-          const x = x1 + t * dx;
-          if (x >= left && x <= right) {
-            interesectedBoxes.add(b);
-            continue;
-          }
-        }
-      }
+const getEdgeX = (
+  { left, right }: Pick<Handle, "left" | "right">, direction: Direction, edgePadding: number
+) =>
+  direction > 0 ? right - edgePadding : left + edgePadding;
+
+const notPassedEdge = (
+  x: number, handle: Pick<Handle, "left" | "right">, direction: Direction, edgePadding: number
+) => direction * (getEdgeX(handle, direction, edgePadding) - x) >= 0
+
+export type Padding = Record<"edge" | "division", number>;
+
+const forwardBack = [1, -1] as const;
+const backwardForward = [-1, 1] as const;
+const searchDirections = (direction: Direction) =>
+  direction === 1 ? forwardBack : backwardForward;
+
+const tryFindUnoccupiedX = (
+  handle: Pick<Handle, "left" | "right">,
+  startX: number,
+  startDirection: Direction,
+  padding: Padding,
+  occupied: Range[],
+): number | false => {
+  for (const direction of searchDirections(startDirection)) {
+    let x = startX;
+    let occupiedIndex = 0;
+    while (notPassedEdge(x, handle, direction, padding.edge)) {
+      occupiedIndex = tryGetOccupiedIndex(occupied, x, occupiedIndex, direction, -1);
+      // TODO: The returned x could be less than padding.division away from an occupied region
+      if (occupiedIndex === -1) return x;
+      const occupiedBoundary = occupied[occupiedIndex][direction > 0 ? 1 : 0];
+      x = occupiedBoundary + direction * padding.division;
     }
   }
-
-  return interesectedBoxes.size;
+  return false;
 }
 
-export function rectify(box: BoundingBox | Rect): asserts box is Rect {
-  (box as Rect).x = (box as BoundingBox).left;
-  (box as Rect).y = (box as BoundingBox).top;
+const tryFindXClearOfDivisionsAndConnectionPoints = (
+  handle: Pick<Handle, "left" | "right">,
+  startX: number,
+  startDirection: Direction,
+  padding: Padding,
+  connectionPoints: ConnectionPoint[],
+  handles: Handle[],
+) => {
+  const clear = (x: number, query: Pick<ConnectionPoint | Division, "x">) =>
+    Math.abs(x - query.x) > padding.division;
+
+  for (const direction of searchDirections(startDirection)) {
+    let x = startX;
+    while (notPassedEdge(x, handle, direction, padding.edge)) {
+      let allClear = true
+      for (let i = 0; i < connectionPoints.length; i++) {
+        const point = connectionPoints[i];
+        const handle = handles[i];
+        if (!clear(x, point)) allClear = false;
+        else
+          for (const division of handle.divisions)
+            if (!clear(x, division)) {
+              allClear = false;
+              break;
+            }
+      }
+      if (allClear) return x;
+      x += direction;
+    }
+  }
+  return false;
+}
+
+
+export const findConnectionPoints = (
+  comments: CommentBox[],
+  handles: Handle[],
+  verticalOffsetResolution: number,
+  padding: Padding,
+) => {
+  handles.sort(sortHandlesHighToLow);
+  const maxTopOffset = handles.at(-1)?.topOffset ?? verticalOffsetResolution;
+
+  const commentByIndex = new Map(comments.map((comment, index) => [index, comment] as const));
+  const occupied = new Array<[number, number]>();
+
+  const connectionPoints = new Array<ConnectionPoint>();
+
+  for (let i = 0; i < handles.length; i++) {
+    const handle = handles[i];
+    const { index, right, left, topOffset } = handle;
+    const centerX = (left + right) / 2;
+
+    const comment = commentByIndex.get(index)!;
+    const commentRight = comment.left + comment.width;
+    const commentCenterX = (comment.left + commentRight) / 2;
+
+    const dx = commentCenterX - centerX;
+    const direction = Math.sign(dx) as Direction;
+
+    let x = centerX;
+
+    if (isSingular(handle)) { }
+    else if (isTop(handle, maxTopOffset)) {
+      if (!boxOnTopOf(comment, x))
+        x = direction > 0
+          ? Math.max(left + padding.edge, comment.left)
+          : Math.min(right - padding.edge, commentRight);
+    }
+    else {
+      const candidate = tryFindUnoccupiedX(handle, centerX, direction, padding, occupied);
+      if (candidate !== false) x = candidate;
+      else {
+        const candidate = tryFindXClearOfDivisionsAndConnectionPoints(
+          handle,
+          centerX,
+          direction,
+          padding,
+          connectionPoints,
+          handles
+        );
+        if (candidate !== false) x = candidate;
+        else x = centerX; // fallback
+      }
+    }
+
+    connectionPoints.push({ x, index, topOffset })
+    occupyHorizontally(occupied, handle);
+  }
+
+  return connectionPoints;
 }

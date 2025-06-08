@@ -5,7 +5,9 @@
   import { fade } from "svelte/transition";
   import { folderExpanded, folderCollapsed } from "./Icons.svelte";
   import EditableName, { nameEdit } from "./EditableName.svelte";
-  import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
+  import FsContextMenu, {
+    type WithGetContextItems,
+  } from "./FsContextMenu.svelte";
   import FolderSlideTransition from "./folder-slide-transition.js";
 
   type WithMinimalFolder = {
@@ -18,9 +20,13 @@
   let {
     folder,
     rename,
-    getItems,
+    validate,
+    getContextItems: getItems,
     ...rest
-  }: WithMinimalFolder & WithGetItems & WithOnFile & WithRename = $props();
+  }: WithMinimalFolder &
+    WithGetContextItems &
+    WithOnFile &
+    WithRename = $props();
 
   let topLevel = $state<HTMLElement>();
   let nameUI = $state<EditableName>();
@@ -40,7 +46,7 @@
 
 <FsContextMenu
   {nameUI}
-  {getItems}
+  getContextItems={getItems}
   item={folder}
   type="folder"
   target={topLevel}
@@ -60,7 +66,7 @@
         {@render folderCollapsed()}
       {/if}
     </div>
-    <EditableName item={folder} {rename} bind:this={nameUI} />
+    <EditableName item={folder} {rename} {validate} bind:this={nameUI} />
   </span>
 </button>
 
@@ -70,9 +76,21 @@
       {#each folder.children as child}
         <li>
           {#if child.type === "folder"}
-            <Self {...rest} folder={child} {getItems} {rename} />
+            <Self
+              {...rest}
+              folder={child}
+              getContextItems={getItems}
+              {rename}
+              {validate}
+            />
           {:else}
-            <File {...rest} file={child} {getItems} {rename} />
+            <File
+              {...rest}
+              file={child}
+              getContextItems={getItems}
+              {rename}
+              {validate}
+            />
           {/if}
         </li>
       {/each}

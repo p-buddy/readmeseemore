@@ -285,6 +285,9 @@ importers:
 
   workspace:
     dependencies:
+      '@blocksuite/connector':
+        specifier: ^0.6.0
+        version: 0.6.0
       '@codingame/monaco-vscode-api':
         specifier: 15.0.3
         version: 15.0.3
@@ -467,6 +470,9 @@ packages:
   '@babel/types@7.27.0':
     resolution: {integrity: sha512-H45s8fVLYjbhFH62dIJ3WtmJ6RSPt/3DRO0ZcT2SUiYiQyz3BLVb9ADEnLl91m74aQPS3AzzeajZHYOalWe3bg==}
     engines: {node: '>=6.9.0'}
+
+  '@blocksuite/connector@0.6.0':
+    resolution: {integrity: sha512-2VNh9DSK37+CUZt2vGHWjjUfSRx9UgXK7P+wOlPmeWfB4wyCRDfIabJKl0mWcsEA7ye6qcbCL2g/H3Z8NBua/g==}
 
   '@codingame/esbuild-import-meta-url-plugin@1.0.3':
     resolution: {integrity: sha512-SAIOsWZteIWYAk04BCqQ+ugu8KiJm8EplQbMvxJl905uZv3r+21+XjtGg/zzrbxlVAY1cP+hGAG7z7sBPmy63w==}
@@ -4138,6 +4144,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.25.9
       '@babel/helper-validator-identifier': 7.25.9
+
+  '@blocksuite/connector@0.6.0': {}
 
   '@codingame/esbuild-import-meta-url-plugin@1.0.3':
     dependencies:

@@ -116,6 +116,7 @@
   });
 
   export const update = (points: Point[]) => {
+    console.log("update", points);
     if (!animate || !path) return requestAnimationFrame(() => update(points));
     bounding = bounds(points);
     const d = createSvgPath(localize(points, bounding), smoothing);

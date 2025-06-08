@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { TFileLike, WithOnFile, WithRename } from "./common.svelte.js";
   import EditableName, { nameEdit } from "./EditableName.svelte";
-  import FsContextMenu, { type WithGetItems } from "./FsContextMenu.svelte";
+  import FsContextMenu, {
+    type WithGetContextItems,
+  } from "./FsContextMenu.svelte";
   import { file as _file, symlink } from "./Icons.svelte";
 
   type WithMinimalFile = {
@@ -11,11 +13,12 @@
   let {
     file,
     rename,
-    getItems,
+    validate,
+    getContextItems: getItems,
     onFileClick,
     onFileMouseEnter,
     onFileMouseLeave,
-  }: WithMinimalFile & WithGetItems & WithOnFile & WithRename = $props();
+  }: WithMinimalFile & WithGetContextItems & WithOnFile & WithRename = $props();
 
   let topLevel = $state<HTMLElement>();
   let nameUI = $state<EditableName>();
@@ -23,7 +26,7 @@
 
 <FsContextMenu
   {nameUI}
-  {getItems}
+  getContextItems={getItems}
   item={file}
   type={file.type}
   target={topLevel}
@@ -46,7 +49,7 @@
         {@render _file()}
       {/if}
     </div>
-    <EditableName {rename} bind:this={nameUI} item={file} />
+    <EditableName {rename} {validate} bind:this={nameUI} item={file} />
   </span>
 </button>
 

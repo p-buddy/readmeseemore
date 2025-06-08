@@ -1,52 +1,61 @@
 import LayoutWorker from "./worker?worker";
-import {
-  type Input,
-  type Output,
-  type OutputIndex,
-  type OutputElement,
-  computeLayout,
-} from "./worker.js";
+import type { Input, Output, OutputIndex, OutputElement, } from "./worker.js";
 import { defer, type Deferred, type Last, type Maybe } from "$lib/utils/index.js";
 
+let layoutThreads = 0;
+
+const layoutThread = () => {
+  const worker = new LayoutWorker();
+  return new Promise<Worker>((resolve) => {
+    const onReady = () => {
+      layoutThreads++;
+      console.log(`Layout worker ready (thread ${layoutThreads})`);
+      resolve(worker);
+      worker.removeEventListener("message", onReady);
+    }
+    worker.addEventListener("message", onReady);
+  });
+}
+
 export class ThreadedLayout {
-  private worker = new LayoutWorker();
-  private ready = false;
-  private pending: Maybe<Promise<void>>;
+  private static readonly ThreadPoolSize = 2;
+  private pool: Worker[] = [];
 
   constructor() {
-    this.worker.onmessage = () => {
-      console.log("Layout worker ready, switching to threaded mode");
-      this.ready = true;
-      this.worker.onmessage = null;
-    };
+    layoutThread().then((worker) => this.pool.push(worker));
   }
 
   async compute(input: Input) {
     type Return = <Index extends OutputIndex>(index: Index) => Promise<Output[Index]>;
 
-    if (!this.ready) {
+    if (layoutThreads === 0) {
       const result = new Array<OutputElement>();
+      const { computeLayout } = await import("./worker.js")
       computeLayout(input, (_, data) => result.push(data));
       return ((index: number) => Promise.resolve(result[index])) as Return;
     }
 
-    if (this.pending) await this.pending;
-    const completed = defer<void>();
-    this.pending = completed.promise;
+    const worker = this.pool.pop() ?? await layoutThread();
     const store = new Array<OutputElement>();
     let current: Maybe<Deferred<OutputElement>>;
-    this.worker.postMessage(input);
-    this.worker.onmessage = ({ data }) => {
+    worker.postMessage(input);
+
+    const onMessage = ({ data }: MessageEvent<OutputElement>) => {
       if (data === (true satisfies Last<Output>)) {
-        completed.resolve();
-        this.pending = undefined;
-        this.worker.onmessage = null;
+        worker.removeEventListener("message", onMessage);
+        if (this.pool.length < ThreadedLayout.ThreadPoolSize)
+          this.pool.push(worker);
+        else {
+          console.warn("Layout worker pool full, terminating worker. If this happens often, something could be going wrong.");
+          worker.terminate();
+        }
       } else {
         current?.resolve(data);
         current = undefined;
         store.push(data);
       }
-    };
+    }
+    worker.addEventListener("message", onMessage);
     return (
       (index: number) => {
         if (index < store.length) return Promise.resolve(store[index]);

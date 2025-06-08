@@ -158,8 +158,8 @@ export class Comment {
 }
 
 export class Handle {
+  static readonly CornerRadius = 4;
   private static readonly LineThickness = 2;
-  private static readonly CornerRadius = 4;
   private static readonly DurationMs = 200;
 
   private static readonly InitialStyle = {

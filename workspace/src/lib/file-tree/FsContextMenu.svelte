@@ -2,7 +2,7 @@
   type Snippets = {
     rename: typeof rename;
     openCode: typeof openCode;
-    copyFile: typeof copyFile;
+    copyFile: typeof duplicate;
     addFile: typeof addFile;
     addFolder: typeof addFolder;
     deleter: typeof deleter;
@@ -11,36 +11,40 @@
   let snippets: Snippets;
 
   type FsItem = Pick<TTreeItem, "name" | "path" | "type" | "editing">;
-  type ItemsReturn = Promise<Items> | Items;
+  type ContextItemsReturn = Promise<ContextItems> | ContextItems;
 
-  export interface GetItems {
+  export interface GetContextItems {
     (
       type: "root",
       snippets: Snippets,
       item?: never,
       nameUI?: never,
-    ): ItemsReturn;
+    ): ContextItemsReturn;
     (
       type: FsItemType,
       snippets: Snippets,
       item: FsItem,
       nameUI: EditableName,
-    ): ItemsReturn;
+    ): ContextItemsReturn;
   }
 
-  export type WithGetItems = { getItems: GetItems };
+  export type WithGetContextItems = { getContextItems: GetContextItems };
 
   type MenuType = FsItemType | "root";
 </script>
 
 <script lang="ts" generics="T extends MenuType">
-  import { close, register, type Items } from "$lib/context-menu/index.js";
+  import {
+    close,
+    register,
+    type Items as ContextItems,
+  } from "$lib/context-menu/index.js";
   import { noop, type OnClick } from "$lib/utils/index.js";
   import type { FsItemType, TTreeItem } from "./common.svelte.js";
   import {
     plusFile,
     plusFolder,
-    fileCopy,
+    copy,
     trash,
     codeFile,
     pencil,
@@ -52,7 +56,7 @@
     atCursor?: boolean;
     beforeAction?: () => void;
     type: MenuType;
-  } & WithGetItems &
+  } & WithGetContextItems &
     (T extends "root"
       ? { item?: never; nameUI?: never }
       : {
@@ -60,8 +64,15 @@
           nameUI: EditableName | undefined;
         });
 
-  let { item, type, nameUI, target, atCursor, beforeAction, getItems }: Props =
-    $props();
+  let {
+    item,
+    type,
+    nameUI,
+    target,
+    atCursor,
+    beforeAction,
+    getContextItems: getItems,
+  }: Props = $props();
 
   const onMenuClick =
     (fn: OnClick): OnClick =>
@@ -76,7 +87,7 @@
   snippets ??= {
     rename,
     openCode,
-    copyFile,
+    copyFile: duplicate,
     addFile,
     addFolder,
     deleter,
@@ -128,8 +139,8 @@
   Delete
 {/snippet}
 
-{#snippet copyFile()}
-  {@render fileCopy()}
+{#snippet duplicate()}
+  {@render copy()}
   Copy
 {/snippet}
 

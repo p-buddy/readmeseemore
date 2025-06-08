@@ -47,8 +47,14 @@ const overlap = (a: MaybeBox, b: MaybeBox): boolean =>
   float(a.top) < float(b.top) + float(b.height) &&
   float(a.top) + float(a.height) > float(b.top);
 
-const sortBoxes = (a: BoundingBox, b: BoundingBox) =>
-  a.top === b.top ? a.left - b.left : a.top - b.top;
+export const sortLeftToRight = (a: Pick<BoundingBox, "left">, b: Pick<BoundingBox, "left">) =>
+  a.left - b.left;
+
+export const sortTopToBottom = (a: Pick<BoundingBox, "top">, b: Pick<BoundingBox, "top">) =>
+  a.top - b.top;
+
+export const sortBoxes = (a: Pick<BoundingBox, "top" | "left">, b: Pick<BoundingBox, "top" | "left">) =>
+  a.top === b.top ? sortLeftToRight(a, b) : sortTopToBottom(a, b);
 
 const sortOnStyle = ({ style: a }: HTMLElement, { style: b }: HTMLElement) =>
   a.top === b.top ? float(a.left) - float(b.left) : float(a.top) - float(b.top);
