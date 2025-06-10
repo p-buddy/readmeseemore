@@ -42,7 +42,7 @@ export const isEllipsisActiveOnEvent = <
   Target extends HTMLElement,
 >({ currentTarget }: T) => isEllipsisActive(currentTarget);
 
-export const defer = <T>() => {
+export const defer = <T = void>() => {
   let resolve: (value: T | PromiseLike<T>) => void;
   let reject: (reason?: any) => void;
 
@@ -237,3 +237,12 @@ export type LastIndex<T extends readonly unknown[]> =
   : never;
 
 export type NotOptionalIf<T, Condition extends boolean> = Condition extends true ? T : T | undefined;
+
+export const remainsTrue = async <T>(
+  condition: () => boolean, getter: () => Promise<T>
+): Promise<false | T> => {
+  if (!condition()) return false;
+  const value = await getter();
+  if (!condition()) return false;
+  return value;
+}

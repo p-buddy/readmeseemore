@@ -36,7 +36,7 @@ export const dirname = preSanitize(path => {
   path = removeTrailing(path, "/");
   const index = path.lastIndexOf("/");
   return index === -1 ? "." : path.slice(0, index) || ".";
-})
+});
 
 export const parts = preSanitize(path => {
   path = removeTrailing(path, "/");
@@ -81,6 +81,9 @@ export const exists: Exists = async (fs, path, isFile) => {
 
 export const isSymlink = (entry?: DirEnt<string>) =>
   Boolean(entry && !entry.isFile() && !entry.isDirectory());
+
+export const entryType = (entry: DirEnt<string>) =>
+  entry.isDirectory() ? "folder" : isSymlink(entry) ? "symlink" : "file";
 
 type ReadableFs = WithLimitFs<"readdir" | "readFile">;
 type Encoding = Parameters<WithLimitFs<"readFile">["readFile"]>[1];
@@ -131,10 +134,19 @@ export const prependRoot = (path: string) => {
 }
 
 export const validName = (siblings: string[], desired: string) => {
-  let candidate: string = desired;
-  let index = 1;
-  while (siblings.some((sibling) => sibling === candidate))
-    candidate = `${desired}-${++index}`;
+  const periodIndex = desired.indexOf(".");
+  const prefix = periodIndex === -1 ? desired : desired.slice(0, periodIndex);
+  const suffix = periodIndex === -1 ? "" : desired.slice(periodIndex);
+  let candidate: string = prefix + suffix;
+  const prefixIsIncremented = /-\d+$/.test(prefix);
+  let index = prefixIsIncremented ? parseInt(prefix.match(/-(\d+)$/)?.[1] ?? "0") : 1;
+  while (siblings.some((sibling) => sibling === candidate)) {
+    candidate = (
+      prefixIsIncremented
+        ? prefix.slice(0, prefix.lastIndexOf("-"))
+        : prefix
+    ) + `-${++index}${suffix}`;
+  }
   return candidate;
 };
 
@@ -214,4 +226,19 @@ export const pathWithNewName = (name: string, { path }: { path: string }) => {
   const dirname = index === -1 ? null : path.slice(0, index);
   const updated = dirname ? `${dirname}/${name}` : name;
   return updated;
+}
+
+export const walkFs = async (
+  fs: WithLimitFs<"readdir">, cb: (path: string, entry: DirEnt<string>) => void, path?: string
+) => {
+  path ??= ".";
+  path = trySanitize(path);
+  const entries = await fs.readdir(path, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.endsWith("/")
+      ? path + entry.name
+      : path + "/" + entry.name;
+    cb(fullPath, entry);
+    if (entry.isDirectory()) await walkFs(fs, cb, fullPath);
+  }
 }

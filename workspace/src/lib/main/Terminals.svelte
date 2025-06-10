@@ -21,6 +21,7 @@
     type Terminal,
   } from "$lib/operating-system/index.js";
   import { register as registerContextMenu } from "../context-menu/index.js";
+  import { defer } from "$lib/utils/index.js";
 
   type Panels = {
     terminal: typeof terminal;
@@ -37,11 +38,13 @@
     let fit: IDisposable;
     let config = panelConfig(api).id(terminal.id).size(0);
     if (reference) config.direction("right").reference(reference);
+    const mounted = defer();
     const { panel } = await api.addSnippetPanel(
       "terminal",
       {
         onMount(element) {
           terminal.mount(element, defaultDuration + 200);
+          mounted.resolve();
           registerContextMenu(element, {
             props: () =>
               getTerminalContextItems(os!, terminal, (onDropped) => {
@@ -57,6 +60,7 @@
     );
     fit = panel.api.onDidDimensionsChange(() => terminal.fit());
     animateEntry(api, panel);
+    return mounted.promise;
   };
 
   export type Props = WithViewOnReady<"grid", Panels> &

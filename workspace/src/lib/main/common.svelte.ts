@@ -1,6 +1,7 @@
 import { type IDisposable, type Terminal } from "$lib/operating-system/index.js";
+import { noop } from "$lib/utils/index.js";
 
-type SuggestionTerminal = Pick<Terminal, "suggest" | "enqueueCommand">
+type SuggestionTerminal = Pick<Terminal, "suggest" | "enqueueCommand">;
 
 /**
  * A suggestion scope handles:
@@ -17,7 +18,9 @@ type SuggestionTerminal = Pick<Terminal, "suggest" | "enqueueCommand">
  * In this way, the first invocation of `nonFlickeringSuggestionScope()` creates a scope that can tie multiple elements together,
  * while the second invocation creates a series of event handlers to tie to a specific element (or at least specific kind of element).
  */
-export const nonFlickeringSuggestionScope = () => {
+export const nonFlickeringSuggestionScope = (
+  onClick?: Record<"before" | "after", () => void>
+) => {
   let last: number | undefined;
   let suggestion: IDisposable | undefined;
   const dispose = () => (suggestion?.dispose(), (last = Date.now()));
@@ -30,15 +33,18 @@ export const nonFlickeringSuggestionScope = () => {
     onmouseleave: dispose,
     onclick: (command: string, terminal: SuggestionTerminal) => {
       dispose();
-      return terminal.enqueueCommand(command, true);
+      onClick?.before?.();
+      return terminal.enqueueCommand(command, true).then(onClick?.after ?? noop);
     },
   };
 }
 
 type SuggestionScopeHandlers = ReturnType<typeof nonFlickeringSuggestionScope>;
 
-export const dynamicNonFlickeringSuggestionScope = (terminal: SuggestionTerminal) => {
-  const events = nonFlickeringSuggestionScope();
+export const dynamicNonFlickeringSuggestionScope = (
+  terminal: SuggestionTerminal, onClick?: Record<"before" | "after", () => void>
+) => {
+  const events = nonFlickeringSuggestionScope(onClick);
   return (command: ((condition: "click" | "enter") => string | Promise<string>) | string) =>
     (typeof command === "string"
       ? {

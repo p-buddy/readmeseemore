@@ -45,7 +45,7 @@
     type CreateOptions,
     type TerminalSuggestion,
   } from "$lib/operating-system/index.js";
-  import { defer, type Deferred } from "../utils/index.js";
+  import { defer, remainsTrue, type Deferred } from "../utils/index.js";
   import { GridView } from "@p-buddy/dockview-svelte";
   import FilePanelTracker from "../utils/FilePanelTracker.js";
   import {
@@ -55,12 +55,19 @@
     trySanitize,
     validName,
     dirname,
+    walkFs,
+    entryType,
   } from "$lib/utils/fs.js";
   import { type Item as ContextItem } from "../context-menu/index.js";
   import { panelConfig } from "$lib/utils/dockview.js";
   import { Ports } from "$lib/ports/index.js";
   import { entry, isSymlink } from "$lib/utils/fs.js";
-  import { nameEdit, iterate, type TFolder } from "$lib/file-tree/index.js";
+  import {
+    nameEdit,
+    iterate,
+    type TFolder,
+    type TTreeItem,
+  } from "$lib/file-tree/index.js";
   import {
     nonFlickeringSuggestionScope,
     dynamicNonFlickeringSuggestionScope,
@@ -209,19 +216,33 @@
 
     createAndRegisterFileSystemProvider(os);
 
-    const validPath = async (desired: string) => {
-      const entries = await fs.readdir(".");
+    const validNameAt = async (desired: string, parent?: string) => {
+      const dir = !parent || parent === "" ? "." : parent;
+      const entries = await fs.readdir(dir);
       return validName(entries, desired);
     };
 
-    // Can turn into a set of strings
-
     status?.("Adding initial file tree");
 
-    let terminalOverride: Terminal | undefined;
-    const getUserVisibleTerminal = async () => {
-      if (terminalOverride) return terminalOverride;
-      const terminal = await os!.terminal;
+    let awaitingTerminal: Promise<Terminal> | undefined;
+    let suggestionTerminalCreationLock: Deferred | undefined;
+    const lockSuggestionTerminalCreationOnClick = {
+      before: () => (suggestionTerminalCreationLock = defer()),
+      after: () => {
+        suggestionTerminalCreationLock!.resolve();
+        suggestionTerminalCreationLock = undefined;
+      },
+    };
+    const getTerminal = async () => {
+      let terminal = os!.inputlessTerminal ?? os!.nonExecutingTerminal;
+      if (!terminal) {
+        if (suggestionTerminalCreationLock)
+          await suggestionTerminalCreationLock.promise;
+        awaitingTerminal ??= os!.addTerminal();
+        const promise = awaitingTerminal;
+        terminal = await promise;
+        if (awaitingTerminal === promise) awaitingTerminal = undefined;
+      }
       terminal.scrollToBottom();
       return terminal;
     };
@@ -229,34 +250,48 @@
     let addedViaContext = new Map<string, Deferred>();
     let editAfterAddViaContext: Set<string> = new Set();
 
-    const suggestOpen = nonFlickeringSuggestionScope();
+    const suggestOpen = nonFlickeringSuggestionScope(
+      lockSuggestionTerminalCreationOnClick,
+    );
 
     let renameTerminal: Terminal | undefined;
     let renameSuggestion: TerminalSuggestion | undefined;
+    let hoveredFile: string | undefined;
+    const isCurrentFile = (file: Pick<TTreeItem, "path">) =>
+      file.path === hoveredFile;
 
     const { exports: tree } = await openInSidebar.fileTree(sidebarAPI, fs, {
       onFileClick: async (file) => {
-        const terminal = await getUserVisibleTerminal();
+        const terminal = await remainsTrue(
+          () => isCurrentFile(file),
+          getTerminal,
+        );
+        if (!terminal) return;
         suggestOpen.onclick(commands.open(file.path), terminal);
       },
       onFileMouseEnter: async (file) => {
         if (file.editing.condition) return suggestOpen.onmouseleave();
+        hoveredFile = file.path;
         // TODO: This actualy shouldn't fire if a rename editing is in progress nor if a rename is in progress
         const renaming = addedViaContext?.get(file.path);
         if (renaming) await renaming.promise;
-        const terminal = await getUserVisibleTerminal();
+        if (hoveredFile !== file.path) return;
+        const terminal = await getTerminal();
+        if (hoveredFile !== file.path) return;
         suggestOpen.onmouseenter(commands.open(file.path), terminal);
       },
-      onFileMouseLeave: suggestOpen.onmouseleave,
+      onFileMouseLeave: (file) => {
+        if (file.path === hoveredFile) hoveredFile = undefined;
+        suggestOpen.onmouseleave();
+      },
       validate: async (item, value, rect, done) => {
-        console.log("validate", item, value, rect, done);
         if (done) {
           renameSuggestion?.dispose();
           renameSuggestion = undefined;
           renameTerminal = undefined;
           return checkFileNameAtLocation(value, item, tree.root).status;
         }
-        renameTerminal ??= await getUserVisibleTerminal();
+        renameTerminal ??= await getTerminal();
         await renameTerminal.doneExecuting;
         renameTerminal.scrollToBottom();
         renameSuggestion ??= renameTerminal.suggest(
@@ -275,7 +310,8 @@
               value,
               item,
               tree.root,
-              destinationIndexFromMv(cmd),
+              destinationIndexFromMv(cmd) +
+                (item.path.length - item.name.length),
             );
         renameSuggestion?.exports?.update(cmd, check?.annotations, rect);
         return check?.status ?? "valid";
@@ -303,21 +339,24 @@
             break;
         }
         item.name = name;
-        (terminal?.doneExecuting ?? getUserVisibleTerminal()).then((terminal) =>
+        (terminal?.doneExecuting ?? getTerminal()).then((terminal) =>
           terminal.enqueueCommand(commands.mv(from, to)),
         );
       },
       getContextItems: async (type, snippets, item) => {
-        const terminal = await getUserVisibleTerminal();
-        const suggest = dynamicNonFlickeringSuggestionScope(terminal);
+        const terminal = await getTerminal();
+        const suggest = dynamicNonFlickeringSuggestionScope(
+          terminal,
+          lockSuggestionTerminalCreationOnClick,
+        );
         type SuggestCallback = Parameters<typeof suggest>[0];
 
         const add =
           (type: keyof typeof defaults, parent?: string): SuggestCallback =>
           async (condition) => {
-            const name = defaults[type];
-            const desired = (parent ? parent + "/" : "") + name;
-            const path = removeLocal(await validPath(desired));
+            const name = await validNameAt(defaults[type], parent);
+            parent ??= parent ? parent + "/" : "";
+            const path = parent + name;
             if (condition === "click") {
               renameTerminal = terminal;
               addedViaContext.set(path, defer());
@@ -362,10 +401,10 @@
 
         const duplicate: ContextItem = {
           ...suggest(async (condition) => {
-            const name = defaults[isDirectory ? "folder" : "file"];
-            const desired =
-              item.path === item.name ? name : dirname(item.path) + "/" + name;
-            const path = removeLocal(await validPath(desired));
+            const parent = dirname(item.path);
+            const path = removeLocal(
+              parent + "/" + (await validNameAt(item.name, parent)),
+            );
             if (condition === "click") {
               renameTerminal = terminal;
               addedViaContext.set(path, defer());
@@ -378,6 +417,8 @@
         switch (type) {
           case "file":
           case "symlink": {
+            const base = [rename, duplicate];
+
             return [rename, duplicate];
           }
           case "folder": {
@@ -425,6 +466,12 @@
           editAfterAddViaContext.add(path);
           nameEdit.begin(item, { override: "" });
           for (const predecessor of predecessors) predecessor.expanded = true;
+          if (action === "addDir")
+            walkFs(
+              fs,
+              (p, entry) => tree.root.touch(removeLocal(p), entryType(entry)),
+              path,
+            );
           break;
         case "unlink":
           tree.root.rm(path);

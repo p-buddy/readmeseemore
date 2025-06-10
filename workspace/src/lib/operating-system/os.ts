@@ -25,13 +25,18 @@ export type CreateOptions = {
 export default class OperatingSystem {
   public readonly terminals: Terminal[] = [];
 
-  public get terminal() {
-    const notExecuting = this.terminals.filter(t => !t.isExecuting);
-    if (notExecuting.length === 0) return this.addTerminal();
-    if (notExecuting.length === 1) return Promise.resolve(notExecuting[0]);
-    const noInput = notExecuting.filter(t => !t.userInput);
-    if (noInput.length === 0) return Promise.resolve(notExecuting[0]);
-    return Promise.resolve(noInput[0]);
+  /** Try get a terminal that is not executing and has no user input */
+  public get inputlessTerminal() {
+    return this.terminals.find(t => !t.isExecuting && !t.userInput);
+  }
+
+  /** Try get a terminal that is not executing (but may have user input) */
+  public get nonExecutingTerminal() {
+    return this.terminals.find(t => !t.isExecuting);
+  }
+
+  public get anyTerminal() {
+    return this.terminals[0];
   }
 
   private onTerminalCallback?: (terminal: Terminal, reference?: Terminal) => Promise<void>;
