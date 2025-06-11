@@ -1,4 +1,4 @@
-import { type BoundingBox, resize } from "./math.js";
+import { type BoundingBox, clientRectToBoundingBox, localify, resize, worldify } from "./math.js";
 import { px } from "$lib/utils/index.js";
 import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
 import { mount, unmount } from "svelte";
@@ -109,14 +109,19 @@ export class Comment {
       target: element,
       props: { snippet: comment, props },
     });
-    const { width, height } = element.getBoundingClientRect();
+
+    const elementRect = element.getBoundingClientRect();
+    const childRect = element.children[0].getBoundingClientRect();
+
+    const child = localify(clientRectToBoundingBox(childRect), elementRect);
 
     const first = true;
     const left = Number.NaN;
     const top = Number.NaN;
     const index = Number.NaN;
 
-    return { key, element, renderer, width, height, first, left, top, index };
+    const { width, height } = elementRect;
+    return { key, element, renderer, width, height, first, left, top, index, child };
   }
 
   public static readonly Update = (
@@ -153,6 +158,8 @@ export class Comment {
     comment.element.style.opacity = "1";
     comment.element.style.left = `${left}px`;
     comment.element.style.top = `${top}px`;
+    comment.left = left;
+    comment.top = top;
     comment.first = false;
   };
 }

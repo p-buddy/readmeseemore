@@ -180,7 +180,17 @@ export const xCenter = (boxes: BoundingBox[], start: number) => {
   return left / length + width / 2 / length;
 };
 
+export const clientRectToBoundingBox = ({ left, top, width, height }: DOMRect) =>
+  ({ left, top, width, height } satisfies BoundingBox);
+
 export const worldify = (box: BoundingBox, origin: DOMRect) => {
   box.left += origin.left;
   box.top += origin.top;
+  return box;
+};
+
+export const localify = (box: BoundingBox, origin: DOMRect) => {
+  box.left -= origin.left;
+  box.top -= origin.top;
+  return box;
 };

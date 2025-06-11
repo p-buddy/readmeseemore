@@ -224,38 +224,51 @@
 
     status?.("Adding initial file tree");
 
-    let awaitingTerminal: Promise<Terminal> | undefined;
-    let suggestionTerminalCreationLock: Deferred | undefined;
-    const lockSuggestionTerminalCreationOnClick = {
-      before: () => (suggestionTerminalCreationLock = defer()),
-      after: () => {
-        suggestionTerminalCreationLock!.resolve();
-        suggestionTerminalCreationLock = undefined;
+    const suggestionTerminal = {
+      inProgress: undefined as Promise<Terminal> | undefined,
+      creationLock: undefined as Deferred | undefined,
+      lockOnClick: {
+        before: () => (suggestionTerminal.creationLock = defer()),
+        after: () => {
+          suggestionTerminal.creationLock!.resolve();
+          suggestionTerminal.creationLock = undefined;
+        },
       },
-    };
-    const getTerminal = async () => {
-      let terminal = os!.inputlessTerminal ?? os!.nonExecutingTerminal;
-      if (!terminal) {
-        if (suggestionTerminalCreationLock)
-          await suggestionTerminalCreationLock.promise;
-        awaitingTerminal ??= os!.addTerminal();
-        const promise = awaitingTerminal;
-        terminal = await promise;
-        if (awaitingTerminal === promise) awaitingTerminal = undefined;
-      }
-      terminal.scrollToBottom();
-      return terminal;
+      get: async () => {
+        let terminal = os!.inputlessTerminal ?? os!.nonExecutingTerminal;
+        if (!terminal) {
+          const { creationLock } = suggestionTerminal;
+          if (creationLock) await creationLock?.promise;
+          suggestionTerminal.inProgress ??= os!
+            .addTerminal()
+            .then((terminal) => {
+              suggestionTerminal.inProgress = undefined;
+              return terminal;
+            });
+          terminal = await suggestionTerminal.inProgress;
+        }
+        terminal.scrollToBottom();
+        return terminal;
+      },
     };
 
     let addedViaContext = new Map<string, Deferred>();
     let editAfterAddViaContext: Set<string> = new Set();
 
     const suggestOpen = nonFlickeringSuggestionScope(
-      lockSuggestionTerminalCreationOnClick,
+      suggestionTerminal.lockOnClick,
     );
 
-    let renameTerminal: Terminal | undefined;
-    let renameSuggestion: TerminalSuggestion | undefined;
+    const renamer = {
+      terminal: undefined as Terminal | undefined,
+      suggestion: undefined as TerminalSuggestion | undefined,
+      dispose: () => {
+        renamer.suggestion?.dispose();
+        renamer.suggestion = undefined;
+        renamer.terminal = undefined;
+      },
+    };
+
     let hoveredFile: string | undefined;
     const isCurrentFile = (file: Pick<TTreeItem, "path">) =>
       file.path === hoveredFile;
@@ -264,7 +277,7 @@
       onFileClick: async (file) => {
         const terminal = await remainsTrue(
           () => isCurrentFile(file),
-          getTerminal,
+          suggestionTerminal.get,
         );
         if (!terminal) return;
         suggestOpen.onclick(commands.open(file.path), terminal);
@@ -276,7 +289,7 @@
         const renaming = addedViaContext?.get(file.path);
         if (renaming) await renaming.promise;
         if (hoveredFile !== file.path) return;
-        const terminal = await getTerminal();
+        const terminal = await suggestionTerminal.get();
         if (hoveredFile !== file.path) return;
         suggestOpen.onmouseenter(commands.open(file.path), terminal);
       },
@@ -286,15 +299,14 @@
       },
       validate: async (item, value, rect, done) => {
         if (done) {
-          renameSuggestion?.dispose();
-          renameSuggestion = undefined;
-          renameTerminal = undefined;
+          renamer.dispose();
           return checkFileNameAtLocation(value, item, tree.root).status;
         }
-        renameTerminal ??= await getTerminal();
-        await renameTerminal.doneExecuting;
-        renameTerminal.scrollToBottom();
-        renameSuggestion ??= renameTerminal.suggest(
+        renamer.terminal ??= await suggestionTerminal.get();
+        const { terminal } = renamer;
+        await terminal.doneExecuting;
+        terminal.scrollToBottom();
+        renamer.suggestion ??= terminal.suggest(
           commands.mv(item.path, pathWithNewName(value, item)),
           { pin: true },
         );
@@ -313,12 +325,14 @@
               destinationIndexFromMv(cmd) +
                 (item.path.length - item.name.length),
             );
-        renameSuggestion?.exports?.update(cmd, check?.annotations, rect);
+
+        const { suggestion } = renamer;
+        suggestion?.exports?.update(cmd, check?.annotations, rect);
         return check?.status ?? "valid";
       },
       rename: (name, item) => {
-        const terminal = renameTerminal;
-        renameTerminal = undefined;
+        const { terminal } = renamer;
+        renamer.terminal = undefined;
         if (name === item.name) return;
         if (name === "" || name.trim() === "") return;
         const from = item.path;
@@ -339,15 +353,15 @@
             break;
         }
         item.name = name;
-        (terminal?.doneExecuting ?? getTerminal()).then((terminal) =>
+        (terminal?.doneExecuting ?? suggestionTerminal.get()).then((terminal) =>
           terminal.enqueueCommand(commands.mv(from, to)),
         );
       },
       getContextItems: async (type, snippets, item) => {
-        const terminal = await getTerminal();
+        const terminal = await suggestionTerminal.get();
         const suggest = dynamicNonFlickeringSuggestionScope(
           terminal,
-          lockSuggestionTerminalCreationOnClick,
+          suggestionTerminal.lockOnClick,
         );
         type SuggestCallback = Parameters<typeof suggest>[0];
 
@@ -358,7 +372,7 @@
             parent ??= parent ? parent + "/" : "";
             const path = parent + name;
             if (condition === "click") {
-              renameTerminal = terminal;
+              renamer.terminal = terminal;
               addedViaContext.set(path, defer());
             }
             return type === "file"
@@ -406,7 +420,7 @@
               parent + "/" + (await validNameAt(item.name, parent)),
             );
             if (condition === "click") {
-              renameTerminal = terminal;
+              renamer.terminal = terminal;
               addedViaContext.set(path, defer());
             }
             return commands.cp(item.path, path, isDirectory);

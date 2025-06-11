@@ -41,6 +41,8 @@
     animate: SVGAnimateElement,
     to: string,
   ) => {
+    path.setAttribute("d", to);
+    return;
     let from = path.getAttribute("d");
 
     if (!from) {
@@ -117,7 +119,8 @@
 
   export const update = (points: Point[]) => {
     console.log("update", points);
-    if (!animate || !path) return requestAnimationFrame(() => update(points));
+    if (/*!animate ||*/ !path)
+      return requestAnimationFrame(() => update(points));
     bounding = bounds(points);
     const d = createSvgPath(localize(points, bounding), smoothing);
     morph(path, animate, d);
@@ -152,13 +155,6 @@
       stroke-width={width}
       stroke="red"
       vector-effect="non-scaling-stroke"
-    />
-    <animate
-      bind:this={animate}
-      attributeName="d"
-      dur={`${durationMs}ms`}
-      fill="freeze"
-      begin="indefinite"
     />
   </svg>
 </div>

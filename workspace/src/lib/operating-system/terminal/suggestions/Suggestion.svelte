@@ -97,6 +97,7 @@
   fillChars(content, chars);
 
   let container: HTMLDivElement;
+  let canvas: HTMLCanvasElement;
 
   const indicators = new Array<Made<typeof Indicator>>();
   const comments = new Map<Key, Made<typeof Comment>>();
@@ -250,8 +251,25 @@
     const connections = await connectionsPromise;
     if (stale()) return emptyHandlePool();
 
+    const rectangles = Array.from(comments.values()).map(
+      ({
+        child: { left: childLeft, top: childTop, width, height },
+        left,
+        top,
+      }) => new Rectangle(left + childLeft, top + childTop, width, height),
+    );
+    rectangles.push(new Rectangle(0, -1, width, 1));
+    rectangles.push(new Rectangle(0, height, width, 1));
+    rectangles.push(new Rectangle(-1, 0, 1, height));
+    rectangles.push(new Rectangle(width, 0, 1, height));
+    rectangles.push(
+      new Rectangle(origin.x, origin.y, origin.width, origin.height),
+    );
+
+    for (const { left, top, width, height } of restrictedAreas)
+      rectangles.push(new Rectangle(left, top, width, height));
+
     for (const { x, index, topOffset } of connections) {
-      console.log(`y: ${origin.y}`);
       const { key } = annotations[index];
       const comment = comments.get(key)!;
       let elbow = connectors.get(key);
@@ -260,30 +278,24 @@
           target: document.body,
           props: {
             parent: document.body,
+            style: "z-index: 10001;",
           },
         });
         connectors.set(key, elbow);
       }
 
-      const commentREct = {
-        x: comment.left,
-        y: comment.top,
-        width: comment.width,
-        height: comment.height,
-      };
       elbow.update(
-        route(
-          [],
-          [
-            { x, y: origin.y - topOffset },
-            {
-              x: comment.left + comment.width / 2,
-              y: comment.top + comment.height,
-            },
-          ],
-        ),
+        route(rectangles, [
+          { x, y: origin.y - topOffset },
+          {
+            x: comment.left + comment.child.left,
+            y: comment.top + comment.child.top,
+          },
+        ]),
       );
     }
+
+    console.log("computed1");
 
     emptyHandlePool();
   };
