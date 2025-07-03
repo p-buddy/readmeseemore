@@ -1,5 +1,5 @@
-import LayoutWorker from "./worker?worker";
-import type { Input, Output, OutputIndex, OutputElement, } from "./worker.js";
+import LayoutWorker from "./layout-worker?worker";
+import type { Input, Output, OutputIndex, OutputElement, } from "./layout-worker.js";
 import { defer, type Deferred, type Last, type Maybe } from "$lib/utils/index.js";
 
 let layoutThreads = 0;
@@ -30,7 +30,7 @@ export class ThreadedLayout {
 
     if (layoutThreads === 0) {
       const result = new Array<OutputElement>();
-      const { computeLayout } = await import("./worker.js")
+      const { computeLayout } = await import("./layout-worker.js")
       computeLayout(input, (_, data) => result.push(data));
       return ((index: number) => Promise.resolve(result[index])) as Return;
     }

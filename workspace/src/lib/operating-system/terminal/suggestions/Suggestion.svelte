@@ -60,7 +60,7 @@
 </script>
 
 <script lang="ts">
-  import { mount, tick } from "svelte";
+  import { mount, tick, unmount } from "svelte";
   import {
     appendLocalBoundsOfRange,
     sortAndAssign,
@@ -68,7 +68,7 @@
   } from "./math.js";
   import ElbowConnector from "$lib/utils/elbow-connector/ElbowConnector.svelte";
   import { type Maybe } from "$lib/utils/index.js";
-  import type { Input } from "./worker.js";
+  import type { Input } from "./layout-worker.js";
   import { route, Rectangle } from "@blocksuite/connector";
 
   import type { Padding } from "./connections.js";
@@ -97,7 +97,6 @@
   fillChars(content, chars);
 
   let container: HTMLDivElement;
-  let canvas: HTMLCanvasElement;
 
   const indicators = new Array<Made<typeof Indicator>>();
   const comments = new Map<Key, Made<typeof Comment>>();
@@ -122,12 +121,14 @@
     let indicatorResult: Maybe<ReturnType<typeof sortAndAssign>>;
     let iBoxes: Maybe<Input["indicators"]>;
     let cBoxes: Maybe<Input["comments"]>;
+    let cBoxChildren: Maybe<Input["commentChildren"]>;
     let keys: Maybe<Set<Key>>;
 
     if (annotations) {
       origin ??= container.getBoundingClientRect();
       iBoxes ??= [];
       cBoxes ??= new Array(annotations.length);
+      cBoxChildren ??= new Array(annotations.length);
 
       for (let aIndex = 0; aIndex < annotations.length; aIndex++) {
         const annotation = annotations[aIndex];
@@ -182,7 +183,7 @@
     }
 
     const handlePool = new Array<Made<typeof Handle>>();
-    const emptyHandlePool = () => {
+    const cleanup = () => {
       for (const handle of handlePool) Handle.Destroy(handle);
       handlePool.length = 0;
     };
@@ -193,14 +194,19 @@
       handlePool.push(handle);
     }
 
-    if (iBoxes?.length === 0) return emptyHandlePool();
+    if (iBoxes?.length === 0) return cleanup();
 
-    if (!origin || !cBoxes || !iBoxes || !annotations) return emptyHandlePool();
+    if (!origin || !cBoxes || !cBoxChildren || !iBoxes || !annotations)
+      return cleanup();
 
     for (const box of iBoxes) worldify(box, origin);
 
     let current = ++version;
-    const stale = () => current !== version;
+    const stale = () => {
+      const isStale = current !== version;
+      if (isStale) cleanup();
+      return isStale;
+    };
 
     const body = document.body.getBoundingClientRect();
     const restrictedAreas = [cloneToBoundingBox(origin, padding)];
@@ -214,14 +220,17 @@
     const msg = await layout.compute({
       width,
       height,
+      suggestionTop: origin.top,
       comments: cBoxes,
+      commentChildren: cBoxChildren,
       indicators: iBoxes,
       restricted: restrictedAreas,
       padding: layoutPadding,
     });
 
     const _comments = await msg(0);
-    if (stale()) return emptyHandlePool();
+
+    if (stale()) return;
 
     const handlesPromise = msg(1);
 
@@ -232,7 +241,7 @@
     }
 
     const _handles = await handlesPromise;
-    if (stale()) return emptyHandlePool();
+    if (stale()) return;
     const connectionsPromise = msg(2);
 
     for (const handle of _handles) {
@@ -249,20 +258,16 @@
     }
 
     const connections = await connectionsPromise;
-    if (stale()) return emptyHandlePool();
+    if (stale()) return;
 
-    const rectangles = Array.from(comments.values()).map(
-      ({
-        child: { left: childLeft, top: childTop, width, height },
-        left,
-        top,
-      }) => new Rectangle(left + childLeft, top + childTop, width, height),
+    const rectangles = Array.from(
+      comments.values().map(Comment.MakeChildRectangle),
     );
-    rectangles.push(new Rectangle(0, -1, width, 1));
-    rectangles.push(new Rectangle(0, height, width, 1));
-    rectangles.push(new Rectangle(-1, 0, 1, height));
-    rectangles.push(new Rectangle(width, 0, 1, height));
     rectangles.push(
+      new Rectangle(0, -1, width, 1),
+      new Rectangle(0, height, width, 1),
+      new Rectangle(-1, 0, 1, height),
+      new Rectangle(width, 0, 1, height),
       new Rectangle(origin.x, origin.y, origin.width, origin.height),
     );
 
@@ -295,9 +300,15 @@
       );
     }
 
+    for (const [key, elbow] of connectors) {
+      if (keys?.has(key)) continue;
+      connectors.delete(key);
+      unmount(elbow);
+    }
+
     console.log("computed1");
 
-    emptyHandlePool();
+    cleanup();
   };
 
   const pending = {

@@ -234,7 +234,7 @@
           suggestionTerminal.creationLock = undefined;
         },
       },
-      get: async () => {
+      tryGet: async () => {
         let terminal = os!.inputlessTerminal ?? os!.nonExecutingTerminal;
         if (!terminal) {
           const { creationLock } = suggestionTerminal;
@@ -277,7 +277,7 @@
       onFileClick: async (file) => {
         const terminal = await remainsTrue(
           () => isCurrentFile(file),
-          suggestionTerminal.get,
+          suggestionTerminal.tryGet,
         );
         if (!terminal) return;
         suggestOpen.onclick(commands.open(file.path), terminal);
@@ -289,7 +289,7 @@
         const renaming = addedViaContext?.get(file.path);
         if (renaming) await renaming.promise;
         if (hoveredFile !== file.path) return;
-        const terminal = await suggestionTerminal.get();
+        const terminal = await suggestionTerminal.tryGet();
         if (hoveredFile !== file.path) return;
         suggestOpen.onmouseenter(commands.open(file.path), terminal);
       },
@@ -302,7 +302,7 @@
           renamer.dispose();
           return checkFileNameAtLocation(value, item, tree.root).status;
         }
-        renamer.terminal ??= await suggestionTerminal.get();
+        renamer.terminal ??= await suggestionTerminal.tryGet();
         const { terminal } = renamer;
         await terminal.doneExecuting;
         terminal.scrollToBottom();
@@ -353,12 +353,12 @@
             break;
         }
         item.name = name;
-        (terminal?.doneExecuting ?? suggestionTerminal.get()).then((terminal) =>
-          terminal.enqueueCommand(commands.mv(from, to)),
+        (terminal?.doneExecuting ?? suggestionTerminal.tryGet()).then(
+          (terminal) => terminal.enqueueCommand(commands.mv(from, to)),
         );
       },
       getContextItems: async (type, snippets, item) => {
-        const terminal = await suggestionTerminal.get();
+        const terminal = await suggestionTerminal.tryGet();
         const suggest = dynamicNonFlickeringSuggestionScope(
           terminal,
           suggestionTerminal.lockOnClick,

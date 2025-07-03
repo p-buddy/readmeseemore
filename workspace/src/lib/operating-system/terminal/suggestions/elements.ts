@@ -2,8 +2,9 @@ import { type BoundingBox, clientRectToBoundingBox, localify, resize, worldify }
 import { px } from "$lib/utils/index.js";
 import SnippetRenderer from "$lib/utils/SnippetRenderer.svelte";
 import { mount, unmount } from "svelte";
-import { set, type AnyAnnotation } from "./common.svelte.js";
-import type { Handle as THandle } from "./worker.js";
+import { set, type AnyAnnotation, type Indexed } from "./common.svelte.js";
+import type { Handle as THandle } from "./layout-worker.js";
+import { Rectangle } from "@blocksuite/connector";
 
 export type Made<T extends Record<"Make", (...args: any[]) => any>> = ReturnType<T["Make"]>;
 
@@ -144,7 +145,17 @@ export class Comment {
 
   public static readonly CloneForLayout = (
     { left, top, width, height, index, }: Made<typeof Comment>
-  ) => ({ left, top, width, height, index });
+  ) => ({ left, top, width, height, index } satisfies Indexed<BoundingBox>);
+
+  public static readonly CloneChildForLayout = (
+    { left, top, child, index, }: Made<typeof Comment>
+  ) => ({
+    index,
+    left: left + child.left,
+    top: top + child.top,
+    width: child.width,
+    height: child.height
+  } satisfies Indexed<BoundingBox>)
 
   static readonly AnimateOnNext = ({ element }: Made<typeof Comment>) => {
     const t = transition(Comment.DurationMs, "opacity", "left", "top");
@@ -162,6 +173,12 @@ export class Comment {
     comment.top = top;
     comment.first = false;
   };
+
+  static readonly MakeChildRectangle = ({
+    child: { left: childLeft, top: childTop, width, height },
+    left,
+    top,
+  }: Made<typeof Comment>) => new Rectangle(left + childLeft, top + childTop, width, height);
 }
 
 export class Handle {

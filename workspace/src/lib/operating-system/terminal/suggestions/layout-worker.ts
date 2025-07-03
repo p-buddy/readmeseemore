@@ -19,7 +19,9 @@ export type Handle = {
 export type Input = {
   width: number;
   height: number;
+  suggestionTop: number;
   comments: Indexed<BoundingBox>[];
+  commentChildren: Indexed<BoundingBox>[];
   restricted: BoundingBox[];
   indicators: Indexed<BoundingBox>[];
   padding: ConnectionPadding
@@ -53,6 +55,8 @@ export const computeLayout = (
   timer.checkpoint("handles");
 
   send(1, handles);
+
+  const maxTopOffset = handles.reduce((acc, { topOffset }) => topOffset > acc ? topOffset : acc, 0);
 
   const connectionPoints = findConnectionPoints(comments, handles, offsetResolution, padding);
   timer.checkpoint("connection points");

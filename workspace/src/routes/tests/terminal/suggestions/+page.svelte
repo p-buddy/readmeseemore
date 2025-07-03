@@ -80,7 +80,10 @@
     const { container } = await given("container");
     terminal.mount(container);
     const text = "command with suggestion";
-    const suggestion = await terminal.suggestAndWait(text, true, false);
+    const suggestion = await terminal.suggestAndWait(text, {
+      visible: true,
+      fadeIn: false,
+    });
     await suggestion.exports.visible(false, true);
     await suggestion.exports.visible(true);
 
@@ -93,7 +96,7 @@
           kind: "highlight",
           range: [index, index + 1],
           props: null as any,
-        }) satisfies TerminalSuggestionAnnotation<undefined, true>,
+        }) satisfies TerminalSuggestionAnnotation<null>,
     );
     /* 
     while (true) {

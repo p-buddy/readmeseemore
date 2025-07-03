@@ -375,23 +375,28 @@ export const computeLayoutInPlace = (
     for (let i = 0; i < MAX_LAYOUT_ITERATIONS; i++) {
       if (timer.elapsed > ALLOWED_MS) break;
       toggle = !toggle;
-      if (
-        !step(
-          layout,
-          width,
-          height,
-          boxes,
-          overrides,
-          originalLength,
-          restrictedIndex,
-          restricted.length,
-          layouts,
-          valid,
-          toggle
-        )
-      ) continue;
-      valid++;
-      if (valid === MAX_VALID_LAYOUTS) break;
+      try {
+        if (
+          !step(
+            layout,
+            width,
+            height,
+            boxes,
+            overrides,
+            originalLength,
+            restrictedIndex,
+            restricted.length,
+            layouts,
+            valid,
+            toggle
+          )
+        ) continue;
+        valid++;
+        if (valid === MAX_VALID_LAYOUTS) break;
+      }
+      catch {
+        break;
+      }
     }
 
     attempts++;
@@ -399,11 +404,13 @@ export const computeLayoutInPlace = (
 
   let bestIndex = 0; // read-in original settings if no valid layout, meaning overlaps likely
   let bestCost = Infinity;
-  for (let i = 0; i < valid; i++) {
-    const cost = layoutCost(layouts, i, boxes, originalLength);
-    if (cost >= bestCost) continue;
-    bestCost = cost;
-    bestIndex = i;
+  if (valid >= 2) {
+    for (let i = 0; i < valid; i++) {
+      const cost = layoutCost(layouts, i, boxes, originalLength);
+      if (cost >= bestCost) continue;
+      bestCost = cost;
+      bestIndex = i;
+    }
   }
 
   read(bestIndex, layouts, boxes, originalLength);
