@@ -234,7 +234,7 @@
           suggestionTerminal.creationLock = undefined;
         },
       },
-      tryGet: async () => {
+      get: async () => {
         let terminal = os!.inputlessTerminal ?? os!.nonExecutingTerminal;
         if (!terminal) {
           const { creationLock } = suggestionTerminal;
@@ -270,27 +270,33 @@
     };
 
     let hoveredFile: string | undefined;
+    let hoveredFileTerminal: Terminal | undefined;
     const isCurrentFile = (file: Pick<TTreeItem, "path">) =>
       file.path === hoveredFile;
 
     const { exports: tree } = await openInSidebar.fileTree(sidebarAPI, fs, {
       onFileClick: async (file) => {
-        const terminal = await remainsTrue(
-          () => isCurrentFile(file),
-          suggestionTerminal.tryGet,
-        );
+        const terminal =
+          hoveredFileTerminal ??
+          (await remainsTrue(
+            () => isCurrentFile(file),
+            suggestionTerminal.get,
+          ));
+        hoveredFileTerminal = undefined;
         if (!terminal) return;
         suggestOpen.onclick(commands.open(file.path), terminal);
       },
       onFileMouseEnter: async (file) => {
+        hoveredFileTerminal = undefined;
         if (file.editing.condition) return suggestOpen.onmouseleave();
         hoveredFile = file.path;
         // TODO: This actualy shouldn't fire if a rename editing is in progress nor if a rename is in progress
         const renaming = addedViaContext?.get(file.path);
         if (renaming) await renaming.promise;
         if (hoveredFile !== file.path) return;
-        const terminal = await suggestionTerminal.tryGet();
+        const terminal = await suggestionTerminal.get();
         if (hoveredFile !== file.path) return;
+        hoveredFileTerminal = terminal;
         suggestOpen.onmouseenter(commands.open(file.path), terminal);
       },
       onFileMouseLeave: (file) => {
@@ -302,7 +308,7 @@
           renamer.dispose();
           return checkFileNameAtLocation(value, item, tree.root).status;
         }
-        renamer.terminal ??= await suggestionTerminal.tryGet();
+        renamer.terminal ??= await suggestionTerminal.get();
         const { terminal } = renamer;
         await terminal.doneExecuting;
         terminal.scrollToBottom();
@@ -311,7 +317,10 @@
           { pin: true },
         );
         const isEditingAfterAdd = editAfterAddViaContext.has(item.path);
-        if (isEditingAfterAdd) editAfterAddViaContext.delete(item.path);
+
+        // Check for empty string to handle double renders causing incorrect highlighting
+        if (isEditingAfterAdd && value !== "")
+          editAfterAddViaContext.delete(item.path);
 
         const desired = pathWithNewName(value, item);
         const cmd = commands.mv(item.path, desired);
@@ -353,12 +362,12 @@
             break;
         }
         item.name = name;
-        (terminal?.doneExecuting ?? suggestionTerminal.tryGet()).then(
-          (terminal) => terminal.enqueueCommand(commands.mv(from, to)),
+        (terminal?.doneExecuting ?? suggestionTerminal.get()).then((terminal) =>
+          terminal.enqueueCommand(commands.mv(from, to)),
         );
       },
       getContextItems: async (type, snippets, item) => {
-        const terminal = await suggestionTerminal.tryGet();
+        const terminal = await suggestionTerminal.get();
         const suggest = dynamicNonFlickeringSuggestionScope(
           terminal,
           suggestionTerminal.lockOnClick,
@@ -369,8 +378,13 @@
           (type: keyof typeof defaults, parent?: string): SuggestCallback =>
           async (condition) => {
             const name = await validNameAt(defaults[type], parent);
-            parent ??= parent ? parent + "/" : "";
+            parent = parent
+              ? parent.endsWith("/")
+                ? parent
+                : parent + "/"
+              : "";
             const path = parent + name;
+
             if (condition === "click") {
               renamer.terminal = terminal;
               addedViaContext.set(path, defer());

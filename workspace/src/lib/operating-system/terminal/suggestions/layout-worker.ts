@@ -56,8 +56,6 @@ export const computeLayout = (
 
   send(1, handles);
 
-  const maxTopOffset = handles.reduce((acc, { topOffset }) => topOffset > acc ? topOffset : acc, 0);
-
   const connectionPoints = findConnectionPoints(comments, handles, offsetResolution, padding);
   timer.checkpoint("connection points");
 

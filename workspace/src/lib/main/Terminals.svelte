@@ -43,8 +43,9 @@
       "terminal",
       {
         onMount(element) {
-          terminal.mount(element, defaultDuration + 200);
-          mounted.resolve();
+          const duration = defaultDuration + 200;
+          terminal.mount(element, duration);
+          setTimeout(() => mounted.resolve(), duration);
           registerContextMenu(element, {
             props: () =>
               getTerminalContextItems(os!, terminal, (onDropped) => {

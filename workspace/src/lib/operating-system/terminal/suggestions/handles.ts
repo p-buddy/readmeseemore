@@ -17,7 +17,7 @@ const division = ({ left, width, top }: BoundingBox, originalLeft: number) =>
 const overlaps = (a: Handle, b: Handle) =>
   a.left <= b.right && b.left <= a.right;
 
-export const sortHandlesHighToLow = (a: Handle, b: Handle) =>
+export const sortHandlesHighToLow = (a: Pick<Handle, "topOffset">, b: Pick<Handle, "topOffset">) =>
   b.topOffset - a.topOffset;
 
 /**

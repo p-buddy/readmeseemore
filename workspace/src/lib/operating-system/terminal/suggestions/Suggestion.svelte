@@ -182,6 +182,12 @@
       Comment.Destroy(comment);
     }
 
+    for (const [key, elbow] of connectors) {
+      if (keys?.has(key)) continue;
+      connectors.delete(key);
+      unmount(elbow);
+    }
+
     const handlePool = new Array<Made<typeof Handle>>();
     const cleanup = () => {
       for (const handle of handlePool) Handle.Destroy(handle);
@@ -300,12 +306,6 @@
       );
     }
 
-    for (const [key, elbow] of connectors) {
-      if (keys?.has(key)) continue;
-      connectors.delete(key);
-      unmount(elbow);
-    }
-
     console.log("computed1");
 
     cleanup();
@@ -368,6 +368,7 @@
     comments.clear();
     for (const handle of handles.values()) Handle.Destroy(handle);
     handles.clear();
+    for (const connector of connectors.values()) unmount(connector);
     connectors.clear();
     clearPending();
   };

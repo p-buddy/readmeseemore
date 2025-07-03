@@ -73,7 +73,7 @@ export default class OperatingSystem {
     const terminal = await Terminal.New(container);
     if (reference) insertAfter(terminals, terminal, terminals.indexOf(reference));
     else terminals.push(terminal);
-    await this.onTerminalCallback?.(terminal, reference);
+    await this.onTerminalCallback?.(terminal, reference ?? terminals.at(-2));
     return terminal;
   }
 

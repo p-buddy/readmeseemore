@@ -18,12 +18,12 @@ type Rightward = 1;
 type Leftward = -1;
 type Direction = Rightward | Leftward;
 
-const getEdgeX = (
+export const getEdgeX = (
   { left, right }: Pick<Handle, "left" | "right">, direction: Direction, edgePadding: number
 ) =>
   direction > 0 ? right - edgePadding : left + edgePadding;
 
-const notPassedEdge = (
+export const notPassedEdge = (
   x: number, handle: Pick<Handle, "left" | "right">, direction: Direction, edgePadding: number
 ) => direction * (getEdgeX(handle, direction, edgePadding) - x) >= 0
 
@@ -89,6 +89,14 @@ const tryFindXClearOfDivisionsAndConnectionPoints = (
 }
 
 
+/**
+ * Determines the ideal points that lie along the handles that will later be used to connect an elbow-line to a comment.
+ * @param comments 
+ * @param handles 
+ * @param verticalOffsetResolution 
+ * @param padding 
+ * @returns 
+ */
 export const findConnectionPoints = (
   comments: CommentBox[],
   handles: Handle[],
@@ -140,6 +148,9 @@ export const findConnectionPoints = (
         else x = centerX; // fallback
       }
     }
+
+    // Ensure x is within handle bounds (// TODO: determine why this is happening, the algorithm(s) should protect against this)
+    x = Math.max(left + padding.edge, Math.min(right - padding.edge, x));
 
     connectionPoints.push({ x, index, topOffset })
     occupyHorizontally(occupied, handle);
