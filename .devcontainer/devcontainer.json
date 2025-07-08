@@ -3,12 +3,25 @@
   "dockerFile": "Dockerfile",
   "customizations": {
     "vscode": {
+      /*       "settings": {
+        "editor.formatOnSave": true,
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[javascript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[svelte]": {
+          "editor.defaultFormatter": "svelte.svelte-vscode"
+        }
+      }, */
       "extensions": [
         "ms-vscode.vscode-typescript-next",
         "svelte.svelte-vscode",
         "GitHub.copilot",
         "ms-azuretools.vscode-docker",
-        "bradlc.vscode-tailwindcss"
+        "bradlc.vscode-tailwindcss",
+        //"esbenp.prettier-vscode"
       ]
     }
   },

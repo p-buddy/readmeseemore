@@ -281,7 +281,7 @@
       rectangles.push(new Rectangle(left, top, width, height));
 
     for (const { x, index, topOffset } of connections) {
-      const { key } = annotations[index];
+      /*       const { key } = annotations[index];
       const comment = comments.get(key)!;
       let elbow = connectors.get(key);
       if (!elbow) {
@@ -303,10 +303,8 @@
             y: comment.top + comment.child.top,
           },
         ]),
-      );
+      ); */
     }
-
-    console.log("computed1");
 
     cleanup();
   };

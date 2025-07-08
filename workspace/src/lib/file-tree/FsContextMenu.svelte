@@ -6,6 +6,7 @@
     addFile: typeof addFile;
     addFolder: typeof addFolder;
     deleter: typeof deleter;
+    execute: typeof execute;
   };
 
   let snippets: Snippets;
@@ -31,6 +32,17 @@
   export type WithGetContextItems = { getContextItems: GetContextItems };
 
   type MenuType = FsItemType | "root";
+
+  let executionDetails: string[] | undefined;
+
+  /** TODO: Remove this when a better solution is implemented.
+   *
+   * Currently the snippets are expected to have no arguments, but for the execution of scripts from package.json,
+   * the names of the scripts are needed.
+   */
+  export const setExecutionDetailHack = (details: string[]) => {
+    executionDetails = details;
+  };
 </script>
 
 <script lang="ts" generics="T extends MenuType">
@@ -48,6 +60,8 @@
     trash,
     codeFile,
     pencil,
+    run,
+    getIconContext,
   } from "./Icons.svelte";
   import EditableName from "./EditableName.svelte";
 
@@ -91,6 +105,7 @@
     addFile,
     addFolder,
     deleter,
+    execute,
   };
 
   $effect(() => {
@@ -152,4 +167,9 @@
 {#snippet addFolder()}
   {@render plusFolder()}
   Add Folder
+{/snippet}
+
+{#snippet execute()}
+  {@render run()}
+  Execute {executionDetails?.shift() ?? ""}
 {/snippet}

@@ -43,28 +43,28 @@
   ) => {
     path.setAttribute("d", to);
     return;
-    let from = path.getAttribute("d");
+    // let from = path.getAttribute("d");
 
-    if (!from) {
-      path.setAttribute("d", to);
-      return;
-    }
+    // if (!from) {
+    //   path.setAttribute("d", to);
+    //   return;
+    // }
 
-    if (from === to) return;
+    // if (from === to) return;
 
-    const froms = splitPath(from);
-    const tos = splitPath(to);
+    // const froms = splitPath(from);
+    // const tos = splitPath(to);
 
-    if (dedupe(froms)) path.setAttribute("d", from);
+    // if (dedupe(froms)) path.setAttribute("d", from);
 
-    if (froms.length < tos.length) {
-      const from = withPadding(froms, tos.length);
-      path.setAttribute("d", from);
-      requestAnimationFrame(() => smil(animate, from, to));
-    } else if (froms.length > tos.length) {
-      to = withPadding(tos, froms.length);
-      smil(animate, from, to);
-    } else smil(animate, from, to);
+    // if (froms.length < tos.length) {
+    //   const from = withPadding(froms, tos.length);
+    //   path.setAttribute("d", from);
+    //   requestAnimationFrame(() => smil(animate, from, to));
+    // } else if (froms.length > tos.length) {
+    //   to = withPadding(tos, froms.length);
+    //   smil(animate, from, to);
+    // } else smil(animate, from, to);
   };
 
   const bounds = (points: Point[]) => {
@@ -123,7 +123,7 @@
       return requestAnimationFrame(() => update(points));
     bounding = bounds(points);
     const d = createSvgPath(localize(points, bounding), smoothing);
-    morph(path, animate, d);
+    //morph(path, animate, d);
   };
 
   $effect(() => {

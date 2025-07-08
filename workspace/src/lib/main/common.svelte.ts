@@ -1,4 +1,5 @@
 import { type IDisposable, type Terminal } from "$lib/operating-system/index.js";
+import type { TerminalSuggestionOptions } from "$lib/operating-system/terminal/index.js";
 import { noop } from "$lib/utils/index.js";
 
 type SuggestionTerminal = Pick<Terminal, "suggest" | "enqueueCommand">;
@@ -25,10 +26,10 @@ export const nonFlickeringSuggestionScope = (
   let suggestion: IDisposable | undefined;
   const dispose = () => (suggestion?.dispose(), (last = Date.now()));
   return {
-    onmouseenter: (command: string, terminal: SuggestionTerminal) => {
+    onmouseenter: (command: string, terminal: SuggestionTerminal, callback?: TerminalSuggestionOptions["callback"]) => {
       suggestion?.dispose();
       const fadeIn = Boolean(!last || Date.now() - last > 100);
-      suggestion = terminal!.suggest(command, { fadeIn });
+      suggestion = terminal!.suggest(command, { fadeIn, callback });
     },
     onmouseleave: dispose,
     onclick: (command: string, terminal: SuggestionTerminal) => {
@@ -48,7 +49,7 @@ export const dynamicNonFlickeringSuggestionScope = (
   return (command: ((condition: "click" | "enter") => string | Promise<string>) | string) =>
     (typeof command === "string"
       ? {
-        onmouseenter: events.onmouseenter.bind(null, command, terminal),
+        onmouseenter: events.onmouseenter.bind(null, command, terminal, undefined),
         onmouseleave: events.onmouseleave,
         onclick: events.onclick.bind(null, command, terminal),
       }

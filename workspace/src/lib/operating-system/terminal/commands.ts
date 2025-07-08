@@ -43,6 +43,10 @@ export class Commands {
     return "open " + Commands.Escape(Commands.SanitizePath(path));
   }
 
+  public run(path: string, program: string) {
+    return `${program} ${Commands.SanitizePath(path)}`;
+  }
+
   private static readonly FilenameChars = {
     Forbidden: ['/', '\0', '"', '?', '\\', '`', "#", ";"] as const,
     Discouraged: [':', '*', '<', '>', '|', ' ', '&', '(', ')', '$'] as const,

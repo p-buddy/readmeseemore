@@ -68,7 +68,7 @@ type LimitedCommandQueue = Pick<CommandQueue, "isEmpty" | "onEmpty">;
 
 export type TerminalSuggestion = IDisposable & { exports?: Exports<typeof Suggestion>, pinned?: boolean };
 
-type TerminalSuggestionOptions = {
+export type TerminalSuggestionOptions = {
   fadeIn?: boolean;
   visible?: boolean;
   callback?: (payload: Required<TerminalSuggestion>) => void;

@@ -74,6 +74,7 @@
     destinationIndexFromMv,
   } from "./common.svelte.js";
   import { checkFileNameAtLocation } from "$lib/file-tree/ItemNameAnnotations.svelte";
+  import { setExecutionDetailHack } from "$lib/file-tree/FsContextMenu.svelte";
 
   let {
     filesystem,
@@ -86,6 +87,37 @@
 
   elements ??= {};
 </script>
+
+{#snippet testComment({ title, content }: Record<"title" | "content", string>)}
+  <div
+    class="p-4 border-1 rounded-lg bg-neutral-800 text-neutral-300 border-neutral-600"
+    role="alert"
+  >
+    <div class="flex items-center">
+      <svg
+        aria-hidden="true"
+        class="shrink-0 w-4 h-4 me-2"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <g>
+          <path
+            fill-rule="evenodd"
+            clip-rule="evenodd"
+            d="M7.91 3.23 3.23 7.913v-.01a.81.81 0 0 0-.23.57v7.054c0 .22.08.42.23.57L7.9 20.77c.15.15.36.23.57.23h7.06c.22 0 .42-.08.57-.23l4.67-4.673a.81.81 0 0 0 .23-.57V8.473c0-.22-.08-.42-.23-.57L16.1 3.23a.81.81 0 0 0-.57-.23H8.48c-.22 0-.42.08-.57.23ZM12 7a1 1 0 0 1 1 1v5a1 1 0 1 1-2 0V8a1 1 0 0 1 1-1Zm-1 9a1 1 0 0 1 1-1h.008a1 1 0 1 1 0 2H12a1 1 0 0 1-1-1Z"
+            fill="currentColor"
+          />
+        </g>
+      </svg>
+      <span class="sr-only">Info</span>
+      <h3 class="text-lg font-medium">{title}</h3>
+    </div>
+    <div class="m-2 text-sm">
+      {content}
+    </div>
+  </div>
+{/snippet}
 
 <GridView
   orientation={"HORIZONTAL"}
@@ -297,7 +329,44 @@
         const terminal = await suggestionTerminal.get();
         if (hoveredFile !== file.path) return;
         hoveredFileTerminal = terminal;
-        suggestOpen.onmouseenter(commands.open(file.path), terminal);
+        suggestOpen.onmouseenter(
+          commands.open(file.path),
+          terminal,
+          (suggestion) => {
+            suggestion.exports.update(
+              commands.open(file.path),
+              [
+                {
+                  kind: "highlight",
+                  range: [0, "open".length],
+                  key: "open",
+                  comment: testComment,
+                  props: {
+                    title: "Open Command",
+                    content:
+                      "The open command is used to open a file in the terminal.",
+                  },
+                },
+                {
+                  kind: "highlight",
+                  range: ["open ".length, commands.open(file.path).length],
+                  key: "arg",
+                  comment: testComment,
+                  props: {
+                    title: "File Argument",
+                    content:
+                      "The first argument passed to the open command is the path to the file to open.",
+                  },
+                },
+              ],
+              undefined,
+              {
+                key: "delayed open",
+                delayMs: 0,
+              },
+            );
+          },
+        );
       },
       onFileMouseLeave: (file) => {
         if (file.path === hoveredFile) hoveredFile = undefined;
@@ -446,8 +515,36 @@
           case "file":
           case "symlink": {
             const base = [rename, duplicate];
+            const extension = item.name.includes(".")
+              ? item.name.split(".").at(-1)
+              : undefined;
+            switch (extension) {
+              case "ts":
+                base.push({
+                  content: snippets.execute,
+                  ...suggest(commands.run(item.path, "npx --yes tsx")),
+                });
+                break;
+              case "json":
+                if (item.name === "package.json") {
+                  try {
+                    const packageJson = JSON.parse(
+                      await fs.readFile(item.path, "utf-8"),
+                    );
+                    if (packageJson.scripts) {
+                      const keys = Object.keys(packageJson.scripts);
+                      for (const script of keys)
+                        base.push({
+                          content: snippets.execute,
+                          ...suggest(commands.run(script, `npm run`)),
+                        });
+                      setExecutionDetailHack(keys);
+                    }
+                  } catch {}
+                }
+            }
 
-            return [rename, duplicate];
+            return base;
           }
           case "folder": {
             const addFile: ContextItem = {
